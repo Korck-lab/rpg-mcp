@@ -11,7 +11,18 @@ import { randomUUID } from 'crypto';
 
 function getRepo() {
     const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
-    return new CalculationRepository(db);
+    return { repo: new CalculationRepository(db), db };
+}
+
+function logCalculationEvent(db: any, calculationId: string, type: string, sessionId?: string) {
+    db.prepare(`
+        INSERT INTO event_logs (type, payload, timestamp)
+        VALUES (?, ?, ?)
+    `).run('calculation', JSON.stringify({
+        calculationId,
+        calculationType: type,
+        sessionId
+    }), new Date().toISOString());
 }
 
 // Tool Definitions
@@ -65,7 +76,7 @@ export const MathTools = {
 // Handlers
 
 export async function handleDiceRoll(args: z.infer<typeof MathTools.DICE_ROLL.inputSchema> & { sessionId?: string }) {
-    const repo = getRepo();
+    const { repo, db } = getRepo();
     const engine = new DiceEngine(args.seed);
     const exporter = new ExportEngine();
 
@@ -79,6 +90,7 @@ export async function handleDiceRoll(args: z.infer<typeof MathTools.DICE_ROLL.in
     };
 
     repo.create(calculation);
+    logCalculationEvent(db, calculation.id, 'dice_roll', args.sessionId);
 
     return {
         content: [
@@ -91,7 +103,7 @@ export async function handleDiceRoll(args: z.infer<typeof MathTools.DICE_ROLL.in
 }
 
 export async function handleProbabilityCalculate(args: z.infer<typeof MathTools.PROBABILITY_CALCULATE.inputSchema> & { sessionId?: string }) {
-    const repo = getRepo();
+    const { repo, db } = getRepo();
     const engine = new ProbabilityEngine();
     const exporter = new ExportEngine();
 
@@ -117,6 +129,7 @@ export async function handleProbabilityCalculate(args: z.infer<typeof MathTools.
     };
 
     repo.create(calculation);
+    logCalculationEvent(db, calculation.id, 'probability', args.sessionId);
 
     return {
         content: [
@@ -129,7 +142,7 @@ export async function handleProbabilityCalculate(args: z.infer<typeof MathTools.
 }
 
 export async function handleAlgebraSolve(args: z.infer<typeof MathTools.ALGEBRA_SOLVE.inputSchema> & { sessionId?: string }) {
-    const repo = getRepo();
+    const { repo, db } = getRepo();
     const engine = new AlgebraEngine();
     const exporter = new ExportEngine();
 
@@ -142,6 +155,7 @@ export async function handleAlgebraSolve(args: z.infer<typeof MathTools.ALGEBRA_
     };
 
     repo.create(calculation);
+    logCalculationEvent(db, calculation.id, 'algebra_solve', args.sessionId);
 
     return {
         content: [
@@ -154,7 +168,7 @@ export async function handleAlgebraSolve(args: z.infer<typeof MathTools.ALGEBRA_
 }
 
 export async function handleAlgebraSimplify(args: z.infer<typeof MathTools.ALGEBRA_SIMPLIFY.inputSchema> & { sessionId?: string }) {
-    const repo = getRepo();
+    const { repo, db } = getRepo();
     const engine = new AlgebraEngine();
     const exporter = new ExportEngine();
 
@@ -167,6 +181,7 @@ export async function handleAlgebraSimplify(args: z.infer<typeof MathTools.ALGEB
     };
 
     repo.create(calculation);
+    logCalculationEvent(db, calculation.id, 'algebra_simplify', args.sessionId);
 
     return {
         content: [
@@ -179,7 +194,7 @@ export async function handleAlgebraSimplify(args: z.infer<typeof MathTools.ALGEB
 }
 
 export async function handlePhysicsProjectile(args: z.infer<typeof MathTools.PHYSICS_PROJECTILE.inputSchema> & { sessionId?: string }) {
-    const repo = getRepo();
+    const { repo, db } = getRepo();
     const engine = new PhysicsEngine();
     const exporter = new ExportEngine();
 
@@ -192,6 +207,7 @@ export async function handlePhysicsProjectile(args: z.infer<typeof MathTools.PHY
     };
 
     repo.create(calculation);
+    logCalculationEvent(db, calculation.id, 'physics_projectile', args.sessionId);
 
     return {
         content: [

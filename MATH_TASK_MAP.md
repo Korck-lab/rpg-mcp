@@ -125,7 +125,7 @@ src/
 | 8.1 | Create calculations migration | `id, session_id, input, result, seed, timestamp` | Migration runs |
 | 8.2 | Implement `CalculationRepository` | CRUD following existing pattern | Matches repo style |
 | 8.3 | Implement history queries | By session, type, timerange | `getBySession(id)` works |
-| 8.4 | Add calculation to event log | Integrate with event system | Appears in replay |
+| 8.4 | Add calculation to event log | Integrate with event system | Appears in replay ✅ |
 
 ---
 
