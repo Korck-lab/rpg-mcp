@@ -34,7 +34,7 @@ This document serves as the master index for the development of the RPG-MCP Serv
 - **Full Persistence**: Calculation history with event logging
 - **5 MCP Tools**: dice_roll, probability_calculate, algebra_solve, algebra_simplify, physics_projectile
 - Tests: 5/5 integration tests passing
-- Documentation: [Math Engine Walkthrough](../walkthrough.md)
+- Documentation: [Math Engine Walkthrough](diary/MATH_ENGINE_WALKTHROUGH.md)
 
 ## 4. Technical Challenges & Reflections
 - **[Reflection: Event Streaming & Auditing](diary/REFLECTION.md)**: A deep dive into the implementation of the Event System and Audit Logging. Discusses architecture decisions, testing strategies, and lessons learned.
