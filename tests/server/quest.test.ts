@@ -1,0 +1,125 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { handleCreateQuest, handleAssignQuest, handleUpdateObjective, handleCompleteQuest, handleGetQuestLog } from '../../src/server/quest-tools';
+import { handleCreateWorld } from '../../src/server/crud-tools';
+import { handleCreateCharacter } from '../../src/server/crud-tools';
+import { handleCreateItemTemplate, handleGetInventory } from '../../src/server/inventory-tools';
+import { closeDb, getDb } from '../../src/storage';
+import { Quest } from '../../src/schema/quest';
+
+describe('Quest System', () => {
+    let worldId: string;
+    let characterId: string;
+    let itemId: string;
+
+    beforeEach(async () => {
+        // Reset DB
+        closeDb();
+        getDb(':memory:');
+
+        // Create World
+        const worldResult = await handleCreateWorld({
+            name: 'Test World',
+            seed: 'test-seed',
+            width: 10,
+            height: 10
+        }, { sessionId: 'test' });
+        const worldData = JSON.parse(worldResult.content[0].text);
+        worldId = worldData.id;
+
+        // Create Character
+        const charResult = await handleCreateCharacter({
+            name: 'Hero',
+            stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+            hp: 10,
+            maxHp: 10,
+            ac: 10,
+            level: 1
+        }, { sessionId: 'test' });
+        const charData = JSON.parse(charResult.content[0].text);
+        characterId = charData.id;
+
+        // Create Item Template (for reward)
+        const itemResult = await handleCreateItemTemplate({
+            name: 'Reward Sword',
+            type: 'weapon',
+            weight: 1,
+            value: 10
+        }, { sessionId: 'test' });
+        const itemData = JSON.parse(itemResult.content[0].text);
+        itemId = itemData.id;
+    });
+
+    afterEach(() => {
+        closeDb();
+    });
+
+    it('should create, assign, update, and complete a quest', async () => {
+        // 1. Create Quest
+        const questResult = await handleCreateQuest({
+            worldId,
+            name: 'Kill Rats',
+            description: 'Kill 5 rats in the basement.',
+            status: 'available',
+            objectives: [{
+                id: 'obj-1',
+                description: 'Kill rats',
+                type: 'kill',
+                target: 'rat',
+                required: 5,
+                current: 0
+            }],
+            rewards: {
+                experience: 100,
+                gold: 50,
+                items: [itemId]
+            }
+        }, { sessionId: 'test' });
+        const quest = JSON.parse(questResult.content[0].text) as Quest;
+        expect(quest.name).toBe('Kill Rats');
+
+        // 2. Assign Quest
+        await handleAssignQuest({
+            characterId,
+            questId: quest.id
+        }, { sessionId: 'test' });
+
+        // Verify Log
+        let logResult = await handleGetQuestLog({ characterId }, { sessionId: 'test' });
+        let log = JSON.parse(logResult.content[0].text);
+        expect(log.activeQuests).toContain(quest.id);
+
+        // 3. Update Objective
+        await handleUpdateObjective({
+            characterId,
+            questId: quest.id,
+            objectiveId: 'obj-1',
+            progress: 3
+        }, { sessionId: 'test' });
+
+        // Update again to complete
+        await handleUpdateObjective({
+            characterId,
+            questId: quest.id,
+            objectiveId: 'obj-1',
+            progress: 2
+        }, { sessionId: 'test' });
+
+        // 4. Complete Quest
+        await handleCompleteQuest({
+            characterId,
+            questId: quest.id
+        }, { sessionId: 'test' });
+
+        // Verify Log
+        logResult = await handleGetQuestLog({ characterId }, { sessionId: 'test' });
+        log = JSON.parse(logResult.content[0].text);
+        expect(log.activeQuests).not.toContain(quest.id);
+        expect(log.completedQuests).toContain(quest.id);
+
+        // Verify Reward (Item)
+        const invResult = await handleGetInventory({ characterId }, { sessionId: 'test' });
+        const inv = JSON.parse(invResult.content[0].text);
+        expect(inv.items).toHaveLength(1);
+        expect(inv.items[0].itemId).toBe(itemId);
+    });
+});

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { PubSub } from '../engine/pubsub';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { withSession } from './types';
 
 export const EventTools = {
     SUBSCRIBE: {
@@ -15,32 +16,60 @@ Supported topics: 'world', 'combat'.`,
     }
 } as const;
 
+// Track subscriptions per session
+const activeSubscriptions: Map<string, Array<() => void>> = new Map();
+
 export function registerEventTools(server: McpServer, pubsub: PubSub) {
     server.tool(
         EventTools.SUBSCRIBE.name,
         EventTools.SUBSCRIBE.description,
-        EventTools.SUBSCRIBE.inputSchema.shape,
-        async (args: any) => {
-            const parsed = EventTools.SUBSCRIBE.inputSchema.parse(args);
+        EventTools.SUBSCRIBE.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        withSession(EventTools.SUBSCRIBE.inputSchema, async (args, ctx) => {
+            const { sessionId } = ctx;
 
-            for (const topic of parsed.topics) {
-                pubsub.subscribe(topic, (payload) => {
+            // Clean up previous subscriptions for this session
+            const existing = activeSubscriptions.get(sessionId) || [];
+            existing.forEach(unsub => unsub());
+
+            const newSubs: Array<() => void> = [];
+
+            for (const topic of args.topics) {
+                const unsub = pubsub.subscribe(topic, (payload) => {
                     server.server.notification({
                         method: 'notifications/rpg/event',
                         params: {
                             topic,
-                            payload
+                            payload,
+                            sessionId // Optional: include sessionId in notification so client knows which session it's for
                         }
                     });
                 });
+                newSubs.push(unsub);
             }
+
+            activeSubscriptions.set(sessionId, newSubs);
 
             return {
                 content: [{
                     type: 'text',
-                    text: `Subscribed to topics: ${parsed.topics.join(', ')}`
+                    text: `Subscribed to topics: ${args.topics.join(', ')}`
                 }]
             };
-        }
+        })
+    );
+
+    // Add unsubscribe tool
+    const unsubscribeSchema = z.object({});
+    server.tool(
+        'unsubscribe_from_events',
+        'Unsubscribe from all event topics',
+        unsubscribeSchema.extend({ sessionId: z.string().optional() }).shape,
+        withSession(unsubscribeSchema, async (_args, ctx) => {
+            const { sessionId } = ctx;
+            const subs = activeSubscriptions.get(sessionId) || [];
+            subs.forEach(unsub => unsub());
+            activeSubscriptions.delete(sessionId);
+            return { content: [{ type: 'text', text: 'Unsubscribed from all topics' }] };
+        })
     );
 }

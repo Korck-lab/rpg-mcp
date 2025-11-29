@@ -8,7 +8,7 @@ describe('Server Tools', () => {
             seed: 'test-seed',
             width: 20,
             height: 20
-        });
+        }, { sessionId: 'test-session' });
 
         expect(result.content).toBeDefined();
         expect(result.content[0].type).toBe('text');

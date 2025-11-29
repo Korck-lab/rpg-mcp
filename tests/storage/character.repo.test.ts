@@ -5,7 +5,7 @@ import { initDB } from '../../src/storage/db';
 import { migrate } from '../../src/storage/migrations';
 import { CharacterRepository } from '../../src/storage/repos/character.repo';
 import { Character, NPC } from '../../src/schema/character';
-import { FIXED_TIMESTAMP } from '../fixtures';
+import { FIXED_TIMESTAMP } from '../fixtures.js';
 
 const TEST_DB_PATH = 'test-character-repo.db';
 
@@ -68,5 +68,49 @@ describe('CharacterRepository', () => {
         const retrieved = repo.findById('npc-1') as NPC;
         expect(retrieved).toEqual(npc);
         expect(retrieved.factionId).toBe('guards');
+    });
+
+    it('should update a character', () => {
+        const character: Character = {
+            id: 'char-1',
+            name: 'Hero',
+            stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+            hp: 20,
+            maxHp: 20,
+            ac: 15,
+            level: 1,
+            createdAt: FIXED_TIMESTAMP,
+            updatedAt: FIXED_TIMESTAMP,
+        };
+
+        repo.create(character);
+
+        const updated = repo.update('char-1', { hp: 15, level: 2 });
+        expect(updated).not.toBeNull();
+        expect(updated?.hp).toBe(15);
+        expect(updated?.level).toBe(2);
+        expect(updated?.updatedAt).not.toBe(FIXED_TIMESTAMP); // Should update timestamp
+
+        const retrieved = repo.findById('char-1');
+        expect(retrieved?.hp).toBe(15);
+        expect(retrieved?.level).toBe(2);
+    });
+
+    it('should find all characters', () => {
+        const c1: Character = {
+            id: 'c1', name: 'C1', stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+            hp: 10, maxHp: 10, ac: 10, level: 1, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP
+        };
+        const c2: Character = {
+            id: 'c2', name: 'C2', stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+            hp: 10, maxHp: 10, ac: 10, level: 1, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP
+        };
+
+        repo.create(c1);
+        repo.create(c2);
+
+        const all = repo.findAll();
+        expect(all).toHaveLength(2);
+        expect(all.map(c => c.id).sort()).toEqual(['c1', 'c2']);
     });
 });

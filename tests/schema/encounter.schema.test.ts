@@ -6,11 +6,15 @@ describe('TokenSchema', () => {
     it('should validate a valid token', () => {
         const validToken = {
             id: 'token-1',
-            characterId: 'char-123',
-            x: 10,
-            y: 15,
+            name: 'Hero',
+            initiativeBonus: 2,
             hp: 20,
-            conditions: ['prone'],
+            maxHp: 20,
+            conditions: [{
+                id: 'cond-1',
+                type: 'prone',
+                durationType: 'save_ends'
+            }],
         };
 
         const result = TokenSchema.safeParse(validToken);
@@ -26,10 +30,10 @@ describe('EncounterSchema', () => {
             tokens: [
                 {
                     id: 'token-1',
-                    characterId: 'char-123',
-                    x: 10,
-                    y: 15,
+                    name: 'Hero',
+                    initiativeBonus: 2,
                     hp: 20,
+                    maxHp: 20,
                     conditions: [],
                 },
             ],

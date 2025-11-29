@@ -3,8 +3,12 @@ import { CombatEngine, CombatParticipant } from '../engine/combat/engine';
 
 import { PubSub } from '../engine/pubsub';
 
+import { getCombatManager } from './state/combat-manager';
+import { getDb } from '../storage';
+import { EncounterRepository } from '../storage/repos/encounter.repo';
+import { SessionContext } from './types';
+
 // Global combat state (in-memory for MVP)
-let currentEncounter: { engine: CombatEngine; id: string } | null = null;
 let pubsub: PubSub | null = null;
 
 export function setCombatPubSub(instance: PubSub) {
@@ -52,7 +56,9 @@ Example:
     GET_ENCOUNTER_STATE: {
         name: 'get_encounter_state',
         description: 'Get the current state of the active combat encounter.',
-        inputSchema: z.object({})
+        inputSchema: z.object({
+            encounterId: z.string().describe('The ID of the encounter')
+        })
     },
     EXECUTE_COMBAT_ACTION: {
         name: 'execute_combat_action',
@@ -75,6 +81,7 @@ Examples:
   "amount": 8
 }`,
         inputSchema: z.object({
+            encounterId: z.string().describe('The ID of the encounter'),
             action: z.enum(['attack', 'heal']),
             actorId: z.string(),
             targetId: z.string(),
@@ -87,20 +94,29 @@ Examples:
     ADVANCE_TURN: {
         name: 'advance_turn',
         description: 'Advance to the next combatant\'s turn.',
-        inputSchema: z.object({})
+        inputSchema: z.object({
+            encounterId: z.string().describe('The ID of the encounter')
+        })
     },
     END_ENCOUNTER: {
         name: 'end_encounter',
         description: 'End the current combat encounter.',
-        inputSchema: z.object({})
+        inputSchema: z.object({
+            encounterId: z.string().describe('The ID of the encounter')
+        })
+    },
+    LOAD_ENCOUNTER: {
+        name: 'load_encounter',
+        description: 'Load a combat encounter from the database.',
+        inputSchema: z.object({
+            encounterId: z.string().describe('The ID of the encounter to load')
+        })
     }
 } as const;
 
 // Tool handlers
-export async function handleCreateEncounter(args: unknown) {
-    if (currentEncounter) {
-        throw new Error('An encounter is already in progress. End it first.');
-    }
+export async function handleCreateEncounter(args: unknown, ctx: SessionContext) {
+    // No need to check for existing encounter globally anymore
 
     const parsed = CombatTools.CREATE_ENCOUNTER.inputSchema.parse(args);
 
@@ -118,7 +134,32 @@ export async function handleCreateEncounter(args: unknown) {
 
     // Generate encounter ID
     const encounterId = `encounter-${parsed.seed}-${Date.now()}`;
-    currentEncounter = { engine, id: encounterId };
+    // Store with session namespace
+    getCombatManager().create(`${ctx.sessionId}:${encounterId}`, engine);
+
+    // Persist initial state
+    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const repo = new EncounterRepository(db);
+
+    // Create the encounter record first
+    repo.create({
+        id: encounterId,
+        // regionId is optional
+        tokens: state.participants.map(p => ({
+            id: p.id,
+            name: p.name,
+            initiativeBonus: p.initiativeBonus,
+            hp: p.hp,
+            maxHp: p.maxHp,
+            conditions: p.conditions,
+            abilityScores: p.abilityScores
+        })),
+        round: state.round,
+        activeTokenId: state.turnOrder[state.currentTurnIndex],
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    });
 
     const currentParticipant = engine.getCurrentParticipant();
 
@@ -138,26 +179,27 @@ export async function handleCreateEncounter(args: unknown) {
     };
 }
 
-export async function handleGetEncounterState(args: unknown) {
-    if (!currentEncounter) {
-        throw new Error('No active encounter. Create one first.');
+export async function handleGetEncounterState(args: unknown, ctx: SessionContext) {
+    const parsed = CombatTools.GET_ENCOUNTER_STATE.inputSchema.parse(args);
+    const engine = getCombatManager().get(`${ctx.sessionId}:${parsed.encounterId}`);
+
+    if (!engine) {
+        throw new Error(`Encounter ${parsed.encounterId} not found.`);
     }
 
-    CombatTools.GET_ENCOUNTER_STATE.inputSchema.parse(args);
-
-    const state = currentEncounter.engine.getState();
+    const state = engine.getState();
     if (!state) {
         throw new Error('No active encounter');
     }
 
-    const currentParticipant = currentEncounter.engine.getCurrentParticipant();
+    const currentParticipant = engine.getCurrentParticipant();
 
     return {
         content: [
             {
                 type: 'text' as const,
                 text: JSON.stringify({
-                    encounterId: currentEncounter.id,
+                    encounterId: parsed.encounterId,
                     round: state.round,
                     currentTurn: {
                         participantId: currentParticipant?.id,
@@ -177,13 +219,13 @@ export async function handleGetEncounterState(args: unknown) {
     };
 }
 
-export async function handleExecuteCombatAction(args: unknown) {
-    if (!currentEncounter) {
-        throw new Error('No active encounter. Create one first.');
-    }
-
+export async function handleExecuteCombatAction(args: unknown, ctx: SessionContext) {
     const parsed = CombatTools.EXECUTE_COMBAT_ACTION.inputSchema.parse(args);
-    const { engine } = currentEncounter;
+    const engine = getCombatManager().get(`${ctx.sessionId}:${parsed.encounterId}`);
+
+    if (!engine) {
+        throw new Error(`Encounter ${parsed.encounterId} not found.`);
+    }
 
     let result: any = {
         action: parsed.action,
@@ -218,6 +260,14 @@ export async function handleExecuteCombatAction(args: unknown) {
         result.amountHealed = parsed.amount;
     }
 
+    // Save state
+    const state = engine.getState();
+    if (state) {
+        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const repo = new EncounterRepository(db);
+        repo.saveState(parsed.encounterId, state);
+    }
+
     return {
         content: [
             {
@@ -228,16 +278,24 @@ export async function handleExecuteCombatAction(args: unknown) {
     };
 }
 
-export async function handleAdvanceTurn(args: unknown) {
-    if (!currentEncounter) {
-        throw new Error('No active encounter. Create one first.');
+export async function handleAdvanceTurn(args: unknown, ctx: SessionContext) {
+    const parsed = CombatTools.ADVANCE_TURN.inputSchema.parse(args);
+    const engine = getCombatManager().get(`${ctx.sessionId}:${parsed.encounterId}`);
+
+    if (!engine) {
+        throw new Error(`Encounter ${parsed.encounterId} not found.`);
     }
 
-    CombatTools.ADVANCE_TURN.inputSchema.parse(args);
+    const previousParticipant = engine.getCurrentParticipant();
+    const newParticipant = engine.nextTurnWithConditions();
+    const state = engine.getState();
 
-    const previousParticipant = currentEncounter.engine.getCurrentParticipant();
-    const newParticipant = currentEncounter.engine.nextTurnWithConditions();
-    const state = currentEncounter.engine.getState();
+    // Save state
+    if (state) {
+        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const repo = new EncounterRepository(db);
+        repo.saveState(parsed.encounterId, state);
+    }
 
     return {
         content: [
@@ -253,15 +311,13 @@ export async function handleAdvanceTurn(args: unknown) {
     };
 }
 
-export async function handleEndEncounter(args: unknown) {
-    if (!currentEncounter) {
-        throw new Error('No active encounter.');
+export async function handleEndEncounter(args: unknown, ctx: SessionContext) {
+    const parsed = CombatTools.END_ENCOUNTER.inputSchema.parse(args);
+    const success = getCombatManager().delete(`${ctx.sessionId}:${parsed.encounterId}`);
+
+    if (!success) {
+        throw new Error(`Encounter ${parsed.encounterId} not found.`);
     }
-
-    CombatTools.END_ENCOUNTER.inputSchema.parse(args);
-
-    const encounterId = currentEncounter.id;
-    currentEncounter = null;
 
     return {
         content: [
@@ -269,14 +325,42 @@ export async function handleEndEncounter(args: unknown) {
                 type: 'text' as const,
                 text: JSON.stringify({
                     message: 'Encounter ended',
-                    encounterId
+                    encounterId: parsed.encounterId
                 }, null, 2)
             }
         ]
     };
 }
 
+export async function handleLoadEncounter(args: unknown, ctx: SessionContext) {
+    const parsed = CombatTools.LOAD_ENCOUNTER.inputSchema.parse(args);
+    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const repo = new EncounterRepository(db);
+
+    const state = repo.loadState(parsed.encounterId);
+    if (!state) {
+        throw new Error(`Encounter ${parsed.encounterId} not found in database.`);
+    }
+
+    // Create engine and load state
+    const engine = new CombatEngine(parsed.encounterId, pubsub || undefined);
+    engine.loadState(state);
+
+    getCombatManager().create(`${ctx.sessionId}:${parsed.encounterId}`, engine);
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+                message: 'Encounter loaded',
+                encounterId: parsed.encounterId,
+                round: state.round
+            }, null, 2)
+        }]
+    };
+}
+
 // Helper for tests
 export function clearCombatState() {
-    currentEncounter = null;
+    // No-op or clear manager
 }

@@ -91,6 +91,13 @@ export class CombatEngine {
     }
 
     /**
+     * Load an existing combat state
+     */
+    loadState(state: CombatState): void {
+        this.state = state;
+    }
+
+    /**
      * Get the participant whose turn it currently is
      */
     getCurrentParticipant(): CombatParticipant | null {

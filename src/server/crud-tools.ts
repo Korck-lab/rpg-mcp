@@ -6,6 +6,7 @@ import { World, WorldSchema } from '../schema/world';
 import { Character, CharacterSchema, NPC, NPCSchema } from '../schema/character';
 
 import { getDb, closeDb } from '../storage';
+import { SessionContext } from './types';
 
 function ensureDb() {
     const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
@@ -107,7 +108,7 @@ Example:
 } as const;
 
 // World handlers
-export async function handleCreateWorld(args: unknown) {
+export async function handleCreateWorld(args: unknown, ctx: SessionContext) {
     const { worldRepo } = ensureDb();
     const parsed = CRUDTools.CREATE_WORLD.inputSchema.parse(args);
 
@@ -129,7 +130,7 @@ export async function handleCreateWorld(args: unknown) {
     };
 }
 
-export async function handleGetWorld(args: unknown) {
+export async function handleGetWorld(args: unknown, ctx: SessionContext) {
     const { worldRepo } = ensureDb();
     const parsed = CRUDTools.GET_WORLD.inputSchema.parse(args);
 
@@ -146,7 +147,7 @@ export async function handleGetWorld(args: unknown) {
     };
 }
 
-export async function handleListWorlds(args: unknown) {
+export async function handleListWorlds(args: unknown, ctx: SessionContext) {
     const { worldRepo } = ensureDb();
     CRUDTools.LIST_WORLDS.inputSchema.parse(args);
 
@@ -163,7 +164,7 @@ export async function handleListWorlds(args: unknown) {
     };
 }
 
-export async function handleDeleteWorld(args: unknown) {
+export async function handleDeleteWorld(args: unknown, ctx: SessionContext) {
     const { worldRepo } = ensureDb();
     const parsed = CRUDTools.DELETE_WORLD.inputSchema.parse(args);
 
@@ -181,7 +182,7 @@ export async function handleDeleteWorld(args: unknown) {
 }
 
 // Character handlers
-export async function handleCreateCharacter(args: unknown) {
+export async function handleCreateCharacter(args: unknown, ctx: SessionContext) {
     const { charRepo } = ensureDb();
     const parsed = CRUDTools.CREATE_CHARACTER.inputSchema.parse(args);
 
@@ -203,7 +204,7 @@ export async function handleCreateCharacter(args: unknown) {
     };
 }
 
-export async function handleGetCharacter(args: unknown) {
+export async function handleGetCharacter(args: unknown, ctx: SessionContext) {
     const { charRepo } = ensureDb();
     const parsed = CRUDTools.GET_CHARACTER.inputSchema.parse(args);
 
@@ -220,31 +221,19 @@ export async function handleGetCharacter(args: unknown) {
     };
 }
 
-export async function handleUpdateCharacter(args: unknown) {
-    const { charRepo, db } = ensureDb();
+export async function handleUpdateCharacter(args: unknown, ctx: SessionContext) {
+    const { charRepo } = ensureDb();
     const parsed = CRUDTools.UPDATE_CHARACTER.inputSchema.parse(args);
 
-    // Get existing character
-    const existing = charRepo.findById(parsed.id);
-    if (!existing) {
-        throw new Error(`Character not found: ${parsed.id}`);
-    }
-
-    // Update fields
-    const updated = {
-        ...existing,
+    // Update using repository
+    const updated = charRepo.update(parsed.id, {
         ...(parsed.hp !== undefined && { hp: parsed.hp }),
-        ...(parsed.level !== undefined && { level: parsed.level }),
-        updatedAt: new Date().toISOString()
-    };
+        ...(parsed.level !== undefined && { level: parsed.level })
+    });
 
-    // Update in database (manual SQL since repo doesn't have update method)
-    const stmt = db.prepare(`
-        UPDATE characters
-        SET hp = ?, level = ?, updated_at = ?
-        WHERE id = ?
-    `);
-    stmt.run(updated.hp, updated.level, updated.updatedAt, updated.id);
+    if (!updated) {
+        throw new Error(`Failed to update character: ${parsed.id}`);
+    }
 
     return {
         content: [{
@@ -254,26 +243,11 @@ export async function handleUpdateCharacter(args: unknown) {
     };
 }
 
-export async function handleListCharacters(args: unknown) {
-    const { db } = ensureDb();
+export async function handleListCharacters(args: unknown, ctx: SessionContext) {
+    const { charRepo } = ensureDb();
     CRUDTools.LIST_CHARACTERS.inputSchema.parse(args);
 
-    const stmt = db.prepare('SELECT * FROM characters');
-    const rows = stmt.all() as any[];
-
-    const characters = rows.map(row => ({
-        id: row.id,
-        name: row.name,
-        stats: JSON.parse(row.stats),
-        hp: row.hp,
-        maxHp: row.max_hp,
-        ac: row.ac,
-        level: row.level,
-        factionId: row.faction_id,
-        behavior: row.behavior,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at
-    }));
+    const characters = charRepo.findAll();
 
     return {
         content: [{
@@ -286,7 +260,7 @@ export async function handleListCharacters(args: unknown) {
     };
 }
 
-export async function handleDeleteCharacter(args: unknown) {
+export async function handleDeleteCharacter(args: unknown, ctx: SessionContext) {
     const { db } = ensureDb();
     const parsed = CRUDTools.DELETE_CHARACTER.inputSchema.parse(args);
 

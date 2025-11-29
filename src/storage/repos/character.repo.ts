@@ -34,7 +34,53 @@ export class CharacterRepository {
         const row = stmt.get(id) as CharacterRow | undefined;
 
         if (!row) return null;
+        return this.rowToCharacter(row);
+    }
 
+    findAll(): (Character | NPC)[] {
+        const stmt = this.db.prepare('SELECT * FROM characters');
+        const rows = stmt.all() as CharacterRow[];
+        return rows.map(row => this.rowToCharacter(row));
+    }
+
+    update(id: string, updates: Partial<Character | NPC>): Character | NPC | null {
+        const existing = this.findById(id);
+        if (!existing) return null;
+
+        const updated = {
+            ...existing,
+            ...updates,
+            updatedAt: new Date().toISOString()
+        };
+
+        // Validate
+        const isNPC = 'factionId' in updated || 'behavior' in updated;
+        const validChar = isNPC ? NPCSchema.parse(updated) : CharacterSchema.parse(updated);
+
+        const stmt = this.db.prepare(`
+            UPDATE characters
+            SET name = ?, stats = ?, hp = ?, max_hp = ?, ac = ?, level = ?,
+                faction_id = ?, behavior = ?, updated_at = ?
+            WHERE id = ?
+        `);
+
+        stmt.run(
+            validChar.name,
+            JSON.stringify(validChar.stats),
+            validChar.hp,
+            validChar.maxHp,
+            validChar.ac,
+            validChar.level,
+            (validChar as NPC).factionId || null,
+            (validChar as NPC).behavior || null,
+            validChar.updatedAt,
+            id
+        );
+
+        return validChar;
+    }
+
+    private rowToCharacter(row: CharacterRow): Character | NPC {
         const base = {
             id: row.id,
             name: row.name,

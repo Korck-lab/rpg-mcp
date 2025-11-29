@@ -65,7 +65,14 @@ describe('EncounterRepository', () => {
             id: 'enc-1',
             regionId: 'region-1',
             tokens: [
-                { id: 't1', characterId: 'c1', x: 0, y: 0, hp: 10, conditions: [] },
+                {
+                    id: 't1',
+                    name: 'Hero',
+                    initiativeBonus: 0,
+                    hp: 10,
+                    maxHp: 10,
+                    conditions: []
+                },
             ],
             round: 1,
             activeTokenId: 't1',

@@ -12,7 +12,7 @@ export class EncounterRepository {
     `);
         stmt.run({
             id: validEncounter.id,
-            regionId: validEncounter.regionId,
+            regionId: validEncounter.regionId || null,
             tokens: JSON.stringify(validEncounter.tokens),
             round: validEncounter.round,
             activeTokenId: validEncounter.activeTokenId || null,
@@ -39,11 +39,50 @@ export class EncounterRepository {
             })
         );
     }
+    saveState(encounterId: string, state: any): void {
+        const stmt = this.db.prepare(`
+            UPDATE encounters 
+            SET tokens = ?, round = ?, active_token_id = ?, status = ?, updated_at = ?
+            WHERE id = ?
+        `);
+
+        // Map CombatState to DB format
+        // We store participants in 'tokens' column
+        const currentTurnId = state.turnOrder[state.currentTurnIndex];
+
+        stmt.run(
+            JSON.stringify(state.participants),
+            state.round,
+            currentTurnId,
+            'active',
+            new Date().toISOString(),
+            encounterId
+        );
+    }
+
+    loadState(encounterId: string): any | null {
+        const row = this.findById(encounterId);
+        if (!row) return null;
+
+        const participants = JSON.parse(row.tokens);
+
+        return {
+            participants: participants,
+            turnOrder: participants.map((p: any) => p.id), // This assumes participants are sorted by turn order
+            currentTurnIndex: participants.findIndex((p: any) => p.id === row.active_token_id),
+            round: row.round
+        };
+    }
+
+    findById(id: string): EncounterRow | undefined {
+        const stmt = this.db.prepare('SELECT * FROM encounters WHERE id = ?');
+        return stmt.get(id) as EncounterRow | undefined;
+    }
 }
 
 interface EncounterRow {
     id: string;
-    region_id: string;
+    region_id: string | null;
     tokens: string;
     round: number;
     active_token_id: string | null;

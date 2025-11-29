@@ -156,4 +156,64 @@ describe('DSL Parser', () => {
             throw new Error('Expected ADD_STRUCTURE command');
         }
     });
+
+    describe('Positional Arguments', () => {
+        it('should parse ADD_STRUCTURE with positional args', () => {
+            const script = `ADD_STRUCTURE city 10 20 "My City"`;
+            const commands = parseDSL(script);
+            expect(commands).toHaveLength(1);
+            expect(commands[0]).toEqual({
+                command: CommandType.ADD_STRUCTURE,
+                args: {
+                    type: StructureType.CITY,
+                    x: 10,
+                    y: 20,
+                    name: 'My City'
+                }
+            });
+        });
+
+        it('should parse ADD_STRUCTURE with positional args and default name', () => {
+            const script = `ADD_STRUCTURE village 5 5`;
+            const commands = parseDSL(script);
+            expect(commands).toHaveLength(1);
+            expect(commands[0]).toEqual({
+                command: CommandType.ADD_STRUCTURE,
+                args: {
+                    type: StructureType.VILLAGE,
+                    x: 5,
+                    y: 5,
+                    name: 'village' // Defaulted to type
+                }
+            });
+        });
+
+        it('should parse SET_BIOME with positional args', () => {
+            const script = `SET_BIOME grassland 15 15`;
+            const commands = parseDSL(script);
+            expect(commands).toHaveLength(1);
+            expect(commands[0]).toEqual({
+                command: CommandType.SET_BIOME,
+                args: {
+                    type: BiomeType.GRASSLAND,
+                    x: 15,
+                    y: 15
+                }
+            });
+        });
+
+        it('should parse EDIT_TILE with positional args', () => {
+            const script = `EDIT_TILE 2 2 50`;
+            const commands = parseDSL(script);
+            expect(commands).toHaveLength(1);
+            expect(commands[0]).toEqual({
+                command: CommandType.EDIT_TILE,
+                args: {
+                    x: 2,
+                    y: 2,
+                    elevation: 50
+                }
+            });
+        });
+    });
 });

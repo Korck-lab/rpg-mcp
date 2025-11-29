@@ -4,9 +4,10 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "test": "node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/worldgen/terrain-quality.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/worldgen/climate-quality.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/worldgen/quality-gates.test.ts && node --max-old-space-size=6144 ./node_modules/vitest/vitest.mjs run tests/worldgen/river-generation.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/schema/biome.schema.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/schema/character.schema.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/schema/encounter.schema.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/schema/patch.schema.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/schema/region.schema.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/schema/river.schema.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/schema/structure.schema.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/schema/tile.schema.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/schema/world.schema.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/storage/character.repo.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/storage/db.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/storage/encounter.repo.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/storage/patch.repo.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/storage/region.repo.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/storage/river.repo.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/storage/structure.repo.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/storage/tile.repo.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/storage/world.repo.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/simple.test.ts && node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run tests/explicit.test.ts",
+    "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
     "build": "tsc",
     "build:binaries": "npm run build && pkg dist/server/index.js --targets node20-win-x64,node20-macos-x64,node20-linux-x64 --output bin/rpg-mcp",
     "dev": "ts-node src/index.ts"
@@ -27,6 +28,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.10.1",
     "@types/seedrandom": "^3.0.8",
+    "@types/ws": "^8.5.10",
     "@yao-pkg/pkg": "^6.10.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
@@ -35,8 +37,11 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.23.0",
     "better-sqlite3": "^12.4.6",
+    "mathjs": "^15.1.0",
+    "nerdamer": "^1.1.13",
     "seedrandom": "^3.0.5",
     "simplex-noise": "^4.0.3",
+    "ws": "^8.16.0",
     "zod": "^3.25.76"
   }
 }

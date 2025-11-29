@@ -1,10 +1,15 @@
 import { z } from 'zod';
-import { generateWorld, GeneratedWorld } from '../engine/worldgen/index';
+import { generateWorld } from '../engine/worldgen/index';
 
 import { PubSub } from '../engine/pubsub';
 
+import { randomUUID } from 'crypto';
+import { getWorldManager } from './state/world-manager';
+import { SessionContext } from './types';
+import { WorldRepository } from '../storage/repos/world.repo';
+import { getDb } from '../storage';
+
 // Global state for the server (in-memory for MVP)
-let currentWorld: GeneratedWorld | null = null;
 let pubsub: PubSub | null = null;
 
 export function setWorldPubSub(instance: PubSub) {
@@ -31,7 +36,9 @@ Examples:
     GET_WORLD_STATE: {
         name: 'get_world_state',
         description: 'Retrieves the current state of the generated world.',
-        inputSchema: z.object({})
+        inputSchema: z.object({
+            worldId: z.string().describe('The ID of the world to retrieve')
+        })
     },
     APPLY_MAP_PATCH: {
         name: 'apply_map_patch',
@@ -46,18 +53,22 @@ Example Script:
 ADD_STRUCTURE city 25 25
 SET_BIOME mountain 26 25`,
         inputSchema: z.object({
+            worldId: z.string().describe('The ID of the world to patch'),
             script: z.string().describe('The DSL script containing patch commands.')
         })
     },
     GET_WORLD_MAP_OVERVIEW: {
         name: 'get_world_map_overview',
         description: 'Returns a high-level overview of the world including biome distribution and statistics.',
-        inputSchema: z.object({})
+        inputSchema: z.object({
+            worldId: z.string().describe('The ID of the world to overview')
+        })
     },
     GET_REGION_MAP: {
         name: 'get_region_map',
         description: 'Returns detailed information about a specific region including its tiles and structures.',
         inputSchema: z.object({
+            worldId: z.string().describe('The ID of the world'),
             regionId: z.number().int().min(0).describe('The ID of the region to retrieve')
         })
     },
@@ -65,17 +76,36 @@ SET_BIOME mountain 26 25`,
         name: 'preview_map_patch',
         description: 'Previews what a DSL patch script would do without applying it to the world.',
         inputSchema: z.object({
+            worldId: z.string().describe('The ID of the world to preview patch on'),
             script: z.string().describe('The DSL script to preview')
         })
     }
 } as const;
 
-export async function handleGenerateWorld(args: unknown) {
+export async function handleGenerateWorld(args: unknown, ctx: SessionContext) {
     const parsed = Tools.GENERATE_WORLD.inputSchema.parse(args);
-    currentWorld = generateWorld({
+    const world = generateWorld({
         seed: parsed.seed,
         width: parsed.width,
         height: parsed.height
+    });
+
+    const worldId = randomUUID();
+    // Store with session namespace in runtime manager
+    getWorldManager().create(`${ctx.sessionId}:${worldId}`, world);
+
+    // Persist world metadata to database
+    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const worldRepo = new WorldRepository(db);
+    const now = new Date().toISOString();
+    worldRepo.create({
+        id: worldId,
+        name: `World-${parsed.seed}`,
+        seed: parsed.seed,
+        width: parsed.width,
+        height: parsed.height,
+        createdAt: now,
+        updatedAt: now
     });
 
     return {
@@ -83,13 +113,14 @@ export async function handleGenerateWorld(args: unknown) {
             {
                 type: 'text' as const,
                 text: JSON.stringify({
+                    worldId,
                     message: 'World generated successfully',
                     stats: {
-                        width: currentWorld.width,
-                        height: currentWorld.height,
-                        regions: currentWorld.regions.length,
-                        structures: currentWorld.structures.length,
-                        rivers: currentWorld.rivers.filter(r => r > 0).length
+                        width: world.width,
+                        height: world.height,
+                        regions: world.regions.length,
+                        structures: world.structures.length,
+                        rivers: world.rivers.filter(r => r > 0).length
                     }
                 }, null, 2)
             }
@@ -97,9 +128,13 @@ export async function handleGenerateWorld(args: unknown) {
     };
 }
 
-export async function handleGetWorldState() {
+export async function handleGetWorldState(args: unknown, ctx: SessionContext) {
+    const parsed = Tools.GET_WORLD_STATE.inputSchema.parse(args);
+    // Retrieve with session namespace
+    const currentWorld = getWorldManager().get(`${ctx.sessionId}:${parsed.worldId}`);
+
     if (!currentWorld) {
-        throw new Error('No world has been generated yet. Use generate_world first.');
+        throw new Error(`World ${parsed.worldId} not found.`);
     }
 
     // Return a summary to avoid overwhelming the context window
@@ -126,12 +161,13 @@ export async function handleGetWorldState() {
 import { parseDSL } from '../engine/dsl/parser';
 import { applyPatch } from '../engine/dsl/engine';
 
-export async function handleApplyMapPatch(args: unknown) {
-    if (!currentWorld) {
-        throw new Error('No world has been generated yet. Use generate_world first.');
-    }
-
+export async function handleApplyMapPatch(args: unknown, ctx: SessionContext) {
     const parsed = Tools.APPLY_MAP_PATCH.inputSchema.parse(args);
+    const currentWorld = getWorldManager().get(`${ctx.sessionId}:${parsed.worldId}`);
+
+    if (!currentWorld) {
+        throw new Error(`World ${parsed.worldId} not found.`);
+    }
 
     try {
         const commands = parseDSL(parsed.script);
@@ -167,12 +203,13 @@ export async function handleApplyMapPatch(args: unknown) {
     }
 }
 
-export async function handleGetWorldMapOverview(args: unknown) {
-    if (!currentWorld) {
-        throw new Error('No world has been generated yet. Use generate_world first.');
-    }
+export async function handleGetWorldMapOverview(args: unknown, ctx: SessionContext) {
+    const parsed = Tools.GET_WORLD_MAP_OVERVIEW.inputSchema.parse(args);
+    const currentWorld = getWorldManager().get(`${ctx.sessionId}:${parsed.worldId}`);
 
-    Tools.GET_WORLD_MAP_OVERVIEW.inputSchema.parse(args);
+    if (!currentWorld) {
+        throw new Error(`World ${parsed.worldId} not found.`);
+    }
 
     // Calculate biome distribution
     const biomeDistribution: Record<string, number> = {};
@@ -210,12 +247,14 @@ export async function handleGetWorldMapOverview(args: unknown) {
     };
 }
 
-export async function handleGetRegionMap(args: unknown) {
+export async function handleGetRegionMap(args: unknown, ctx: SessionContext) {
+    const parsed = Tools.GET_REGION_MAP.inputSchema.parse(args);
+    const currentWorld = getWorldManager().get(`${ctx.sessionId}:${parsed.worldId}`);
+
     if (!currentWorld) {
-        throw new Error('No world has been generated yet. Use generate_world first.');
+        throw new Error(`World ${parsed.worldId} not found.`);
     }
 
-    const parsed = Tools.GET_REGION_MAP.inputSchema.parse(args);
     const regionId = parsed.regionId;
 
     // Find the region
@@ -268,12 +307,13 @@ export async function handleGetRegionMap(args: unknown) {
     };
 }
 
-export async function handlePreviewMapPatch(args: unknown) {
-    if (!currentWorld) {
-        throw new Error('No world has been generated yet. Use generate_world first.');
-    }
-
+export async function handlePreviewMapPatch(args: unknown, ctx: SessionContext) {
     const parsed = Tools.PREVIEW_MAP_PATCH.inputSchema.parse(args);
+    const currentWorld = getWorldManager().get(`${ctx.sessionId}:${parsed.worldId}`);
+
+    if (!currentWorld) {
+        throw new Error(`World ${parsed.worldId} not found.`);
+    }
 
     try {
         // Parse the DSL to validate it
@@ -318,5 +358,6 @@ export async function handlePreviewMapPatch(args: unknown) {
 
 // Helper function for tests to clear world state
 export function clearWorld() {
-    currentWorld = null;
+    // No-op for now, or could clear all worlds in manager
+    // getWorldManager().clear(); // If we added a clear method
 }

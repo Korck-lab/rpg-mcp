@@ -12,6 +12,8 @@ import {
     closeTestDb
 } from '../../src/server/crud-tools';
 
+const mockCtx = { sessionId: 'test-session' };
+
 describe('World CRUD Tools', () => {
     afterEach(() => {
         closeTestDb();
@@ -24,7 +26,7 @@ describe('World CRUD Tools', () => {
                 seed: 'test-seed',
                 width: 100,
                 height: 100
-            });
+            }, mockCtx);
 
             expect(result.content).toHaveLength(1);
             const response = JSON.parse(result.content[0].text);
@@ -38,7 +40,7 @@ describe('World CRUD Tools', () => {
                 seed: 'test',
                 width: 100,
                 height: 100
-            })).rejects.toThrow();
+            }, mockCtx)).rejects.toThrow();
         });
     });
 
@@ -51,13 +53,13 @@ describe('World CRUD Tools', () => {
                 seed: 'seed-get',
                 width: 50,
                 height: 50
-            });
+            }, mockCtx);
             const world = JSON.parse(result.content[0].text);
             worldId = world.id;
         });
 
         it('should retrieve an existing world', async () => {
-            const result = await handleGetWorld({ id: worldId });
+            const result = await handleGetWorld({ id: worldId }, mockCtx);
 
             const world = JSON.parse(result.content[0].text);
             expect(world.id).toBe(worldId);
@@ -65,7 +67,7 @@ describe('World CRUD Tools', () => {
         });
 
         it('should throw error for non-existent world', async () => {
-            await expect(handleGetWorld({ id: 'non-existent' }))
+            await expect(handleGetWorld({ id: 'non-existent' }, mockCtx))
                 .rejects.toThrow('World not found');
         });
     });
@@ -80,7 +82,7 @@ describe('World CRUD Tools', () => {
                 seed: 'seed1',
                 width: 50,
                 height: 50
-            });
+            }, mockCtx);
             worldId1 = JSON.parse(result1.content[0].text).id;
 
             const result2 = await handleCreateWorld({
@@ -88,12 +90,12 @@ describe('World CRUD Tools', () => {
                 seed: 'seed2',
                 width: 60,
                 height: 60
-            });
+            }, mockCtx);
             worldId2 = JSON.parse(result2.content[0].text).id;
         });
 
         it('should list all worlds', async () => {
-            const result = await handleListWorlds({});
+            const result = await handleListWorlds({}, mockCtx);
 
             const response = JSON.parse(result.content[0].text);
             expect(response.worlds.length).toBeGreaterThanOrEqual(2);
@@ -111,18 +113,18 @@ describe('World CRUD Tools', () => {
                 seed: 'seed-delete',
                 width: 50,
                 height: 50
-            });
+            }, mockCtx);
             worldId = JSON.parse(result.content[0].text).id;
         });
 
         it('should delete a world', async () => {
-            const result = await handleDeleteWorld({ id: worldId });
+            const result = await handleDeleteWorld({ id: worldId }, mockCtx);
 
             const response = JSON.parse(result.content[0].text);
             expect(response.message).toBe('World deleted');
 
             // Verify it's gone
-            await expect(handleGetWorld({ id: worldId }))
+            await expect(handleGetWorld({ id: worldId }, mockCtx))
                 .rejects.toThrow('World not found');
         });
     });
@@ -149,7 +151,7 @@ describe('Character CRUD Tools', () => {
                 maxHp: 30,
                 ac: 16,
                 level: 3
-            });
+            }, mockCtx);
 
             expect(result.content).toHaveLength(1);
             const response = JSON.parse(result.content[0].text);
@@ -167,7 +169,7 @@ describe('Character CRUD Tools', () => {
                 level: 1,
                 factionId: 'goblins',
                 behavior: 'hostile'
-            });
+            }, mockCtx);
 
             const response = JSON.parse(result.content[0].text);
             expect(response.factionId).toBe('goblins');
@@ -186,12 +188,12 @@ describe('Character CRUD Tools', () => {
                 maxHp: 25,
                 ac: 17,
                 level: 2
-            });
+            }, mockCtx);
             charId = JSON.parse(result.content[0].text).id;
         });
 
         it('should retrieve an existing character', async () => {
-            const result = await handleGetCharacter({ id: charId });
+            const result = await handleGetCharacter({ id: charId }, mockCtx);
 
             const char = JSON.parse(result.content[0].text);
             expect(char.id).toBe(charId);
@@ -199,7 +201,7 @@ describe('Character CRUD Tools', () => {
         });
 
         it('should throw error for non-existent character', async () => {
-            await expect(handleGetCharacter({ id: 'non-existent' }))
+            await expect(handleGetCharacter({ id: 'non-existent' }, mockCtx))
                 .rejects.toThrow('Character not found');
         });
     });
@@ -215,7 +217,7 @@ describe('Character CRUD Tools', () => {
                 maxHp: 20,
                 ac: 12,
                 level: 2
-            });
+            }, mockCtx);
             charId = JSON.parse(result.content[0].text).id;
         });
 
@@ -223,7 +225,7 @@ describe('Character CRUD Tools', () => {
             const result = await handleUpdateCharacter({
                 id: charId,
                 hp: 15
-            });
+            }, mockCtx);
 
             const response = JSON.parse(result.content[0].text);
             expect(response.hp).toBe(15);
@@ -234,7 +236,7 @@ describe('Character CRUD Tools', () => {
                 id: charId,
                 hp: 18,
                 level: 3
-            });
+            }, mockCtx);
 
             const response = JSON.parse(result.content[0].text);
             expect(response.hp).toBe(18);
@@ -251,7 +253,7 @@ describe('Character CRUD Tools', () => {
                 maxHp: 22,
                 ac: 15,
                 level: 2
-            });
+            }, mockCtx);
             await handleCreateCharacter({
                 name: 'Cleric',
                 stats: { str: 14, dex: 10, con: 14, int: 10, wis: 16, cha: 12 },
@@ -259,11 +261,11 @@ describe('Character CRUD Tools', () => {
                 maxHp: 24,
                 ac: 16,
                 level: 2
-            });
+            }, mockCtx);
         });
 
         it('should list all characters', async () => {
-            const result = await handleListCharacters({});
+            const result = await handleListCharacters({}, mockCtx);
 
             const response = JSON.parse(result.content[0].text);
             expect(response.characters.length).toBeGreaterThanOrEqual(2);
@@ -281,18 +283,18 @@ describe('Character CRUD Tools', () => {
                 maxHp: 20,
                 ac: 12,
                 level: 1
-            });
+            }, mockCtx);
             charId = JSON.parse(result.content[0].text).id;
         });
 
         it('should delete a character', async () => {
-            const result = await handleDeleteCharacter({ id: charId });
+            const result = await handleDeleteCharacter({ id: charId }, mockCtx);
 
             const response = JSON.parse(result.content[0].text);
             expect(response.message).toBe('Character deleted');
 
             // Verify it's gone
-            await expect(handleGetCharacter({ id: charId }))
+            await expect(handleGetCharacter({ id: charId }, mockCtx))
                 .rejects.toThrow('Character not found');
         });
     });

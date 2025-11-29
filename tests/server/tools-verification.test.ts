@@ -12,7 +12,7 @@ describe('Registered Tools Verification', () => {
                     { id: 'p1', name: 'Player', initiativeBonus: 0, hp: 10, maxHp: 10 },
                     { id: 'e1', name: 'Enemy', initiativeBonus: 0, hp: 10, maxHp: 10 }
                 ]
-            });
+            }, { sessionId: 'test-session' });
 
             expect(result.content).toBeDefined();
             const content = JSON.parse(result.content[0].text);
@@ -32,12 +32,12 @@ describe('Registered Tools Verification', () => {
                 seed: 'test-seed',
                 width: 50,
                 height: 50
-            });
+            }, { sessionId: 'test-session' });
             const created = JSON.parse(createResult.content[0].text);
             expect(created.id).toBeDefined();
 
             // Delete
-            const deleteResult = await handleDeleteWorld({ id: created.id });
+            const deleteResult = await handleDeleteWorld({ id: created.id }, { sessionId: 'test-session' });
             const deleted = JSON.parse(deleteResult.content[0].text);
             expect(deleted.message).toBe('World deleted');
 

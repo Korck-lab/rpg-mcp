@@ -5,8 +5,12 @@ import {
     handleExecuteCombatAction,
     handleAdvanceTurn,
     handleEndEncounter,
+    handleLoadEncounter,
     clearCombatState
 } from '../../src/server/combat-tools';
+import { getCombatManager } from '../../src/server/state/combat-manager';
+
+const mockCtx = { sessionId: 'test-session' };
 
 describe('Combat MCP Tools', () => {
     beforeEach(() => {
@@ -36,7 +40,7 @@ describe('Combat MCP Tools', () => {
                         conditions: []
                     }
                 ]
-            });
+            }, mockCtx);
 
             expect(result.content).toHaveLength(1);
             const response = JSON.parse(result.content[0].text);
@@ -48,8 +52,8 @@ describe('Combat MCP Tools', () => {
             expect(response.currentTurn).toBeDefined();
         });
 
-        it('should throw error when encounter already exists', async () => {
-            await handleCreateEncounter({
+        it('should allow multiple concurrent encounters', async () => {
+            const result1 = await handleCreateEncounter({
                 seed: 'test-combat-2',
                 participants: [{
                     id: 'hero-1',
@@ -59,18 +63,33 @@ describe('Combat MCP Tools', () => {
                     maxHp: 30,
                     conditions: []
                 }]
-            });
+            }, mockCtx);
+            const id1 = JSON.parse(result1.content[0].text).encounterId;
 
-            await expect(handleCreateEncounter({
+            const result2 = await handleCreateEncounter({
                 seed: 'test-combat-3',
-                participants: []
-            })).rejects.toThrow('An encounter is already in progress');
+                participants: [{
+                    id: 'hero-2',
+                    name: 'Wizard',
+                    initiativeBonus: 1,
+                    hp: 20,
+                    maxHp: 20,
+                    conditions: []
+                }]
+            }, mockCtx);
+            const id2 = JSON.parse(result2.content[0].text).encounterId;
+
+            expect(id1).not.toBe(id2);
+
+            // Verify both exist
+            await expect(handleGetEncounterState({ encounterId: id1 }, mockCtx)).resolves.toBeDefined();
+            await expect(handleGetEncounterState({ encounterId: id2 }, mockCtx)).resolves.toBeDefined();
         });
     });
 
     describe('get_encounter_state', () => {
         it('should return current encounter state', async () => {
-            await handleCreateEncounter({
+            const createResult = await handleCreateEncounter({
                 seed: 'test-state-1',
                 participants: [
                     {
@@ -82,9 +101,10 @@ describe('Combat MCP Tools', () => {
                         conditions: []
                     }
                 ]
-            });
+            }, mockCtx);
+            const encounterId = JSON.parse(createResult.content[0].text).encounterId;
 
-            const result = await handleGetEncounterState({});
+            const result = await handleGetEncounterState({ encounterId }, mockCtx);
 
             expect(result.content).toHaveLength(1);
             const state = JSON.parse(result.content[0].text);
@@ -95,13 +115,13 @@ describe('Combat MCP Tools', () => {
         });
 
         it('should throw error when no encounter exists', async () => {
-            await expect(handleGetEncounterState({})).rejects.toThrow('No active encounter');
+            await expect(handleGetEncounterState({ encounterId: 'non-existent' }, mockCtx)).rejects.toThrow('Encounter non-existent not found');
         });
     });
 
     describe('execute_combat_action', () => {
-        beforeEach(async () => {
-            await handleCreateEncounter({
+        async function createTestEncounter() {
+            const result = await handleCreateEncounter({
                 seed: 'test-actions',
                 participants: [
                     {
@@ -121,18 +141,21 @@ describe('Combat MCP Tools', () => {
                         conditions: []
                     }
                 ]
-            });
-        });
+            }, mockCtx);
+            return JSON.parse(result.content[0].text).encounterId;
+        }
 
         it('should execute attack action and apply damage', async () => {
+            const encounterId = await createTestEncounter();
             const result = await handleExecuteCombatAction({
+                encounterId,
                 action: 'attack',
                 actorId: 'attacker',
                 targetId: 'defender',
                 attackBonus: 5,
                 dc: 12,
                 damage: 8
-            });
+            }, mockCtx);
 
             expect(result.content).toHaveLength(1);
             const response = JSON.parse(result.content[0].text);
@@ -143,12 +166,14 @@ describe('Combat MCP Tools', () => {
         });
 
         it('should execute heal action', async () => {
+            const encounterId = await createTestEncounter();
             const result = await handleExecuteCombatAction({
+                encounterId,
                 action: 'heal',
                 actorId: 'attacker',
                 targetId: 'defender',
                 amount: 5
-            });
+            }, mockCtx);
 
             expect(result.content).toHaveLength(1);
             const response = JSON.parse(result.content[0].text);
@@ -158,21 +183,20 @@ describe('Combat MCP Tools', () => {
         });
 
         it('should throw error when no encounter exists', async () => {
-            clearCombatState();
-
             await expect(handleExecuteCombatAction({
+                encounterId: 'non-existent',
                 action: 'attack',
                 actorId: 'attacker',
                 targetId: 'defender',
                 attackBonus: 5,
                 dc: 12
-            })).rejects.toThrow('No active encounter');
+            }, mockCtx)).rejects.toThrow('Encounter non-existent not found');
         });
     });
 
     describe('advance_turn', () => {
-        beforeEach(async () => {
-            await handleCreateEncounter({
+        async function createTestEncounter() {
+            const result = await handleCreateEncounter({
                 seed: 'test-turn',
                 participants: [
                     {
@@ -192,11 +216,13 @@ describe('Combat MCP Tools', () => {
                         conditions: []
                     }
                 ]
-            });
-        });
+            }, mockCtx);
+            return JSON.parse(result.content[0].text).encounterId;
+        }
 
         it('should advance to next participant turn', async () => {
-            const result = await handleAdvanceTurn({});
+            const encounterId = await createTestEncounter();
+            const result = await handleAdvanceTurn({ encounterId }, mockCtx);
 
             expect(result.content).toHaveLength(1);
             const response = JSON.parse(result.content[0].text);
@@ -207,24 +233,23 @@ describe('Combat MCP Tools', () => {
         });
 
         it('should increment round when cycling through all participants', async () => {
+            const encounterId = await createTestEncounter();
             // Advance through both participants
-            await handleAdvanceTurn({});
-            const result = await handleAdvanceTurn({});
+            await handleAdvanceTurn({ encounterId }, mockCtx);
+            const result = await handleAdvanceTurn({ encounterId }, mockCtx);
 
             const response = JSON.parse(result.content[0].text);
             expect(response.round).toBe(2);
         });
 
         it('should throw error when no encounter exists', async () => {
-            clearCombatState();
-
-            await expect(handleAdvanceTurn({})).rejects.toThrow('No active encounter');
+            await expect(handleAdvanceTurn({ encounterId: 'non-existent' }, mockCtx)).rejects.toThrow('Encounter non-existent not found');
         });
     });
 
     describe('end_encounter', () => {
         it('should end active encounter', async () => {
-            await handleCreateEncounter({
+            const createResult = await handleCreateEncounter({
                 seed: 'test-end',
                 participants: [{
                     id: 'p1',
@@ -234,9 +259,10 @@ describe('Combat MCP Tools', () => {
                     maxHp: 30,
                     conditions: []
                 }]
-            });
+            }, mockCtx);
+            const encounterId = JSON.parse(createResult.content[0].text).encounterId;
 
-            const result = await handleEndEncounter({});
+            const result = await handleEndEncounter({ encounterId }, mockCtx);
 
             expect(result.content).toHaveLength(1);
             const response = JSON.parse(result.content[0].text);
@@ -244,11 +270,62 @@ describe('Combat MCP Tools', () => {
             expect(response.message).toBe('Encounter ended');
 
             // Verify encounter cleared  
-            await expect(handleGetEncounterState({})).rejects.toThrow('No active encounter');
+            await expect(handleGetEncounterState({ encounterId }, mockCtx)).rejects.toThrow('Encounter ' + encounterId + ' not found');
         });
 
         it('should throw error when no encounter exists', async () => {
-            await expect(handleEndEncounter({})).rejects.toThrow('No active encounter');
+            await expect(handleEndEncounter({ encounterId: 'non-existent' }, mockCtx)).rejects.toThrow('Encounter non-existent not found');
+        });
+    });
+
+    describe('persistence', () => {
+        it('should save and load encounter state', async () => {
+            // 1. Create encounter
+            const createResult = await handleCreateEncounter({
+                seed: 'test-persistence',
+                participants: [{
+                    id: 'p1',
+                    name: 'Hero',
+                    initiativeBonus: 1,
+                    hp: 30,
+                    maxHp: 30,
+                    conditions: []
+                }, {
+                    id: 'p2',
+                    name: 'Enemy',
+                    initiativeBonus: 0,
+                    hp: 30,
+                    maxHp: 30,
+                    conditions: []
+                }]
+            }, mockCtx);
+            const encounterId = JSON.parse(createResult.content[0].text).encounterId;
+
+            // 2. Advance turn to change state
+            await handleAdvanceTurn({ encounterId }, mockCtx);
+
+            // 3. Verify state changed (round might be 1, but turn index changed)
+            const stateResult = await handleGetEncounterState({ encounterId }, mockCtx);
+            const stateBefore = JSON.parse(stateResult.content[0].text);
+
+            // 4. "Forget" encounter from memory
+            // Note: In the new implementation, we need to delete using the namespaced ID
+            getCombatManager().delete(`${mockCtx.sessionId}:${encounterId}`);
+
+            // Verify it's gone from memory
+            await expect(handleGetEncounterState({ encounterId }, mockCtx)).rejects.toThrow();
+
+            // 5. Load from DB
+            const loadResult = await handleLoadEncounter({ encounterId }, mockCtx);
+            expect(JSON.parse(loadResult.content[0].text).message).toBe('Encounter loaded');
+
+            // 6. Verify state is restored
+            const stateAfterResult = await handleGetEncounterState({ encounterId }, mockCtx);
+            const stateAfter = JSON.parse(stateAfterResult.content[0].text);
+
+            expect(stateAfter.currentTurn).toEqual(stateBefore.currentTurn);
+            expect(stateAfter.round).toBe(stateBefore.round);
+            expect(stateAfter.participants).toEqual(stateBefore.participants);
         });
     });
 });

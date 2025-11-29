@@ -1,0 +1,12 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.1[39m [90mC:/Users/Vario/OneDrive/Desktop/MCP Servers/rpg-mcp[39m
+
+ [33mΓ¥»[39m tests/math/algebra.test.ts [2m ([22m[2m5 tests[22m [2m|[22m [31m1 failed[39m[2m)[22m[90m 35[2mms[22m[39m
+[31m   [33mΓ¥»[31m tests/math/algebra.test.ts[2m > [22mAlgebraEngine[2m > [22mshould handle errors gracefully[39m
+[31m     ΓåÆ expected '[]' to be 'Error' // Object.is equality[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m4 passed[39m[22m[90m (5)[39m
+[2m   Start at [22m 17:31:28
+[2m   Duration [22m 584ms[2m (transform 51ms, setup 0ms, collect 135ms, tests 35ms, environment 0ms, prepare 204ms)[22m
+
