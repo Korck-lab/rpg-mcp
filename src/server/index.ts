@@ -10,6 +10,7 @@ import { MathTools, handleDiceRoll, handleProbabilityCalculate, handleAlgebraSol
 import { StrategyTools, handleStrategyTool } from './strategy-tools.js';
 import { TurnManagementTools, handleTurnManagementTool } from './turn-management-tools.js';
 import { SecretTools, handleCreateSecret, handleGetSecret, handleListSecrets, handleUpdateSecret, handleDeleteSecret, handleRevealSecret, handleCheckRevealConditions, handleGetSecretsForContext, handleCheckForLeaks } from './secret-tools.js';
+import { PartyTools, handleCreateParty, handleGetParty, handleListParties, handleUpdateParty, handleDeleteParty, handleAddPartyMember, handleRemovePartyMember, handleUpdatePartyMember, handleSetPartyLeader, handleSetActiveCharacter, handleGetPartyMembers, handleGetPartyContext, handleGetUnassignedCharacters } from './party-tools.js';
 import { PubSub } from '../engine/pubsub.js';
 import { registerEventTools } from './events.js';
 import { AuditLogger } from './audit.js';
@@ -19,7 +20,7 @@ async function main() {
     // Create server instance
     const server = new McpServer({
         name: 'rpg-mcp',
-        version: '1.0.0'
+        version: '1.1.0'
     });
 
     // Initialize PubSub
@@ -195,6 +196,98 @@ async function main() {
         CRUDTools.DELETE_CHARACTER.description,
         CRUDTools.DELETE_CHARACTER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
         auditLogger.wrapHandler(CRUDTools.DELETE_CHARACTER.name, withSession(CRUDTools.DELETE_CHARACTER.inputSchema, handleDeleteCharacter))
+    );
+
+    // Register Party Tools
+    server.tool(
+        PartyTools.CREATE_PARTY.name,
+        PartyTools.CREATE_PARTY.description,
+        PartyTools.CREATE_PARTY.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.CREATE_PARTY.name, withSession(PartyTools.CREATE_PARTY.inputSchema, handleCreateParty))
+    );
+
+    server.tool(
+        PartyTools.GET_PARTY.name,
+        PartyTools.GET_PARTY.description,
+        PartyTools.GET_PARTY.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.GET_PARTY.name, withSession(PartyTools.GET_PARTY.inputSchema, handleGetParty))
+    );
+
+    server.tool(
+        PartyTools.LIST_PARTIES.name,
+        PartyTools.LIST_PARTIES.description,
+        PartyTools.LIST_PARTIES.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.LIST_PARTIES.name, withSession(PartyTools.LIST_PARTIES.inputSchema, handleListParties))
+    );
+
+    server.tool(
+        PartyTools.UPDATE_PARTY.name,
+        PartyTools.UPDATE_PARTY.description,
+        PartyTools.UPDATE_PARTY.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.UPDATE_PARTY.name, withSession(PartyTools.UPDATE_PARTY.inputSchema, handleUpdateParty))
+    );
+
+    server.tool(
+        PartyTools.DELETE_PARTY.name,
+        PartyTools.DELETE_PARTY.description,
+        PartyTools.DELETE_PARTY.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.DELETE_PARTY.name, withSession(PartyTools.DELETE_PARTY.inputSchema, handleDeleteParty))
+    );
+
+    server.tool(
+        PartyTools.ADD_PARTY_MEMBER.name,
+        PartyTools.ADD_PARTY_MEMBER.description,
+        PartyTools.ADD_PARTY_MEMBER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.ADD_PARTY_MEMBER.name, withSession(PartyTools.ADD_PARTY_MEMBER.inputSchema, handleAddPartyMember))
+    );
+
+    server.tool(
+        PartyTools.REMOVE_PARTY_MEMBER.name,
+        PartyTools.REMOVE_PARTY_MEMBER.description,
+        PartyTools.REMOVE_PARTY_MEMBER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.REMOVE_PARTY_MEMBER.name, withSession(PartyTools.REMOVE_PARTY_MEMBER.inputSchema, handleRemovePartyMember))
+    );
+
+    server.tool(
+        PartyTools.UPDATE_PARTY_MEMBER.name,
+        PartyTools.UPDATE_PARTY_MEMBER.description,
+        PartyTools.UPDATE_PARTY_MEMBER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.UPDATE_PARTY_MEMBER.name, withSession(PartyTools.UPDATE_PARTY_MEMBER.inputSchema, handleUpdatePartyMember))
+    );
+
+    server.tool(
+        PartyTools.SET_PARTY_LEADER.name,
+        PartyTools.SET_PARTY_LEADER.description,
+        PartyTools.SET_PARTY_LEADER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.SET_PARTY_LEADER.name, withSession(PartyTools.SET_PARTY_LEADER.inputSchema, handleSetPartyLeader))
+    );
+
+    server.tool(
+        PartyTools.SET_ACTIVE_CHARACTER.name,
+        PartyTools.SET_ACTIVE_CHARACTER.description,
+        PartyTools.SET_ACTIVE_CHARACTER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.SET_ACTIVE_CHARACTER.name, withSession(PartyTools.SET_ACTIVE_CHARACTER.inputSchema, handleSetActiveCharacter))
+    );
+
+    server.tool(
+        PartyTools.GET_PARTY_MEMBERS.name,
+        PartyTools.GET_PARTY_MEMBERS.description,
+        PartyTools.GET_PARTY_MEMBERS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.GET_PARTY_MEMBERS.name, withSession(PartyTools.GET_PARTY_MEMBERS.inputSchema, handleGetPartyMembers))
+    );
+
+    server.tool(
+        PartyTools.GET_PARTY_CONTEXT.name,
+        PartyTools.GET_PARTY_CONTEXT.description,
+        PartyTools.GET_PARTY_CONTEXT.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.GET_PARTY_CONTEXT.name, withSession(PartyTools.GET_PARTY_CONTEXT.inputSchema, handleGetPartyContext))
+    );
+
+    server.tool(
+        PartyTools.GET_UNASSIGNED_CHARACTERS.name,
+        PartyTools.GET_UNASSIGNED_CHARACTERS.description,
+        PartyTools.GET_UNASSIGNED_CHARACTERS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.GET_UNASSIGNED_CHARACTERS.name, withSession(PartyTools.GET_UNASSIGNED_CHARACTERS.inputSchema, handleGetUnassignedCharacters))
     );
 
     // Register Inventory Tools

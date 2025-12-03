@@ -1,7 +1,7 @@
-
 import Database from 'better-sqlite3';
 
 export function migrate(db: Database.Database) {
+  // First, create all tables (without indexes that depend on new columns)
   db.exec(`
     CREATE TABLE IF NOT EXISTS worlds(
     id TEXT PRIMARY KEY,
@@ -217,5 +217,68 @@ export function migrate(db: Database.Database) {
   CREATE INDEX IF NOT EXISTS idx_secrets_world ON secrets(world_id);
   CREATE INDEX IF NOT EXISTS idx_secrets_revealed ON secrets(revealed);
   CREATE INDEX IF NOT EXISTS idx_secrets_linked ON secrets(linked_entity_id, linked_entity_type);
+
+  -- Party management tables
+  CREATE TABLE IF NOT EXISTS parties(
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    world_id TEXT REFERENCES worlds(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'dormant', 'archived')),
+    current_location TEXT,
+    current_quest_id TEXT REFERENCES quests(id) ON DELETE SET NULL,
+    formation TEXT NOT NULL DEFAULT 'standard',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_played_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS party_members(
+    id TEXT PRIMARY KEY,
+    party_id TEXT NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+    character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('leader', 'member', 'companion', 'hireling', 'prisoner', 'mount')),
+    is_active INTEGER NOT NULL DEFAULT 0,
+    position INTEGER,
+    share_percentage INTEGER NOT NULL DEFAULT 100,
+    joined_at TEXT NOT NULL,
+    notes TEXT,
+    UNIQUE(party_id, character_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_party_members_party ON party_members(party_id);
+  CREATE INDEX IF NOT EXISTS idx_party_members_character ON party_members(character_id);
+  CREATE INDEX IF NOT EXISTS idx_parties_status ON parties(status);
+  CREATE INDEX IF NOT EXISTS idx_parties_world ON parties(world_id);
   `);
+
+  // Run migrations for existing databases that don't have the new columns
+  // This MUST happen before creating indexes on new columns
+  runMigrations(db);
+
+  // Now create indexes that depend on migrated columns
+  createPostMigrationIndexes(db);
+}
+
+function runMigrations(db: Database.Database) {
+  // Check if character_type column exists and add it if missing
+  const charColumns = db.prepare("PRAGMA table_info(characters)").all() as { name: string }[];
+  const hasCharacterType = charColumns.some(col => col.name === 'character_type');
+  
+  if (!hasCharacterType) {
+    console.error('[Migration] Adding character_type column to characters table');
+    // SQLite doesn't support CHECK constraints in ALTER TABLE, so we add just the column
+    db.exec(`ALTER TABLE characters ADD COLUMN character_type TEXT DEFAULT 'pc';`);
+  }
+}
+
+function createPostMigrationIndexes(db: Database.Database) {
+  // Create indexes that depend on columns added by migrations
+  // Using try-catch since CREATE INDEX IF NOT EXISTS should handle duplicates
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_characters_type ON characters(character_type);`);
+  } catch (e) {
+    // Index may already exist or column may not exist in very old DBs
+    console.error('[Migration] Note: Could not create idx_characters_type:', (e as Error).message);
+  }
 }

@@ -7707,7 +7707,7 @@ var require_better_sqlite3 = __commonJS({
 // node_modules/nerdamer/nerdamer.core.js
 var require_nerdamer_core = __commonJS({
   "node_modules/nerdamer/nerdamer.core.js"(exports2, module2) {
-    var nerdamer3 = (function(imports) {
+    var nerdamer3 = function(imports) {
       "use strict";
       var version2 = "1.1.13";
       var _ = new Parser();
@@ -12578,13 +12578,13 @@ var require_nerdamer_core = __commonJS({
           }
           return retval;
         };
-        this.operator_filter_regex = (function() {
+        this.operator_filter_regex = function() {
           var ostr = "^\\" + Object.keys(operators).filter(function(x) {
             if (x.length === 1)
               return x;
           }).join("\\");
           return new RegExp("([" + ostr + "])\\s+([" + ostr + "])");
-        })();
+        }();
         this.setOperator = function(operator, action, shift) {
           var name = operator.operator;
           operators[name] = operator;
@@ -15278,7 +15278,7 @@ var require_nerdamer_core = __commonJS({
         }
       };
       var LaTeX = {
-        parser: (function() {
+        parser: function() {
           var keep = ["classes", "setOperator", "getOperators", "getBrackets", "tokenize", "toRPN", "tree", "units"];
           var parser = new Parser();
           for (var x in parser) {
@@ -15310,7 +15310,7 @@ var require_nerdamer_core = __commonJS({
           var brackets = parser.getBrackets();
           brackets["{"].maps_to = void 0;
           return parser;
-        })(),
+        }(),
         space: "~",
         dot: " \\cdot ",
         // grab a list of supported functions but remove the excluded ones found in exclFN
@@ -17089,10 +17089,10 @@ var require_nerdamer_core = __commonJS({
       };
       libExports.updateAPI();
       return libExports;
-    })({
+    }({
       //https://github.com/peterolson/BigInteger.js
-      bigInt: (function() {
-        var bigInt = (function(undefined2) {
+      bigInt: function() {
+        var bigInt = function(undefined2) {
           "use strict";
           var BASE = 1e7, LOG_BASE = 7, MAX_INT = 9007199254740992, MAX_INT_ARR = smallToArray(MAX_INT), LOG_MAX_INT = Math.log(MAX_INT);
           function Integer(v, radix) {
@@ -18193,7 +18193,7 @@ var require_nerdamer_core = __commonJS({
             return parseBaseFromArray(digits.map(parseValue), parseValue(base || 10), isNegative);
           };
           return Integer;
-        })();
+        }();
         if (typeof module2 !== "undefined" && module2.hasOwnProperty("exports")) {
           module2.exports = bigInt;
         }
@@ -18203,7 +18203,7 @@ var require_nerdamer_core = __commonJS({
           });
         }
         return bigInt;
-      })(),
+      }(),
       /*
        *  decimal.js v10.2.1
        *  An arbitrary-precision Decimal type for JavaScript.
@@ -18211,7 +18211,7 @@ var require_nerdamer_core = __commonJS({
        *  Copyright (c) 2020 Michael Mclaughlin <M8ch88l@gmail.com>
        *  MIT Licence
        */
-      bigDec: (function(n2) {
+      bigDec: function(n2) {
         "use strict";
         var e, i, t, r, s = 9e15, o = 1e9, u = "0123456789abcdef", c = "2.3025850929940456840179914546843642076011014886287729760333279009675726096773524802359972050895982983419677840422862486334095254650828067566662873690987816894829072083255546808437998948262331985283935053089653777326288461633662222876982198867465436674744042432743651550489343149393914796194044002221051017141748003688084012647080685567743216228355220114804663715659121373450747856947683463616792101806445070648000277502684916746550586856935673420670581136429224554405758925724208241314695689016758940256776311356919292033376587141660230105703089634572075440370847469940168269282808481184289314848524948644871927809676271275775397027668605952496716674183485704422507197965004714951050492214776567636938662976979522110718264549734772662425709429322582798502585509785265383207606726317164309505995087807523710333101197857547331541421808427543863591778117054309827482385045648019095610299291824318237525357709750539565187697510374970888692180205189339507238539205144634197265287286965110862571492198849978748873771345686209167058", f = "3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989380952572010654858632789", a = { precision: 20, rounding: 4, modulo: 1, toExpNeg: -7, toExpPos: 21, minE: -s, maxE: s, crypto: false }, h = true, d = "[DecimalError] ", l = d + "Invalid argument: ", p = d + "Precision limit exceeded", g = d + "crypto unavailable", m = Math.floor, w = Math.pow, v = /^0b([01]+(\.[01]*)?|\.[01]+)(p[+-]?\d+)?$/i, N = /^0x([0-9a-f]+(\.[0-9a-f]*)?|\.[0-9a-f]+)(p[+-]?\d+)?$/i, b = /^0o([0-7]+(\.[0-7]*)?|\.[0-7]+)(p[+-]?\d+)?$/i, E = /^(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i, x = 1e7, y = 7, M = c.length - 1, q = f.length - 1, O = { name: "[object Decimal]" };
         function D(n3) {
@@ -18253,7 +18253,7 @@ var require_nerdamer_core = __commonJS({
           return t2 === r2 ? 0 : t2 > r2 ^ c2 < 0 ? 1 : -1;
         }, O.cosine = O.cos = function() {
           var n3, e2, i2 = this, t2 = i2.constructor;
-          return i2.d ? i2.d[0] ? (n3 = t2.precision, e2 = t2.rounding, t2.precision = n3 + Math.max(i2.e, i2.sd()) + y, t2.rounding = 1, i2 = (function(n4, e3) {
+          return i2.d ? i2.d[0] ? (n3 = t2.precision, e2 = t2.rounding, t2.precision = n3 + Math.max(i2.e, i2.sd()) + y, t2.rounding = 1, i2 = function(n4, e3) {
             var i3, t3, r2 = e3.d.length;
             r2 < 32 ? (i3 = Math.ceil(r2 / 3), t3 = (1 / z(4, i3)).toString()) : (i3 = 16, t3 = "2.3283064365386962890625e-10");
             n4.precision += i3, e3 = J(n4, 1, e3.times(t3), new n4(1));
@@ -18262,7 +18262,7 @@ var require_nerdamer_core = __commonJS({
               e3 = o2.times(o2).minus(o2).times(8).plus(1);
             }
             return n4.precision -= i3, e3;
-          })(t2, G(t2, i2)), t2.precision = n3, t2.rounding = e2, P(2 == r || 3 == r ? i2.neg() : i2, n3, e2, true)) : new t2(1) : new t2(NaN);
+          }(t2, G(t2, i2)), t2.precision = n3, t2.rounding = e2, P(2 == r || 3 == r ? i2.neg() : i2, n3, e2, true)) : new t2(1) : new t2(NaN);
         }, O.cubeRoot = O.cbrt = function() {
           var n3, e2, i2, t2, r2, s2, o2, u2, c2, f2, a2 = this, d2 = a2.constructor;
           if (!a2.isFinite() || a2.isZero()) return new d2(a2);
@@ -18445,13 +18445,13 @@ var require_nerdamer_core = __commonJS({
           return P(new e2(n3), n3.e + 1, e2.rounding);
         }, O.sine = O.sin = function() {
           var n3, e2, i2 = this, t2 = i2.constructor;
-          return i2.isFinite() ? i2.isZero() ? new t2(i2) : (n3 = t2.precision, e2 = t2.rounding, t2.precision = n3 + Math.max(i2.e, i2.sd()) + y, t2.rounding = 1, i2 = (function(n4, e3) {
+          return i2.isFinite() ? i2.isZero() ? new t2(i2) : (n3 = t2.precision, e2 = t2.rounding, t2.precision = n3 + Math.max(i2.e, i2.sd()) + y, t2.rounding = 1, i2 = function(n4, e3) {
             var i3, t3 = e3.d.length;
             if (t3 < 3) return J(n4, 2, e3, e3);
             i3 = (i3 = 1.4 * Math.sqrt(t3)) > 16 ? 16 : 0 | i3, e3 = e3.times(1 / z(5, i3)), e3 = J(n4, 2, e3, e3);
             for (var r2, s2 = new n4(5), o2 = new n4(16), u2 = new n4(20); i3--; ) r2 = e3.times(e3), e3 = e3.times(s2.plus(r2.times(o2.times(r2).minus(u2))));
             return e3;
-          })(t2, G(t2, i2)), t2.precision = n3, t2.rounding = e2, P(r > 2 ? i2.neg() : i2, n3, e2, true)) : new t2(NaN);
+          }(t2, G(t2, i2)), t2.precision = n3, t2.rounding = e2, P(r > 2 ? i2.neg() : i2, n3, e2, true)) : new t2(NaN);
         }, O.squareRoot = O.sqrt = function() {
           var n3, e2, i2, t2, r2, s2, o2 = this, u2 = o2.d, c2 = o2.e, f2 = o2.s, a2 = o2.constructor;
           if (1 !== f2 || !u2 || !u2[0]) return new a2(!f2 || f2 < 0 && (!u2 || u2[0]) ? NaN : u2 ? o2 : 1 / 0);
@@ -18543,7 +18543,7 @@ var require_nerdamer_core = __commonJS({
           var n3 = this, e2 = n3.constructor, i2 = R(n3, n3.e <= e2.toExpNeg || n3.e >= e2.toExpPos);
           return n3.isNeg() ? "-" + i2 : i2;
         };
-        var Z = /* @__PURE__ */ (function() {
+        var Z = /* @__PURE__ */ function() {
           function n3(n4, e3, i2) {
             var t3, r2 = 0, s2 = n4.length;
             for (n4 = n4.slice(); s2--; ) t3 = n4[s2] * e3 + r2, n4[s2] = t3 % i2 | 0, r2 = t3 / i2 | 0;
@@ -18588,7 +18588,7 @@ var require_nerdamer_core = __commonJS({
             }
             return N2;
           };
-        })();
+        }();
         function P(n3, e2, i2, t2) {
           var r2, s2, o2, u2, c2, f2, a2, d2, l2, p2 = n3.constructor;
           n: if (null != e2) {
@@ -18932,7 +18932,7 @@ var require_nerdamer_core = __commonJS({
         function Un(n3) {
           return P(n3 = new this(n3), n3.e + 1, 1);
         }
-        return (e = (function n3(e2) {
+        return (e = function n3(e2) {
           var i2, t2, r2;
           function s2(n4) {
             var e3, i3, t3, r3 = this;
@@ -18951,12 +18951,12 @@ var require_nerdamer_core = __commonJS({
           }
           if (s2.prototype = O, s2.ROUND_UP = 0, s2.ROUND_DOWN = 1, s2.ROUND_CEIL = 2, s2.ROUND_FLOOR = 3, s2.ROUND_HALF_UP = 4, s2.ROUND_HALF_DOWN = 5, s2.ROUND_HALF_EVEN = 6, s2.ROUND_HALF_CEIL = 7, s2.ROUND_HALF_FLOOR = 8, s2.EUCLID = 9, s2.config = s2.set = an, s2.clone = n3, s2.isDecimal = wn, s2.abs = X, s2.acos = Y, s2.acosh = nn, s2.add = en, s2.asin = tn, s2.asinh = rn, s2.atan = sn, s2.atanh = on, s2.atan2 = un, s2.cbrt = cn, s2.ceil = fn, s2.cos = hn, s2.cosh = dn, s2.div = ln, s2.exp = pn, s2.floor = gn, s2.hypot = mn, s2.ln = vn, s2.log = Nn, s2.log10 = En, s2.log2 = bn, s2.max = xn, s2.min = yn, s2.mod = Mn, s2.mul = qn, s2.pow = On, s2.random = Dn, s2.round = Fn, s2.sign = An, s2.sin = Sn, s2.sinh = Zn, s2.sqrt = Pn, s2.sub = Rn, s2.tan = Ln, s2.tanh = Tn, s2.trunc = Un, void 0 === e2 && (e2 = {}), e2 && true !== e2.defaults) for (r2 = ["precision", "rounding", "toExpNeg", "toExpPos", "maxE", "minE", "modulo", "crypto"], i2 = 0; i2 < r2.length; ) e2.hasOwnProperty(t2 = r2[i2++]) || (e2[t2] = this[t2]);
           return s2.config(e2), s2;
-        })(a)).default = e.Decimal = e, c = new e(c), f = new e(f), "function" == typeof define && define.amd ? define(function() {
+        }(a)).default = e.Decimal = e, c = new e(c), f = new e(f), "function" == typeof define && define.amd ? define(function() {
           return e;
         }) : "undefined" != typeof module2 && module2.exports ? ("function" == typeof Symbol && "symbol" == typeof Symbol.iterator && (O[Symbol.for("nodejs.util.inspect.custom")] = O.toString, O[Symbol.toStringTag] = "Decimal"), module2.exports = e) : (n2 || (n2 = "undefined" != typeof self && self && self.self == self ? self : window), t = n2.Decimal, e.noConflict = function() {
           return n2.Decimal = t, e;
         }, n2.Decimal = e), e;
-      })(exports2)
+      }(exports2)
       //    bigDec: require('decimal.js')
     });
     if (typeof module2 !== "undefined") {
@@ -21390,7 +21390,7 @@ var require_Algebra = __commonJS({
             //take all complementary terms, e.g.
             //[a,b,c] => [a*b, b*c, a*c]
             //[a,b,c,d] => [a*b*c, a*b*d, a*c*d, b*c*d]
-            (function(input, size) {
+            function(input, size) {
               size = Number(size);
               var results = [], result, mask, i, total = Math.pow(2, input.length);
               for (mask = size; mask < total; mask++) {
@@ -21406,7 +21406,7 @@ var require_Algebra = __commonJS({
                 }
               }
               return results;
-            })(arguments, arguments.length - 1).map(function(x) {
+            }(arguments, arguments.length - 1).map(function(x) {
               return x.reduce(function(prev, curr) {
                 return _.multiply(prev, curr.clone());
               }, new Symbol2(1));
@@ -23326,7 +23326,6 @@ var require_Calculus = __commonJS({
                         case ACOT:
                           retval = __.integration.by_parts(symbol, dx, depth, opt);
                           break;
-                        //inverse htrig
                         case ASECH:
                           retval = __.integration.by_parts(symbol, dx, depth, opt);
                           break;
@@ -23336,8 +23335,6 @@ var require_Calculus = __commonJS({
                         case ACOTH:
                           retval = __.integration.by_parts(symbol, dx, depth, opt);
                           break;
-                        //end inverse htrig
-                        //htrigh
                         case SECH:
                           retval = _.parse(format("atan(sinh({0}))", arg));
                           break;
@@ -23347,7 +23344,6 @@ var require_Calculus = __commonJS({
                         case COTH:
                           retval = _.parse(format(Settings.LOG + "(sinh({0}))", arg));
                           break;
-                        //end htrig
                         case EXP:
                           retval = __.integrate(_.parse(format("e^({0})", arg)), dx, depth);
                           break;
@@ -24043,7 +24039,6 @@ var require_Calculus = __commonJS({
                         if (__.Limit.isConvergent(arg)) {
                           if (symbol.fname === LOG) {
                             switch (arg.toString()) {
-                              //lim -> 0
                               case "0":
                                 retval = Symbol2.infinity().negate();
                                 break;
@@ -33400,14 +33395,14 @@ var ostring = () => stringType().optional();
 var onumber = () => numberType().optional();
 var oboolean = () => booleanType().optional();
 var coerce = {
-  string: ((arg) => ZodString.create({ ...arg, coerce: true })),
-  number: ((arg) => ZodNumber.create({ ...arg, coerce: true })),
-  boolean: ((arg) => ZodBoolean.create({
+  string: (arg) => ZodString.create({ ...arg, coerce: true }),
+  number: (arg) => ZodNumber.create({ ...arg, coerce: true }),
+  boolean: (arg) => ZodBoolean.create({
     ...arg,
     coerce: true
-  })),
-  bigint: ((arg) => ZodBigInt.create({ ...arg, coerce: true })),
-  date: ((arg) => ZodDate.create({ ...arg, coerce: true }))
+  }),
+  bigint: (arg) => ZodBigInt.create({ ...arg, coerce: true }),
+  date: (arg) => ZodDate.create({ ...arg, coerce: true })
 };
 var NEVER = INVALID;
 
@@ -36746,7 +36741,6 @@ var JSONSchemaGenerator = class {
             _json.readOnly = true;
             break;
           }
-          // passthrough types
           case "promise": {
             this.process(def.innerType, params);
             result.ref = def.innerType;
@@ -37039,7 +37033,6 @@ function isTransforming(_schema, _ctx) {
     case "set": {
       return isTransforming(def.valueType, ctx);
     }
-    // inner types
     case "promise":
     case "optional":
     case "nonoptional":
@@ -37099,10 +37092,10 @@ var ZodMiniType = /* @__PURE__ */ $constructor("ZodMiniType", (inst, def) => {
   };
   inst.clone = (_def, params) => clone(inst, _def, params);
   inst.brand = () => inst;
-  inst.register = ((reg, meta) => {
+  inst.register = (reg, meta) => {
     reg.add(inst, meta);
     return inst;
-  });
+  };
 });
 var ZodMiniObject = /* @__PURE__ */ $constructor("ZodMiniObject", (inst, def) => {
   $ZodObject.init(inst, def);
@@ -37364,10 +37357,10 @@ var ZodType2 = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
   };
   inst.clone = (def2, params) => clone(inst, def2, params);
   inst.brand = () => inst;
-  inst.register = ((reg, meta) => {
+  inst.register = (reg, meta) => {
     reg.add(inst, meta);
     return inst;
-  });
+  };
   inst.parse = (data, params) => parse2(inst, data, params, { callee: inst.parse });
   inst.safeParse = (data, params) => safeParse3(inst, data, params);
   inst.parseAsync = async (data, params) => parseAsync2(inst, data, params, { callee: inst.parseAsync });
@@ -39040,13 +39033,11 @@ function assertCompleteRequestPrompt(request) {
   if (request.params.ref.type !== "ref/prompt") {
     throw new TypeError(`Expected CompleteRequestPrompt, but got ${request.params.ref.type}`);
   }
-  void request;
 }
 function assertCompleteRequestResourceTemplate(request) {
   if (request.params.ref.type !== "ref/resource") {
     throw new TypeError(`Expected CompleteRequestResourceTemplate, but got ${request.params.ref.type}`);
   }
-  void request;
 }
 var CompleteResultSchema = ResultSchema.extend({
   completion: looseObject({
@@ -44156,7 +44147,57 @@ function migrate(db) {
   CREATE INDEX IF NOT EXISTS idx_secrets_world ON secrets(world_id);
   CREATE INDEX IF NOT EXISTS idx_secrets_revealed ON secrets(revealed);
   CREATE INDEX IF NOT EXISTS idx_secrets_linked ON secrets(linked_entity_id, linked_entity_type);
+
+  -- Party management tables
+  CREATE TABLE IF NOT EXISTS parties(
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    world_id TEXT REFERENCES worlds(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'dormant', 'archived')),
+    current_location TEXT,
+    current_quest_id TEXT REFERENCES quests(id) ON DELETE SET NULL,
+    formation TEXT NOT NULL DEFAULT 'standard',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_played_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS party_members(
+    id TEXT PRIMARY KEY,
+    party_id TEXT NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+    character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('leader', 'member', 'companion', 'hireling', 'prisoner', 'mount')),
+    is_active INTEGER NOT NULL DEFAULT 0,
+    position INTEGER,
+    share_percentage INTEGER NOT NULL DEFAULT 100,
+    joined_at TEXT NOT NULL,
+    notes TEXT,
+    UNIQUE(party_id, character_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_party_members_party ON party_members(party_id);
+  CREATE INDEX IF NOT EXISTS idx_party_members_character ON party_members(character_id);
+  CREATE INDEX IF NOT EXISTS idx_parties_status ON parties(status);
+  CREATE INDEX IF NOT EXISTS idx_parties_world ON parties(world_id);
   `);
+  runMigrations(db);
+  createPostMigrationIndexes(db);
+}
+function runMigrations(db) {
+  const charColumns = db.prepare("PRAGMA table_info(characters)").all();
+  const hasCharacterType = charColumns.some((col) => col.name === "character_type");
+  if (!hasCharacterType) {
+    console.error("[Migration] Adding character_type column to characters table");
+    db.exec(`ALTER TABLE characters ADD COLUMN character_type TEXT DEFAULT 'pc';`);
+  }
+}
+function createPostMigrationIndexes(db) {
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_characters_type ON characters(character_type);`);
+  } catch (e) {
+    console.error("[Migration] Note: Could not create idx_characters_type:", e.message);
+  }
 }
 
 // dist/schema/audit.js
@@ -46042,6 +46083,98 @@ async function handleLoadEncounter(args, ctx) {
 // dist/server/crud-tools.js
 var import_crypto2 = require("crypto");
 
+// dist/schema/party.js
+var PartyStatusSchema = external_exports.enum(["active", "dormant", "archived"]);
+var MemberRoleSchema = external_exports.enum(["leader", "member", "companion", "hireling", "prisoner", "mount"]);
+var CharacterTypeSchema = external_exports.enum(["pc", "npc", "enemy", "neutral"]);
+var PartySchema = external_exports.object({
+  id: external_exports.string(),
+  name: external_exports.string().min(1),
+  description: external_exports.string().optional(),
+  worldId: external_exports.string().optional(),
+  status: PartyStatusSchema.default("active"),
+  currentLocation: external_exports.string().optional(),
+  currentQuestId: external_exports.string().optional(),
+  formation: external_exports.string().default("standard"),
+  createdAt: external_exports.string().datetime(),
+  updatedAt: external_exports.string().datetime(),
+  lastPlayedAt: external_exports.string().datetime().optional()
+});
+var PartyMemberSchema = external_exports.object({
+  id: external_exports.string(),
+  partyId: external_exports.string(),
+  characterId: external_exports.string(),
+  role: MemberRoleSchema.default("member"),
+  isActive: external_exports.boolean().default(false),
+  position: external_exports.number().int().optional(),
+  sharePercentage: external_exports.number().int().min(0).max(100).default(100),
+  joinedAt: external_exports.string().datetime(),
+  notes: external_exports.string().optional()
+});
+var PartyMemberWithCharacterSchema = PartyMemberSchema.extend({
+  character: external_exports.object({
+    id: external_exports.string(),
+    name: external_exports.string(),
+    hp: external_exports.number(),
+    maxHp: external_exports.number(),
+    ac: external_exports.number(),
+    level: external_exports.number(),
+    stats: external_exports.object({
+      str: external_exports.number(),
+      dex: external_exports.number(),
+      con: external_exports.number(),
+      int: external_exports.number(),
+      wis: external_exports.number(),
+      cha: external_exports.number()
+    }),
+    behavior: external_exports.string().optional(),
+    characterType: CharacterTypeSchema.optional()
+  })
+});
+var PartyWithMembersSchema = PartySchema.extend({
+  members: external_exports.array(PartyMemberWithCharacterSchema),
+  leader: PartyMemberWithCharacterSchema.optional(),
+  activeCharacter: PartyMemberWithCharacterSchema.optional(),
+  memberCount: external_exports.number().int()
+});
+var PartyContextSchema = external_exports.object({
+  party: external_exports.object({
+    id: external_exports.string(),
+    name: external_exports.string(),
+    status: PartyStatusSchema,
+    location: external_exports.string().optional(),
+    formation: external_exports.string()
+  }),
+  leader: external_exports.object({
+    id: external_exports.string(),
+    name: external_exports.string(),
+    hp: external_exports.number(),
+    maxHp: external_exports.number(),
+    level: external_exports.number()
+  }).optional(),
+  activeCharacter: external_exports.object({
+    id: external_exports.string(),
+    name: external_exports.string(),
+    hp: external_exports.number(),
+    maxHp: external_exports.number(),
+    level: external_exports.number(),
+    conditions: external_exports.array(external_exports.string()).optional()
+  }).optional(),
+  members: external_exports.array(external_exports.object({
+    name: external_exports.string(),
+    role: MemberRoleSchema,
+    hp: external_exports.string(),
+    // "85/85" format for compactness
+    status: external_exports.string().optional()
+  })),
+  activeQuest: external_exports.object({
+    name: external_exports.string(),
+    currentObjective: external_exports.string().optional(),
+    progress: external_exports.string().optional()
+  }).optional(),
+  recentEvents: external_exports.array(external_exports.string()).optional()
+});
+
 // dist/schema/character.js
 var CharacterSchema = external_exports.object({
   id: external_exports.string(),
@@ -46058,6 +46191,7 @@ var CharacterSchema = external_exports.object({
   maxHp: external_exports.number().int().min(0),
   ac: external_exports.number().int().min(0),
   level: external_exports.number().int().min(1),
+  characterType: CharacterTypeSchema.optional().default("pc"),
   createdAt: external_exports.string().datetime(),
   updatedAt: external_exports.string().datetime()
 });
@@ -46076,8 +46210,8 @@ var CharacterRepository = class {
     const isNPC = "factionId" in character || "behavior" in character;
     const validChar = isNPC ? NPCSchema.parse(character) : CharacterSchema.parse(character);
     const stmt = this.db.prepare(`
-      INSERT INTO characters (id, name, stats, hp, max_hp, ac, level, faction_id, behavior, created_at, updated_at)
-      VALUES (@id, @name, @stats, @hp, @maxHp, @ac, @level, @factionId, @behavior, @createdAt, @updatedAt)
+      INSERT INTO characters (id, name, stats, hp, max_hp, ac, level, faction_id, behavior, character_type, created_at, updated_at)
+      VALUES (@id, @name, @stats, @hp, @maxHp, @ac, @level, @factionId, @behavior, @characterType, @createdAt, @updatedAt)
     `);
     stmt.run({
       id: validChar.id,
@@ -46089,6 +46223,7 @@ var CharacterRepository = class {
       level: validChar.level,
       factionId: validChar.factionId || null,
       behavior: validChar.behavior || null,
+      characterType: validChar.characterType || "pc",
       createdAt: validChar.createdAt,
       updatedAt: validChar.updatedAt
     });
@@ -46100,9 +46235,20 @@ var CharacterRepository = class {
       return null;
     return this.rowToCharacter(row);
   }
-  findAll() {
-    const stmt = this.db.prepare("SELECT * FROM characters");
-    const rows = stmt.all();
+  findAll(filters) {
+    let query = "SELECT * FROM characters";
+    const params = [];
+    if (filters?.characterType) {
+      query += " WHERE character_type = ?";
+      params.push(filters.characterType);
+    }
+    const stmt = this.db.prepare(query);
+    const rows = stmt.all(...params);
+    return rows.map((row) => this.rowToCharacter(row));
+  }
+  findByType(characterType) {
+    const stmt = this.db.prepare("SELECT * FROM characters WHERE character_type = ?");
+    const rows = stmt.all(characterType);
     return rows.map((row) => this.rowToCharacter(row));
   }
   update(id, updates) {
@@ -46119,11 +46265,16 @@ var CharacterRepository = class {
     const stmt = this.db.prepare(`
             UPDATE characters
             SET name = ?, stats = ?, hp = ?, max_hp = ?, ac = ?, level = ?,
-                faction_id = ?, behavior = ?, updated_at = ?
+                faction_id = ?, behavior = ?, character_type = ?, updated_at = ?
             WHERE id = ?
         `);
-    stmt.run(validChar.name, JSON.stringify(validChar.stats), validChar.hp, validChar.maxHp, validChar.ac, validChar.level, validChar.factionId || null, validChar.behavior || null, validChar.updatedAt, id);
+    stmt.run(validChar.name, JSON.stringify(validChar.stats), validChar.hp, validChar.maxHp, validChar.ac, validChar.level, validChar.factionId || null, validChar.behavior || null, validChar.characterType || "pc", validChar.updatedAt, id);
     return validChar;
+  }
+  delete(id) {
+    const stmt = this.db.prepare("DELETE FROM characters WHERE id = ?");
+    const result = stmt.run(id);
+    return result.changes > 0;
   }
   rowToCharacter(row) {
     const base = {
@@ -46134,6 +46285,7 @@ var CharacterRepository = class {
       maxHp: row.max_hp,
       ac: row.ac,
       level: row.level,
+      characterType: row.character_type || "pc",
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
@@ -46211,6 +46363,12 @@ Example:
     name: "create_character",
     description: `Create a new character.
 
+Character types:
+- pc: Player character (default)
+- npc: Non-player character (ally or neutral)
+- enemy: Hostile creature
+- neutral: Non-hostile, non-ally
+
 Example:
 {
   "name": "Valeros",
@@ -46218,11 +46376,14 @@ Example:
   "maxHp": 20,
   "ac": 18,
   "level": 1,
-  "stats": { "str": 16, "dex": 14, "con": 14, "int": 10, "wis": 12, "cha": 10 }
+  "stats": { "str": 16, "dex": 14, "con": 14, "int": 10, "wis": 12, "cha": 10 },
+  "characterType": "pc"
 }`,
     // Use NPCSchema as the base since it includes all fields (Character + faction/behavior)
     // Make NPC fields optional which they already are in NPCSchema
-    inputSchema: NPCSchema.omit({ id: true, createdAt: true, updatedAt: true })
+    inputSchema: NPCSchema.omit({ id: true, createdAt: true, updatedAt: true }).extend({
+      characterType: CharacterTypeSchema.optional().default("pc")
+    })
   },
   GET_CHARACTER: {
     name: "get_character",
@@ -46239,18 +46400,24 @@ Example:
 {
   "id": "char-123",
   "hp": 15,
-  "level": 2
+  "level": 2,
+  "characterType": "npc"
 }`,
     inputSchema: external_exports.object({
       id: external_exports.string(),
       hp: external_exports.number().int().min(0).optional(),
-      level: external_exports.number().int().min(1).optional()
+      level: external_exports.number().int().min(1).optional(),
+      characterType: CharacterTypeSchema.optional()
     })
   },
   LIST_CHARACTERS: {
     name: "list_characters",
-    description: "List all characters.",
-    inputSchema: external_exports.object({})
+    description: `List all characters, optionally filtered by type.
+
+Character types: pc, npc, enemy, neutral`,
+    inputSchema: external_exports.object({
+      characterType: CharacterTypeSchema.optional()
+    })
   },
   DELETE_CHARACTER: {
     name: "delete_character",
@@ -46371,7 +46538,8 @@ async function handleUpdateCharacter(args, _ctx) {
   const parsed = CRUDTools.UPDATE_CHARACTER.inputSchema.parse(args);
   const updated = charRepo.update(parsed.id, {
     ...parsed.hp !== void 0 && { hp: parsed.hp },
-    ...parsed.level !== void 0 && { level: parsed.level }
+    ...parsed.level !== void 0 && { level: parsed.level },
+    ...parsed.characterType !== void 0 && { characterType: parsed.characterType }
   });
   if (!updated) {
     throw new Error(`Failed to update character: ${parsed.id}`);
@@ -46385,8 +46553,10 @@ async function handleUpdateCharacter(args, _ctx) {
 }
 async function handleListCharacters(args, _ctx) {
   const { charRepo } = ensureDb();
-  CRUDTools.LIST_CHARACTERS.inputSchema.parse(args);
-  const characters = charRepo.findAll();
+  const parsed = CRUDTools.LIST_CHARACTERS.inputSchema.parse(args);
+  const characters = charRepo.findAll({
+    characterType: parsed.characterType
+  });
   return {
     content: [{
       type: "text",
@@ -49925,7 +50095,6 @@ var SecretRepository = class {
         return event.itemId === condition.itemId;
       case "combat_end":
         return true;
-      // Just needs the event type to match
       case "dialogue":
         return event.text?.toLowerCase().includes(condition.dialogueTrigger?.toLowerCase() || "") || false;
       case "time_passed":
@@ -50472,6 +50641,799 @@ function generateRevealNarration(secret) {
   return templates[key] || `The hidden truth about ${secret.name} is revealed: ${secret.secretDescription}`;
 }
 
+// dist/server/party-tools.js
+var import_crypto7 = require("crypto");
+
+// dist/storage/repos/party.repo.js
+var PartyRepository = class {
+  db;
+  constructor(db) {
+    this.db = db;
+  }
+  // ========== Party CRUD ==========
+  create(party) {
+    const validated = PartySchema.parse(party);
+    const stmt = this.db.prepare(`
+            INSERT INTO parties (id, name, description, world_id, status, current_location, 
+                current_quest_id, formation, created_at, updated_at, last_played_at)
+            VALUES (@id, @name, @description, @worldId, @status, @currentLocation, 
+                @currentQuestId, @formation, @createdAt, @updatedAt, @lastPlayedAt)
+        `);
+    stmt.run({
+      id: validated.id,
+      name: validated.name,
+      description: validated.description || null,
+      worldId: validated.worldId || null,
+      status: validated.status,
+      currentLocation: validated.currentLocation || null,
+      currentQuestId: validated.currentQuestId || null,
+      formation: validated.formation,
+      createdAt: validated.createdAt,
+      updatedAt: validated.updatedAt,
+      lastPlayedAt: validated.lastPlayedAt || null
+    });
+    return validated;
+  }
+  findById(id) {
+    const stmt = this.db.prepare("SELECT * FROM parties WHERE id = ?");
+    const row = stmt.get(id);
+    if (!row)
+      return null;
+    return this.rowToParty(row);
+  }
+  findAll(filters) {
+    let query = "SELECT * FROM parties WHERE 1=1";
+    const params = [];
+    if (filters?.status) {
+      query += " AND status = ?";
+      params.push(filters.status);
+    }
+    if (filters?.worldId) {
+      query += " AND world_id = ?";
+      params.push(filters.worldId);
+    }
+    query += " ORDER BY last_played_at DESC NULLS LAST, updated_at DESC";
+    const stmt = this.db.prepare(query);
+    const rows = stmt.all(...params);
+    return rows.map((row) => this.rowToParty(row));
+  }
+  update(id, updates) {
+    const existing = this.findById(id);
+    if (!existing)
+      return null;
+    const updated = {
+      ...existing,
+      ...updates,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    const validated = PartySchema.parse(updated);
+    const stmt = this.db.prepare(`
+            UPDATE parties SET 
+                name = ?, description = ?, world_id = ?, status = ?, 
+                current_location = ?, current_quest_id = ?, formation = ?,
+                updated_at = ?, last_played_at = ?
+            WHERE id = ?
+        `);
+    stmt.run(validated.name, validated.description || null, validated.worldId || null, validated.status, validated.currentLocation || null, validated.currentQuestId || null, validated.formation, validated.updatedAt, validated.lastPlayedAt || null, id);
+    return validated;
+  }
+  delete(id) {
+    const stmt = this.db.prepare("DELETE FROM parties WHERE id = ?");
+    const result = stmt.run(id);
+    return result.changes > 0;
+  }
+  // ========== Party Members ==========
+  addMember(member) {
+    const validated = PartyMemberSchema.parse(member);
+    const stmt = this.db.prepare(`
+            INSERT INTO party_members (id, party_id, character_id, role, is_active, 
+                position, share_percentage, joined_at, notes)
+            VALUES (@id, @partyId, @characterId, @role, @isActive, 
+                @position, @sharePercentage, @joinedAt, @notes)
+        `);
+    stmt.run({
+      id: validated.id,
+      partyId: validated.partyId,
+      characterId: validated.characterId,
+      role: validated.role,
+      isActive: validated.isActive ? 1 : 0,
+      position: validated.position ?? null,
+      sharePercentage: validated.sharePercentage,
+      joinedAt: validated.joinedAt,
+      notes: validated.notes || null
+    });
+    return validated;
+  }
+  removeMember(partyId, characterId) {
+    const stmt = this.db.prepare("DELETE FROM party_members WHERE party_id = ? AND character_id = ?");
+    const result = stmt.run(partyId, characterId);
+    return result.changes > 0;
+  }
+  updateMember(partyId, characterId, updates) {
+    const existing = this.findMember(partyId, characterId);
+    if (!existing)
+      return null;
+    const updated = {
+      ...existing,
+      ...updates
+    };
+    const stmt = this.db.prepare(`
+            UPDATE party_members SET 
+                role = ?, is_active = ?, position = ?, 
+                share_percentage = ?, notes = ?
+            WHERE party_id = ? AND character_id = ?
+        `);
+    stmt.run(updated.role, updated.isActive ? 1 : 0, updated.position ?? null, updated.sharePercentage, updated.notes || null, partyId, characterId);
+    return updated;
+  }
+  findMember(partyId, characterId) {
+    const stmt = this.db.prepare("SELECT * FROM party_members WHERE party_id = ? AND character_id = ?");
+    const row = stmt.get(partyId, characterId);
+    if (!row)
+      return null;
+    return this.rowToMember(row);
+  }
+  findMembersByParty(partyId) {
+    const stmt = this.db.prepare("SELECT * FROM party_members WHERE party_id = ? ORDER BY position ASC NULLS LAST, joined_at ASC");
+    const rows = stmt.all(partyId);
+    return rows.map((row) => this.rowToMember(row));
+  }
+  findPartiesByCharacter(characterId) {
+    const stmt = this.db.prepare(`
+            SELECT p.* FROM parties p
+            INNER JOIN party_members pm ON p.id = pm.party_id
+            WHERE pm.character_id = ?
+            ORDER BY p.last_played_at DESC NULLS LAST
+        `);
+    const rows = stmt.all(characterId);
+    return rows.map((row) => this.rowToParty(row));
+  }
+  // ========== Complex Queries ==========
+  setLeader(partyId, characterId) {
+    this.db.prepare(`
+            UPDATE party_members SET role = 'member' 
+            WHERE party_id = ? AND role = 'leader'
+        `).run(partyId);
+    const stmt = this.db.prepare(`
+            UPDATE party_members SET role = 'leader' 
+            WHERE party_id = ? AND character_id = ?
+        `);
+    const result = stmt.run(partyId, characterId);
+    return result.changes > 0;
+  }
+  setActiveCharacter(partyId, characterId) {
+    this.db.prepare(`
+            UPDATE party_members SET is_active = 0 
+            WHERE party_id = ? AND is_active = 1
+        `).run(partyId);
+    const stmt = this.db.prepare(`
+            UPDATE party_members SET is_active = 1 
+            WHERE party_id = ? AND character_id = ?
+        `);
+    const result = stmt.run(partyId, characterId);
+    return result.changes > 0;
+  }
+  getPartyWithMembers(partyId) {
+    const party = this.findById(partyId);
+    if (!party)
+      return null;
+    const stmt = this.db.prepare(`
+            SELECT 
+                pm.id, pm.party_id, pm.character_id, pm.role, pm.is_active, 
+                pm.position, pm.share_percentage, pm.joined_at, pm.notes,
+                c.id as char_id, c.name as char_name, c.stats, c.hp, c.max_hp, 
+                c.ac, c.level, c.behavior, c.character_type
+            FROM party_members pm
+            INNER JOIN characters c ON pm.character_id = c.id
+            WHERE pm.party_id = ?
+            ORDER BY 
+                CASE pm.role WHEN 'leader' THEN 0 ELSE 1 END,
+                pm.position ASC NULLS LAST,
+                pm.joined_at ASC
+        `);
+    const rows = stmt.all(partyId);
+    const members = rows.map((row) => ({
+      id: row.id,
+      partyId: row.party_id,
+      characterId: row.character_id,
+      role: row.role,
+      isActive: row.is_active === 1,
+      position: row.position ?? void 0,
+      sharePercentage: row.share_percentage,
+      joinedAt: row.joined_at,
+      notes: row.notes ?? void 0,
+      character: {
+        id: row.char_id,
+        name: row.char_name,
+        hp: row.hp,
+        maxHp: row.max_hp,
+        ac: row.ac,
+        level: row.level,
+        stats: JSON.parse(row.stats),
+        behavior: row.behavior ?? void 0,
+        characterType: row.character_type ?? void 0
+      }
+    }));
+    const leader = members.find((m) => m.role === "leader");
+    const activeCharacter = members.find((m) => m.isActive);
+    return {
+      ...party,
+      members,
+      leader,
+      activeCharacter,
+      memberCount: members.length
+    };
+  }
+  getUnassignedCharacters(excludeTypes) {
+    let query = `
+            SELECT c.id, c.name, c.level, c.character_type as characterType
+            FROM characters c
+            LEFT JOIN party_members pm ON c.id = pm.character_id
+            WHERE pm.id IS NULL
+        `;
+    const params = [];
+    if (excludeTypes && excludeTypes.length > 0) {
+      query += ` AND (c.character_type IS NULL OR c.character_type NOT IN (${excludeTypes.map(() => "?").join(", ")}))`;
+      params.push(...excludeTypes);
+    }
+    query += " ORDER BY c.name ASC";
+    const stmt = this.db.prepare(query);
+    return stmt.all(...params);
+  }
+  // ========== Touch for activity tracking ==========
+  touchParty(partyId) {
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    this.db.prepare(`
+            UPDATE parties SET last_played_at = ?, updated_at = ? WHERE id = ?
+        `).run(now, now, partyId);
+  }
+  // ========== Row converters ==========
+  rowToParty(row) {
+    return PartySchema.parse({
+      id: row.id,
+      name: row.name,
+      description: row.description ?? void 0,
+      worldId: row.world_id ?? void 0,
+      status: row.status,
+      currentLocation: row.current_location ?? void 0,
+      currentQuestId: row.current_quest_id ?? void 0,
+      formation: row.formation,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      lastPlayedAt: row.last_played_at ?? void 0
+    });
+  }
+  rowToMember(row) {
+    return PartyMemberSchema.parse({
+      id: row.id,
+      partyId: row.party_id,
+      characterId: row.character_id,
+      role: row.role,
+      isActive: row.is_active === 1,
+      position: row.position ?? void 0,
+      sharePercentage: row.share_percentage,
+      joinedAt: row.joined_at,
+      notes: row.notes ?? void 0
+    });
+  }
+};
+
+// dist/server/party-tools.js
+function ensureDb5() {
+  const dbPath = process.env.NODE_ENV === "test" ? ":memory:" : process.env.RPG_DATA_DIR ? `${process.env.RPG_DATA_DIR}/rpg.db` : "rpg.db";
+  const db = getDb(dbPath);
+  const partyRepo = new PartyRepository(db);
+  const charRepo = new CharacterRepository(db);
+  const questRepo = new QuestRepository(db);
+  return { db, partyRepo, charRepo, questRepo };
+}
+var PartyTools = {
+  // Party CRUD
+  CREATE_PARTY: {
+    name: "create_party",
+    description: `Create a new party (adventuring group).
+
+Example:
+{
+  "name": "The Fellowship",
+  "description": "Nine companions on a quest to destroy the One Ring",
+  "worldId": "middle-earth-id",
+  "initialMembers": [
+    { "characterId": "gandalf-id", "role": "leader" },
+    { "characterId": "frodo-id", "role": "member" }
+  ]
+}`,
+    inputSchema: external_exports.object({
+      name: external_exports.string().min(1),
+      description: external_exports.string().optional(),
+      worldId: external_exports.string().optional(),
+      initialMembers: external_exports.array(external_exports.object({
+        characterId: external_exports.string(),
+        role: MemberRoleSchema.optional().default("member")
+      })).optional()
+    })
+  },
+  GET_PARTY: {
+    name: "get_party",
+    description: `Get a party with all member details embedded.
+
+Returns the full party object including:
+- Party metadata (name, location, formation)
+- All members with their character stats
+- Leader and active character highlighted
+- Member count`,
+    inputSchema: external_exports.object({
+      partyId: external_exports.string()
+    })
+  },
+  LIST_PARTIES: {
+    name: "list_parties",
+    description: "List all parties, optionally filtered by status or world.",
+    inputSchema: external_exports.object({
+      status: PartyStatusSchema.optional(),
+      worldId: external_exports.string().optional()
+    })
+  },
+  UPDATE_PARTY: {
+    name: "update_party",
+    description: "Update party properties (name, description, location, formation, status).",
+    inputSchema: external_exports.object({
+      partyId: external_exports.string(),
+      name: external_exports.string().min(1).optional(),
+      description: external_exports.string().optional(),
+      currentLocation: external_exports.string().optional(),
+      formation: external_exports.string().optional(),
+      status: PartyStatusSchema.optional()
+    })
+  },
+  DELETE_PARTY: {
+    name: "delete_party",
+    description: "Delete a party. Members become unassigned (not deleted).",
+    inputSchema: external_exports.object({
+      partyId: external_exports.string()
+    })
+  },
+  // Member management
+  ADD_PARTY_MEMBER: {
+    name: "add_party_member",
+    description: `Add a character to a party.
+
+Roles:
+- leader: Party leader (only one per party)
+- member: Full party member
+- companion: NPC ally traveling with party
+- hireling: Paid NPC service
+- prisoner: Captured enemy/NPC
+- mount: Animal companion`,
+    inputSchema: external_exports.object({
+      partyId: external_exports.string(),
+      characterId: external_exports.string(),
+      role: MemberRoleSchema.optional().default("member"),
+      position: external_exports.number().int().optional(),
+      notes: external_exports.string().optional()
+    })
+  },
+  REMOVE_PARTY_MEMBER: {
+    name: "remove_party_member",
+    description: "Remove a character from a party.",
+    inputSchema: external_exports.object({
+      partyId: external_exports.string(),
+      characterId: external_exports.string()
+    })
+  },
+  UPDATE_PARTY_MEMBER: {
+    name: "update_party_member",
+    description: "Update a party member's role, position, or notes.",
+    inputSchema: external_exports.object({
+      partyId: external_exports.string(),
+      characterId: external_exports.string(),
+      role: MemberRoleSchema.optional(),
+      position: external_exports.number().int().optional(),
+      sharePercentage: external_exports.number().int().min(0).max(100).optional(),
+      notes: external_exports.string().optional()
+    })
+  },
+  SET_PARTY_LEADER: {
+    name: "set_party_leader",
+    description: "Set the party leader. The character must already be a member.",
+    inputSchema: external_exports.object({
+      partyId: external_exports.string(),
+      characterId: external_exports.string()
+    })
+  },
+  SET_ACTIVE_CHARACTER: {
+    name: "set_active_character",
+    description: "Set the active character (player's POV). The character must already be a member.",
+    inputSchema: external_exports.object({
+      partyId: external_exports.string(),
+      characterId: external_exports.string()
+    })
+  },
+  GET_PARTY_MEMBERS: {
+    name: "get_party_members",
+    description: "Get all members of a party with their character details.",
+    inputSchema: external_exports.object({
+      partyId: external_exports.string()
+    })
+  },
+  // Context for LLM
+  GET_PARTY_CONTEXT: {
+    name: "get_party_context",
+    description: `Get focused party context optimized for LLM system prompts.
+
+Verbosity levels:
+- minimal: ~150 tokens (party name, member names, active character)
+- standard: ~400 tokens (above + HP, roles, location, quest)
+- detailed: ~800 tokens (above + full stats, recent events)`,
+    inputSchema: external_exports.object({
+      partyId: external_exports.string(),
+      verbosity: external_exports.enum(["minimal", "standard", "detailed"]).optional().default("standard")
+    })
+  },
+  // Utility
+  GET_UNASSIGNED_CHARACTERS: {
+    name: "get_unassigned_characters",
+    description: "Get characters not assigned to any party. Useful for adding members.",
+    inputSchema: external_exports.object({
+      excludeEnemies: external_exports.boolean().optional().default(true)
+    })
+  }
+};
+async function handleCreateParty(args, _ctx) {
+  const { partyRepo, charRepo } = ensureDb5();
+  const parsed = PartyTools.CREATE_PARTY.inputSchema.parse(args);
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const party = {
+    id: (0, import_crypto7.randomUUID)(),
+    name: parsed.name,
+    description: parsed.description,
+    worldId: parsed.worldId,
+    status: "active",
+    formation: "standard",
+    createdAt: now,
+    updatedAt: now,
+    lastPlayedAt: now
+  };
+  partyRepo.create(party);
+  const addedMembers = [];
+  let leaderId = null;
+  if (parsed.initialMembers && parsed.initialMembers.length > 0) {
+    for (let i = 0; i < parsed.initialMembers.length; i++) {
+      const memberInput = parsed.initialMembers[i];
+      const character = charRepo.findById(memberInput.characterId);
+      if (!character) {
+        continue;
+      }
+      const member = {
+        id: (0, import_crypto7.randomUUID)(),
+        partyId: party.id,
+        characterId: memberInput.characterId,
+        role: memberInput.role || "member",
+        isActive: i === 0,
+        // First member is active by default
+        position: i + 1,
+        sharePercentage: 100,
+        joinedAt: now
+      };
+      partyRepo.addMember(member);
+      addedMembers.push({
+        characterId: character.id,
+        name: character.name,
+        role: member.role
+      });
+      if (member.role === "leader") {
+        leaderId = character.id;
+      }
+    }
+  }
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        party: {
+          id: party.id,
+          name: party.name,
+          description: party.description,
+          status: party.status
+        },
+        members: addedMembers,
+        memberCount: addedMembers.length,
+        leaderId
+      }, null, 2)
+    }]
+  };
+}
+async function handleGetParty(args, _ctx) {
+  const { partyRepo } = ensureDb5();
+  const parsed = PartyTools.GET_PARTY.inputSchema.parse(args);
+  const party = partyRepo.getPartyWithMembers(parsed.partyId);
+  if (!party) {
+    throw new Error(`Party not found: ${parsed.partyId}`);
+  }
+  partyRepo.touchParty(parsed.partyId);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(party, null, 2)
+    }]
+  };
+}
+async function handleListParties(args, _ctx) {
+  const { partyRepo } = ensureDb5();
+  const parsed = PartyTools.LIST_PARTIES.inputSchema.parse(args);
+  const parties = partyRepo.findAll({
+    status: parsed.status,
+    worldId: parsed.worldId
+  });
+  const partiesWithCounts = parties.map((party) => {
+    const members = partyRepo.findMembersByParty(party.id);
+    return {
+      ...party,
+      memberCount: members.length
+    };
+  });
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        parties: partiesWithCounts,
+        count: partiesWithCounts.length
+      }, null, 2)
+    }]
+  };
+}
+async function handleUpdateParty(args, _ctx) {
+  const { partyRepo } = ensureDb5();
+  const parsed = PartyTools.UPDATE_PARTY.inputSchema.parse(args);
+  const { partyId, ...updates } = parsed;
+  const updated = partyRepo.update(partyId, updates);
+  if (!updated) {
+    throw new Error(`Party not found: ${partyId}`);
+  }
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(updated, null, 2)
+    }]
+  };
+}
+async function handleDeleteParty(args, _ctx) {
+  const { partyRepo } = ensureDb5();
+  const parsed = PartyTools.DELETE_PARTY.inputSchema.parse(args);
+  const deleted = partyRepo.delete(parsed.partyId);
+  if (!deleted) {
+    throw new Error(`Party not found: ${parsed.partyId}`);
+  }
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        message: "Party deleted",
+        id: parsed.partyId
+      }, null, 2)
+    }]
+  };
+}
+async function handleAddPartyMember(args, _ctx) {
+  const { partyRepo, charRepo } = ensureDb5();
+  const parsed = PartyTools.ADD_PARTY_MEMBER.inputSchema.parse(args);
+  const party = partyRepo.findById(parsed.partyId);
+  if (!party) {
+    throw new Error(`Party not found: ${parsed.partyId}`);
+  }
+  const character = charRepo.findById(parsed.characterId);
+  if (!character) {
+    throw new Error(`Character not found: ${parsed.characterId}`);
+  }
+  const existing = partyRepo.findMember(parsed.partyId, parsed.characterId);
+  if (existing) {
+    throw new Error(`Character ${character.name} is already in party ${party.name}`);
+  }
+  if (parsed.role === "leader") {
+    partyRepo.setLeader(parsed.partyId, parsed.characterId);
+  }
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const member = {
+    id: (0, import_crypto7.randomUUID)(),
+    partyId: parsed.partyId,
+    characterId: parsed.characterId,
+    role: parsed.role || "member",
+    isActive: false,
+    position: parsed.position,
+    sharePercentage: 100,
+    joinedAt: now,
+    notes: parsed.notes
+  };
+  partyRepo.addMember(member);
+  partyRepo.touchParty(parsed.partyId);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        message: `Added ${character.name} to ${party.name}`,
+        member: {
+          characterId: character.id,
+          name: character.name,
+          role: member.role,
+          position: member.position
+        }
+      }, null, 2)
+    }]
+  };
+}
+async function handleRemovePartyMember(args, _ctx) {
+  const { partyRepo, charRepo } = ensureDb5();
+  const parsed = PartyTools.REMOVE_PARTY_MEMBER.inputSchema.parse(args);
+  const character = charRepo.findById(parsed.characterId);
+  const removed = partyRepo.removeMember(parsed.partyId, parsed.characterId);
+  if (!removed) {
+    throw new Error(`Member not found in party`);
+  }
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        message: `Removed ${character?.name || parsed.characterId} from party`,
+        characterId: parsed.characterId
+      }, null, 2)
+    }]
+  };
+}
+async function handleUpdatePartyMember(args, _ctx) {
+  const { partyRepo } = ensureDb5();
+  const parsed = PartyTools.UPDATE_PARTY_MEMBER.inputSchema.parse(args);
+  const { partyId, characterId, ...updates } = parsed;
+  const updated = partyRepo.updateMember(partyId, characterId, updates);
+  if (!updated) {
+    throw new Error(`Member not found in party`);
+  }
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(updated, null, 2)
+    }]
+  };
+}
+async function handleSetPartyLeader(args, _ctx) {
+  const { partyRepo, charRepo } = ensureDb5();
+  const parsed = PartyTools.SET_PARTY_LEADER.inputSchema.parse(args);
+  const member = partyRepo.findMember(parsed.partyId, parsed.characterId);
+  if (!member) {
+    throw new Error(`Character is not a member of this party`);
+  }
+  const character = charRepo.findById(parsed.characterId);
+  partyRepo.setLeader(parsed.partyId, parsed.characterId);
+  partyRepo.touchParty(parsed.partyId);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        message: `${character?.name || parsed.characterId} is now the party leader`,
+        leaderId: parsed.characterId
+      }, null, 2)
+    }]
+  };
+}
+async function handleSetActiveCharacter(args, _ctx) {
+  const { partyRepo, charRepo } = ensureDb5();
+  const parsed = PartyTools.SET_ACTIVE_CHARACTER.inputSchema.parse(args);
+  const member = partyRepo.findMember(parsed.partyId, parsed.characterId);
+  if (!member) {
+    throw new Error(`Character is not a member of this party`);
+  }
+  const character = charRepo.findById(parsed.characterId);
+  partyRepo.setActiveCharacter(parsed.partyId, parsed.characterId);
+  partyRepo.touchParty(parsed.partyId);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        message: `Active character set to ${character?.name || parsed.characterId}`,
+        activeCharacterId: parsed.characterId
+      }, null, 2)
+    }]
+  };
+}
+async function handleGetPartyMembers(args, _ctx) {
+  const { partyRepo } = ensureDb5();
+  const parsed = PartyTools.GET_PARTY_MEMBERS.inputSchema.parse(args);
+  const party = partyRepo.getPartyWithMembers(parsed.partyId);
+  if (!party) {
+    throw new Error(`Party not found: ${parsed.partyId}`);
+  }
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        partyId: party.id,
+        partyName: party.name,
+        members: party.members,
+        leader: party.leader,
+        activeCharacter: party.activeCharacter,
+        memberCount: party.memberCount
+      }, null, 2)
+    }]
+  };
+}
+async function handleGetPartyContext(args, _ctx) {
+  const { partyRepo, questRepo } = ensureDb5();
+  const parsed = PartyTools.GET_PARTY_CONTEXT.inputSchema.parse(args);
+  const party = partyRepo.getPartyWithMembers(parsed.partyId);
+  if (!party) {
+    throw new Error(`Party not found: ${parsed.partyId}`);
+  }
+  const context = {
+    party: {
+      id: party.id,
+      name: party.name,
+      status: party.status,
+      location: party.currentLocation,
+      formation: party.formation
+    },
+    members: party.members.map((m) => ({
+      name: m.character.name,
+      role: m.role,
+      hp: `${m.character.hp}/${m.character.maxHp}`,
+      status: m.character.hp < m.character.maxHp * 0.25 ? "critical" : m.character.hp < m.character.maxHp * 0.5 ? "wounded" : m.character.hp < m.character.maxHp ? "hurt" : "healthy"
+    }))
+  };
+  if (party.leader) {
+    context.leader = {
+      id: party.leader.character.id,
+      name: party.leader.character.name,
+      hp: party.leader.character.hp,
+      maxHp: party.leader.character.maxHp,
+      level: party.leader.character.level
+    };
+  }
+  if (party.activeCharacter) {
+    context.activeCharacter = {
+      id: party.activeCharacter.character.id,
+      name: party.activeCharacter.character.name,
+      hp: party.activeCharacter.character.hp,
+      maxHp: party.activeCharacter.character.maxHp,
+      level: party.activeCharacter.character.level,
+      conditions: party.activeCharacter.character.hp < party.activeCharacter.character.maxHp * 0.5 ? ["wounded"] : void 0
+    };
+  }
+  if (party.currentQuestId) {
+    try {
+      const quest = questRepo.findById(party.currentQuestId);
+      if (quest) {
+        const completedCount = quest.objectives.filter((o) => o.completed).length;
+        context.activeQuest = {
+          name: quest.name,
+          currentObjective: quest.objectives.find((o) => !o.completed)?.description,
+          progress: `${Math.round(completedCount / quest.objectives.length * 100)}%`
+        };
+      }
+    } catch (e) {
+    }
+  }
+  partyRepo.touchParty(parsed.partyId);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(context, null, 2)
+    }]
+  };
+}
+async function handleGetUnassignedCharacters(args, _ctx) {
+  const { partyRepo } = ensureDb5();
+  const parsed = PartyTools.GET_UNASSIGNED_CHARACTERS.inputSchema.parse(args);
+  const excludeTypes = parsed.excludeEnemies ? ["enemy"] : void 0;
+  const characters = partyRepo.getUnassignedCharacters(excludeTypes);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        characters,
+        count: characters.length
+      }, null, 2)
+    }]
+  };
+}
+
 // dist/engine/pubsub.js
 var PubSub = class {
   subscribers = /* @__PURE__ */ new Map();
@@ -50613,7 +51575,7 @@ var AuditLogger = class {
 async function main() {
   const server = new McpServer({
     name: "rpg-mcp",
-    version: "1.0.0"
+    version: "1.1.0"
   });
   const pubsub3 = new PubSub();
   setCombatPubSub(pubsub3);
@@ -50643,6 +51605,19 @@ async function main() {
   server.tool(CRUDTools.UPDATE_CHARACTER.name, CRUDTools.UPDATE_CHARACTER.description, CRUDTools.UPDATE_CHARACTER.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(CRUDTools.UPDATE_CHARACTER.name, withSession(CRUDTools.UPDATE_CHARACTER.inputSchema, handleUpdateCharacter)));
   server.tool(CRUDTools.LIST_CHARACTERS.name, CRUDTools.LIST_CHARACTERS.description, CRUDTools.LIST_CHARACTERS.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(CRUDTools.LIST_CHARACTERS.name, withSession(CRUDTools.LIST_CHARACTERS.inputSchema, handleListCharacters)));
   server.tool(CRUDTools.DELETE_CHARACTER.name, CRUDTools.DELETE_CHARACTER.description, CRUDTools.DELETE_CHARACTER.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(CRUDTools.DELETE_CHARACTER.name, withSession(CRUDTools.DELETE_CHARACTER.inputSchema, handleDeleteCharacter)));
+  server.tool(PartyTools.CREATE_PARTY.name, PartyTools.CREATE_PARTY.description, PartyTools.CREATE_PARTY.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.CREATE_PARTY.name, withSession(PartyTools.CREATE_PARTY.inputSchema, handleCreateParty)));
+  server.tool(PartyTools.GET_PARTY.name, PartyTools.GET_PARTY.description, PartyTools.GET_PARTY.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.GET_PARTY.name, withSession(PartyTools.GET_PARTY.inputSchema, handleGetParty)));
+  server.tool(PartyTools.LIST_PARTIES.name, PartyTools.LIST_PARTIES.description, PartyTools.LIST_PARTIES.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.LIST_PARTIES.name, withSession(PartyTools.LIST_PARTIES.inputSchema, handleListParties)));
+  server.tool(PartyTools.UPDATE_PARTY.name, PartyTools.UPDATE_PARTY.description, PartyTools.UPDATE_PARTY.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.UPDATE_PARTY.name, withSession(PartyTools.UPDATE_PARTY.inputSchema, handleUpdateParty)));
+  server.tool(PartyTools.DELETE_PARTY.name, PartyTools.DELETE_PARTY.description, PartyTools.DELETE_PARTY.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.DELETE_PARTY.name, withSession(PartyTools.DELETE_PARTY.inputSchema, handleDeleteParty)));
+  server.tool(PartyTools.ADD_PARTY_MEMBER.name, PartyTools.ADD_PARTY_MEMBER.description, PartyTools.ADD_PARTY_MEMBER.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.ADD_PARTY_MEMBER.name, withSession(PartyTools.ADD_PARTY_MEMBER.inputSchema, handleAddPartyMember)));
+  server.tool(PartyTools.REMOVE_PARTY_MEMBER.name, PartyTools.REMOVE_PARTY_MEMBER.description, PartyTools.REMOVE_PARTY_MEMBER.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.REMOVE_PARTY_MEMBER.name, withSession(PartyTools.REMOVE_PARTY_MEMBER.inputSchema, handleRemovePartyMember)));
+  server.tool(PartyTools.UPDATE_PARTY_MEMBER.name, PartyTools.UPDATE_PARTY_MEMBER.description, PartyTools.UPDATE_PARTY_MEMBER.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.UPDATE_PARTY_MEMBER.name, withSession(PartyTools.UPDATE_PARTY_MEMBER.inputSchema, handleUpdatePartyMember)));
+  server.tool(PartyTools.SET_PARTY_LEADER.name, PartyTools.SET_PARTY_LEADER.description, PartyTools.SET_PARTY_LEADER.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.SET_PARTY_LEADER.name, withSession(PartyTools.SET_PARTY_LEADER.inputSchema, handleSetPartyLeader)));
+  server.tool(PartyTools.SET_ACTIVE_CHARACTER.name, PartyTools.SET_ACTIVE_CHARACTER.description, PartyTools.SET_ACTIVE_CHARACTER.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.SET_ACTIVE_CHARACTER.name, withSession(PartyTools.SET_ACTIVE_CHARACTER.inputSchema, handleSetActiveCharacter)));
+  server.tool(PartyTools.GET_PARTY_MEMBERS.name, PartyTools.GET_PARTY_MEMBERS.description, PartyTools.GET_PARTY_MEMBERS.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.GET_PARTY_MEMBERS.name, withSession(PartyTools.GET_PARTY_MEMBERS.inputSchema, handleGetPartyMembers)));
+  server.tool(PartyTools.GET_PARTY_CONTEXT.name, PartyTools.GET_PARTY_CONTEXT.description, PartyTools.GET_PARTY_CONTEXT.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.GET_PARTY_CONTEXT.name, withSession(PartyTools.GET_PARTY_CONTEXT.inputSchema, handleGetPartyContext)));
+  server.tool(PartyTools.GET_UNASSIGNED_CHARACTERS.name, PartyTools.GET_UNASSIGNED_CHARACTERS.description, PartyTools.GET_UNASSIGNED_CHARACTERS.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(PartyTools.GET_UNASSIGNED_CHARACTERS.name, withSession(PartyTools.GET_UNASSIGNED_CHARACTERS.inputSchema, handleGetUnassignedCharacters)));
   server.tool(InventoryTools.CREATE_ITEM_TEMPLATE.name, InventoryTools.CREATE_ITEM_TEMPLATE.description, InventoryTools.CREATE_ITEM_TEMPLATE.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(InventoryTools.CREATE_ITEM_TEMPLATE.name, withSession(InventoryTools.CREATE_ITEM_TEMPLATE.inputSchema, handleCreateItemTemplate)));
   server.tool(InventoryTools.GIVE_ITEM.name, InventoryTools.GIVE_ITEM.description, InventoryTools.GIVE_ITEM.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(InventoryTools.GIVE_ITEM.name, withSession(InventoryTools.GIVE_ITEM.inputSchema, handleGiveItem)));
   server.tool(InventoryTools.REMOVE_ITEM.name, InventoryTools.REMOVE_ITEM.description, InventoryTools.REMOVE_ITEM.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(InventoryTools.REMOVE_ITEM.name, withSession(InventoryTools.REMOVE_ITEM.inputSchema, handleRemoveItem)));
