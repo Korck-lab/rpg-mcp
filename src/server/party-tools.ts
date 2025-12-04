@@ -190,6 +190,47 @@ Verbosity levels:
             excludeEnemies: z.boolean().optional().default(true),
         }),
     },
+
+    // Party Position & Movement
+    MOVE_PARTY: {
+        name: 'move_party',
+        description: `Move a party to a new location on the world map. Supports moving to coordinates or to a POI (structure).
+
+Example:
+{
+  "partyId": "party-uuid",
+  "targetX": 60,
+  "targetY": 70,
+  "locationName": "Rivendell",
+  "poiId": "structure-uuid"
+}`,
+        inputSchema: z.object({
+            partyId: z.string(),
+            targetX: z.number().int().nonnegative(),
+            targetY: z.number().int().nonnegative(),
+            locationName: z.string().min(1),
+            poiId: z.string().optional(),
+        }),
+    },
+
+    GET_PARTY_POSITION: {
+        name: 'get_party_position',
+        description: 'Get the current position of a party on the world map.',
+        inputSchema: z.object({
+            partyId: z.string(),
+        }),
+    },
+
+    GET_PARTIES_IN_REGION: {
+        name: 'get_parties_in_region',
+        description: 'Get all parties within a certain distance of a coordinate (useful for finding nearby groups).',
+        inputSchema: z.object({
+            worldId: z.string(),
+            x: z.number().int(),
+            y: z.number().int(),
+            radiusSquares: z.number().int().optional().default(3),
+        }),
+    },
 } as const;
 
 // ========== Handlers ==========
@@ -623,4 +664,134 @@ export async function handleGetUnassignedCharacters(args: unknown, _ctx: Session
             }, null, 2)
         }]
     };
+}
+
+// ========== Party Position & Movement Handlers ==========
+
+export async function handleMoveParty(args: unknown, _ctx: SessionContext) {
+    const { partyRepo } = ensureDb();
+    const parsed = PartyTools.MOVE_PARTY.inputSchema.parse(args);
+
+    try {
+        // Validate party exists
+        const party = partyRepo.findById(parsed.partyId);
+        if (!party) {
+            throw new Error(`Party not found: ${parsed.partyId}`);
+        }
+
+        // Update party position
+        const updatedParty = partyRepo.updatePartyPosition(
+            parsed.partyId,
+            parsed.targetX,
+            parsed.targetY,
+            parsed.locationName,
+            parsed.poiId
+        );
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    success: true,
+                    party: updatedParty,
+                    newPosition: {
+                        x: parsed.targetX,
+                        y: parsed.targetY,
+                        location: parsed.locationName,
+                        poiId: parsed.poiId || null,
+                    },
+                    message: `Party "${updatedParty.name}" moved to ${parsed.locationName} (${parsed.targetX}, ${parsed.targetY})`,
+                }, null, 2)
+            }]
+        };
+    } catch (error: any) {
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    success: false,
+                    error: error.message || 'Failed to move party',
+                }, null, 2)
+            }]
+        };
+    }
+}
+
+export async function handleGetPartyPosition(args: unknown, _ctx: SessionContext) {
+    const { partyRepo } = ensureDb();
+    const parsed = PartyTools.GET_PARTY_POSITION.inputSchema.parse(args);
+
+    try {
+        const party = partyRepo.findById(parsed.partyId);
+        if (!party) {
+            throw new Error(`Party not found: ${parsed.partyId}`);
+        }
+
+        const position = partyRepo.getPartyPosition(parsed.partyId);
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    success: true,
+                    party: {
+                        id: party.id,
+                        name: party.name,
+                    },
+                    position: position || {
+                        x: null,
+                        y: null,
+                        locationName: 'Unknown',
+                        poiId: null,
+                    },
+                }, null, 2)
+            }]
+        };
+    } catch (error: any) {
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    success: false,
+                    error: error.message || 'Failed to get party position',
+                }, null, 2)
+            }]
+        };
+    }
+}
+
+export async function handleGetPartiesInRegion(args: unknown, _ctx: SessionContext) {
+    const { partyRepo } = ensureDb();
+    const parsed = PartyTools.GET_PARTIES_IN_REGION.inputSchema.parse(args);
+
+    try {
+        const parties = partyRepo.getPartiesNearPosition(
+            parsed.worldId,
+            parsed.x,
+            parsed.y,
+            parsed.radiusSquares
+        );
+
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    success: true,
+                    count: parties.length,
+                    parties,
+                    message: `Found ${parties.length} parties within ${parsed.radiusSquares} squares of (${parsed.x}, ${parsed.y})`,
+                }, null, 2)
+            }]
+        };
+    } catch (error: any) {
+        return {
+            content: [{
+                type: 'text' as const,
+                text: JSON.stringify({
+                    success: false,
+                    error: error.message || 'Failed to get parties in region',
+                }, null, 2)
+            }]
+        };
+    }
 }

@@ -12,6 +12,7 @@ export * from './river.js';
 export * from './lakes.js';
 export * from './regions.js';
 export * from './structures.js';
+export * from './validation.js';
 
 import { generateHeightmap } from './heightmap.js';
 import { generateClimateMap } from './climate.js';

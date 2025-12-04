@@ -43619,6 +43619,122 @@ function isTooClose(idx, structures, width, minDistance) {
   return false;
 }
 
+// dist/engine/worldgen/validation.js
+var INVALID_BIOME_PLACEMENTS = {
+  [StructureType.CITY]: [
+    BiomeType.OCEAN,
+    BiomeType.DEEP_OCEAN,
+    BiomeType.LAKE,
+    BiomeType.GLACIER
+  ],
+  [StructureType.TOWN]: [
+    BiomeType.OCEAN,
+    BiomeType.DEEP_OCEAN,
+    BiomeType.LAKE,
+    BiomeType.GLACIER
+  ],
+  [StructureType.VILLAGE]: [
+    BiomeType.OCEAN,
+    BiomeType.DEEP_OCEAN,
+    BiomeType.LAKE,
+    BiomeType.GLACIER
+  ],
+  [StructureType.CASTLE]: [
+    BiomeType.OCEAN,
+    BiomeType.DEEP_OCEAN,
+    BiomeType.LAKE,
+    BiomeType.SWAMP
+  ],
+  [StructureType.TEMPLE]: [
+    BiomeType.OCEAN,
+    BiomeType.DEEP_OCEAN,
+    BiomeType.LAKE
+  ],
+  // Ruins and Dungeons can be almost anywhere (even underwater for ancient ruins)
+  [StructureType.RUINS]: [
+    BiomeType.DEEP_OCEAN
+    // Too deep
+  ],
+  [StructureType.DUNGEON]: [
+    BiomeType.OCEAN,
+    BiomeType.DEEP_OCEAN,
+    BiomeType.LAKE
+  ]
+};
+var WATER_BIOMES = [
+  BiomeType.OCEAN,
+  BiomeType.DEEP_OCEAN,
+  BiomeType.LAKE
+];
+function canPlaceStructureOnBiome(structureType, biome) {
+  const invalidBiomes = INVALID_BIOME_PLACEMENTS[structureType];
+  if (!invalidBiomes) {
+    return { valid: true };
+  }
+  if (invalidBiomes.includes(biome)) {
+    const isWater = WATER_BIOMES.includes(biome);
+    return {
+      valid: false,
+      reason: isWater ? `Cannot place ${structureType} in water (${biome})` : `Cannot place ${structureType} on ${biome} terrain`
+    };
+  }
+  return { valid: true };
+}
+function validateStructurePlacement(structureType, x, y, world) {
+  if (x < 0 || x >= world.width || y < 0 || y >= world.height) {
+    return {
+      valid: false,
+      reason: `Coordinates (${x}, ${y}) are out of bounds (world is ${world.width}x${world.height})`
+    };
+  }
+  const biome = world.biomes[y][x];
+  const idx = y * world.width + x;
+  const elevation = world.elevation[idx];
+  const biomeCheck = canPlaceStructureOnBiome(structureType, biome);
+  if (!biomeCheck.valid) {
+    return {
+      ...biomeCheck,
+      biome,
+      elevation
+    };
+  }
+  if (elevation < 20 && structureType !== StructureType.RUINS) {
+    return {
+      valid: false,
+      reason: `Location (${x}, ${y}) is below sea level (elevation: ${elevation})`,
+      biome,
+      elevation
+    };
+  }
+  return { valid: true, biome, elevation };
+}
+var BIOME_HABITABILITY = {
+  [BiomeType.GRASSLAND]: 15,
+  [BiomeType.FOREST]: 12,
+  [BiomeType.SAVANNA]: 8,
+  [BiomeType.TAIGA]: 5,
+  [BiomeType.RAINFOREST]: 6,
+  [BiomeType.DESERT]: -5,
+  [BiomeType.SWAMP]: -8,
+  [BiomeType.TUNDRA]: -10,
+  [BiomeType.GLACIER]: -20,
+  [BiomeType.OCEAN]: -100,
+  [BiomeType.DEEP_OCEAN]: -100,
+  [BiomeType.LAKE]: -100
+};
+function getSuggestedBiomesForStructure(structureType) {
+  const goodBiomes = [];
+  for (const [biome, score] of Object.entries(BIOME_HABITABILITY)) {
+    if (score > 0) {
+      const check2 = canPlaceStructureOnBiome(structureType, biome);
+      if (check2.valid) {
+        goodBiomes.push(biome);
+      }
+    }
+  }
+  return goodBiomes;
+}
+
 // dist/engine/worldgen/index.js
 function generateWorld(options) {
   const { seed, width, height, landRatio, octaves, numRegions, numCities, numTowns, numDungeons } = options;
@@ -44422,35 +44538,85 @@ function parseLine(line) {
 }
 
 // dist/engine/dsl/engine.js
-function applyPatch(world, commands) {
+function applyPatch(world, commands, options = {}) {
+  const { skipInvalid = false, dryRun = false } = options;
+  const result = {
+    success: true,
+    commandsExecuted: 0,
+    errors: [],
+    warnings: []
+  };
   for (const command of commands) {
-    applyCommand(world, command);
+    const cmdResult = validateAndApplyCommand(world, command, dryRun);
+    if (cmdResult.error) {
+      result.errors.push(cmdResult.error);
+      if (!skipInvalid) {
+        result.success = false;
+        break;
+      }
+    } else {
+      result.commandsExecuted++;
+    }
+    if (cmdResult.warning) {
+      result.warnings.push(cmdResult.warning);
+    }
   }
-  return world;
+  return result;
 }
-function applyCommand(world, command) {
+function validateAndApplyCommand(world, command, dryRun) {
   switch (command.command) {
     case CommandType.ADD_STRUCTURE: {
       const { type, x, y, name } = command.args;
-      world.structures.push({
-        type,
-        location: { x, y },
-        name,
-        score: 100
-        // Manual placement gets max score
-      });
-      break;
+      const validation = validateStructurePlacement(type, x, y, world);
+      if (!validation.valid) {
+        const suggestedBiomes = getSuggestedBiomesForStructure(type);
+        return {
+          error: {
+            command: `ADD_STRUCTURE ${type} ${x} ${y}`,
+            message: `${validation.reason}. Suggested biomes for ${type}: ${suggestedBiomes.join(", ")}`,
+            location: { x, y }
+          }
+        };
+      }
+      if (!dryRun) {
+        world.structures.push({
+          type,
+          location: { x, y },
+          name,
+          score: 100
+          // Manual placement gets max score
+        });
+      }
+      return {};
     }
     case CommandType.SET_BIOME: {
       const { x, y, type } = command.args;
-      if (isValidCoordinate(world, x, y)) {
+      if (!isValidCoordinate(world, x, y)) {
+        return {
+          error: {
+            command: `SET_BIOME ${type} ${x} ${y}`,
+            message: `Coordinates (${x}, ${y}) are out of bounds`,
+            location: { x, y }
+          }
+        };
+      }
+      if (!dryRun) {
         world.biomes[y][x] = type;
       }
-      break;
+      return {};
     }
     case CommandType.EDIT_TILE: {
       const { x, y, elevation, moisture, temperature } = command.args;
-      if (isValidCoordinate(world, x, y)) {
+      if (!isValidCoordinate(world, x, y)) {
+        return {
+          error: {
+            command: `EDIT_TILE ${x} ${y}`,
+            message: `Coordinates (${x}, ${y}) are out of bounds`,
+            location: { x, y }
+          }
+        };
+      }
+      if (!dryRun) {
         const idx = y * world.width + x;
         if (elevation !== void 0)
           world.elevation[idx] = elevation;
@@ -44459,22 +44625,45 @@ function applyCommand(world, command) {
         if (temperature !== void 0)
           world.temperature[idx] = temperature;
       }
-      break;
+      return {};
     }
     case CommandType.MOVE_STRUCTURE: {
       const { id, x, y } = command.args;
       const structure = world.structures.find((s) => s.name === id);
-      if (structure) {
-        structure.location = { x, y };
-      } else {
-        throw new Error(`Structure not found: ${id}`);
+      if (!structure) {
+        return {
+          error: {
+            command: `MOVE_STRUCTURE ${id} ${x} ${y}`,
+            message: `Structure not found: ${id}`,
+            location: { x, y }
+          }
+        };
       }
-      break;
+      const validation = validateStructurePlacement(structure.type, x, y, world);
+      if (!validation.valid) {
+        return {
+          error: {
+            command: `MOVE_STRUCTURE ${id} ${x} ${y}`,
+            message: validation.reason,
+            location: { x, y }
+          }
+        };
+      }
+      if (!dryRun) {
+        structure.location = { x, y };
+      }
+      return {};
     }
     case CommandType.ADD_ROAD:
     case CommandType.ADD_ANNOTATION:
-      break;
+      return {
+        warning: {
+          command: command.command,
+          message: `Command ${command.command} is not yet implemented`
+        }
+      };
   }
+  return {};
 }
 function isValidCoordinate(world, x, y) {
   return x >= 0 && x < world.width && y >= 0 && y < world.height;
@@ -44512,6 +44701,8 @@ Examples:
   APPLY_MAP_PATCH: {
     name: "apply_map_patch",
     description: `Applies a DSL patch script to the current world.
+
+IMPORTANT: Structure placements are validated against terrain. Cities, towns, villages cannot be placed in water (ocean, lake) or on glaciers. Use find_valid_poi_location to get suitable coordinates first.
 
 Supported Commands:
 - ADD_STRUCTURE type x y (e.g., "ADD_STRUCTURE town 12 15")
@@ -44554,6 +44745,49 @@ SET_BIOME mountain 26 25`,
     inputSchema: external_exports.object({
       worldId: external_exports.string().describe("The ID of the world to preview patch on"),
       script: external_exports.string().describe("The DSL script to preview")
+    })
+  },
+  FIND_VALID_POI_LOCATION: {
+    name: "find_valid_poi_location",
+    description: `Finds valid locations for placing a POI/structure based on terrain and preferences.
+
+Use this BEFORE calling apply_map_patch to get coordinates that are actually valid for the structure type. Returns multiple candidate locations ranked by suitability score.
+
+Examples:
+- Find location for a city near water: { "worldId": "...", "poiType": "city", "nearWater": true }
+- Find location for a dungeon in mountains: { "worldId": "...", "poiType": "dungeon", "preferredBiomes": ["taiga", "tundra"] }
+- Find 5 possible town locations: { "worldId": "...", "poiType": "town", "count": 5 }`,
+    inputSchema: external_exports.object({
+      worldId: external_exports.string().describe("The ID of the world"),
+      poiType: external_exports.enum(["city", "town", "village", "castle", "ruins", "dungeon", "temple"]).describe("Type of POI to place"),
+      nearWater: external_exports.boolean().optional().describe("If true, prefer locations within 5 tiles of river/coast"),
+      preferredBiomes: external_exports.array(external_exports.string()).optional().describe("List of preferred biome types"),
+      avoidExistingPOIs: external_exports.boolean().optional().default(true).describe("If true, avoid placing near existing structures"),
+      minDistanceFromPOI: external_exports.number().optional().default(5).describe("Minimum distance from existing POIs"),
+      regionId: external_exports.number().optional().describe("Limit search to specific region"),
+      count: external_exports.number().int().min(1).max(10).optional().default(3).describe("Number of candidate locations to return")
+    })
+  },
+  SUGGEST_POI_LOCATIONS: {
+    name: "suggest_poi_locations",
+    description: `Returns a batch of suggested locations for multiple POI types at once. Useful for initial world setup.
+
+Example: Get suggestions for 3 cities and 5 towns:
+{
+  "worldId": "...",
+  "requests": [
+    { "poiType": "city", "count": 3, "nearWater": true },
+    { "poiType": "town", "count": 5 }
+  ]
+}`,
+    inputSchema: external_exports.object({
+      worldId: external_exports.string().describe("The ID of the world"),
+      requests: external_exports.array(external_exports.object({
+        poiType: external_exports.enum(["city", "town", "village", "castle", "ruins", "dungeon", "temple"]),
+        count: external_exports.number().int().min(1).max(10).default(1),
+        nearWater: external_exports.boolean().optional(),
+        preferredBiomes: external_exports.array(external_exports.string()).optional()
+      })).describe("List of POI placement requests")
     })
   }
 };
@@ -44703,21 +44937,43 @@ async function handleApplyMapPatch(args, ctx) {
   }
   try {
     const commands = parseDSL(parsed.script);
-    applyPatch(currentWorld, commands);
-    const db = getDb(process.env.NODE_ENV === "test" ? ":memory:" : "rpg.db");
-    invalidateTileCache(db, parsed.worldId);
-    pubsub?.publish("world", {
-      type: "patch_applied",
-      commandsExecuted: commands.length,
-      timestamp: Date.now()
-    });
+    const result = applyPatch(currentWorld, commands);
+    if (result.commandsExecuted > 0) {
+      const db = getDb(process.env.NODE_ENV === "test" ? ":memory:" : "rpg.db");
+      invalidateTileCache(db, parsed.worldId);
+      pubsub?.publish("world", {
+        type: "patch_applied",
+        commandsExecuted: result.commandsExecuted,
+        timestamp: Date.now()
+      });
+    }
+    if (!result.success) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: false,
+              message: "Patch failed - some commands could not be applied",
+              commandsExecuted: result.commandsExecuted,
+              errors: result.errors,
+              warnings: result.warnings,
+              hint: "Use find_valid_poi_location to get valid coordinates for structure placement"
+            }, null, 2)
+          }
+        ]
+      };
+    }
     return {
       content: [
         {
           type: "text",
           text: JSON.stringify({
+            success: true,
             message: "Patch applied successfully",
-            commandsExecuted: commands.length
+            commandsExecuted: result.commandsExecuted,
+            warnings: result.warnings.length > 0 ? result.warnings : void 0
           }, null, 2)
         }
       ]
@@ -44728,7 +44984,7 @@ async function handleApplyMapPatch(args, ctx) {
       content: [
         {
           type: "text",
-          text: `Failed to apply patch: ${error.message}`
+          text: `Failed to parse patch script: ${error.message}`
         }
       ]
     };
@@ -44752,6 +45008,7 @@ async function handleGetWorldMapOverview(args, ctx) {
   for (const [biome, count] of Object.entries(biomeDistribution)) {
     biomePercentages[biome] = Math.round(count / totalTiles * 100 * 10) / 10;
   }
+  const landmasses = detectLandmasses(currentWorld);
   return {
     content: [
       {
@@ -44765,11 +45022,77 @@ async function handleGetWorldMapOverview(args, ctx) {
           biomeDistribution: biomePercentages,
           regionCount: currentWorld.regions.length,
           structureCount: currentWorld.structures.length,
-          riverTileCount: currentWorld.rivers.filter((r) => r > 0).length
+          riverTileCount: currentWorld.rivers.filter((r) => r > 0).length,
+          landmasses: landmasses.slice(0, 5)
+          // Top 5 landmasses
         }, null, 2)
       }
     ]
   };
+}
+function detectLandmasses(world) {
+  const { width, height, biomes } = world;
+  const visited = new Uint8Array(width * height);
+  const landmasses = [];
+  let landmassId = 0;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      if (visited[idx])
+        continue;
+      const biome = biomes[y][x];
+      if (WATER_BIOMES.includes(biome)) {
+        visited[idx] = 1;
+        continue;
+      }
+      const tiles = [];
+      const stack = [{ x, y }];
+      let minX = x, maxX = x, minY = y, maxY = y;
+      while (stack.length > 0) {
+        const { x: cx, y: cy } = stack.pop();
+        const cIdx = cy * width + cx;
+        if (visited[cIdx])
+          continue;
+        if (cx < 0 || cx >= width || cy < 0 || cy >= height)
+          continue;
+        const cBiome = biomes[cy][cx];
+        if (WATER_BIOMES.includes(cBiome))
+          continue;
+        visited[cIdx] = 1;
+        tiles.push({ x: cx, y: cy, biome: cBiome });
+        minX = Math.min(minX, cx);
+        maxX = Math.max(maxX, cx);
+        minY = Math.min(minY, cy);
+        maxY = Math.max(maxY, cy);
+        stack.push({ x: cx + 1, y: cy });
+        stack.push({ x: cx - 1, y: cy });
+        stack.push({ x: cx, y: cy + 1 });
+        stack.push({ x: cx, y: cy - 1 });
+      }
+      if (tiles.length > 10) {
+        landmasses.push({
+          id: landmassId++,
+          size: tiles.length,
+          boundingBox: { x1: minX, y1: minY, x2: maxX, y2: maxY },
+          tiles
+        });
+      }
+    }
+  }
+  landmasses.sort((a, b) => b.size - a.size);
+  return landmasses.map((lm) => {
+    const biomeCounts = {};
+    for (const tile of lm.tiles) {
+      biomeCounts[tile.biome] = (biomeCounts[tile.biome] || 0) + 1;
+    }
+    const dominantBiomes = Object.entries(biomeCounts).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([biome]) => biome);
+    return {
+      id: lm.id,
+      size: lm.size,
+      boundingBox: lm.boundingBox,
+      dominantBiomes
+    };
+  });
 }
 async function handleGetRegionMap(args, ctx) {
   const parsed = Tools.GET_REGION_MAP.inputSchema.parse(args);
@@ -44914,11 +45237,13 @@ async function handlePreviewMapPatch(args, ctx) {
   }
   try {
     const commands = parseDSL(parsed.script);
+    const result = applyPatch(currentWorld, commands, { dryRun: true });
     return {
       content: [
         {
           type: "text",
           text: JSON.stringify({
+            valid: result.success,
             commands: commands.map((cmd) => {
               const preview = {
                 type: cmd.command
@@ -44936,7 +45261,8 @@ async function handlePreviewMapPatch(args, ctx) {
               return preview;
             }),
             commandCount: commands.length,
-            willModify: commands.length > 0
+            errors: result.errors,
+            warnings: result.warnings
           }, null, 2)
         }
       ]
@@ -44944,6 +45270,185 @@ async function handlePreviewMapPatch(args, ctx) {
   } catch (error) {
     throw new Error(`Invalid patch script: ${error.message}`);
   }
+}
+async function handleFindValidPoiLocation(args, ctx) {
+  const parsed = Tools.FIND_VALID_POI_LOCATION.inputSchema.parse(args);
+  const currentWorld = await getOrRestoreWorld(parsed.worldId, ctx.sessionId);
+  if (!currentWorld) {
+    throw new Error(`World ${parsed.worldId} not found.`);
+  }
+  const { width, height, biomes, elevation, rivers, structures, regionMap } = currentWorld;
+  const poiType = parsed.poiType;
+  const candidates = [];
+  const existingLocations = structures.map((s) => s.location);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      const biome = biomes[y][x];
+      const elev = elevation[idx];
+      const regionId = regionMap[idx];
+      if (parsed.regionId !== void 0 && regionId !== parsed.regionId)
+        continue;
+      const validation = validateStructurePlacement(poiType, x, y, currentWorld);
+      if (!validation.valid)
+        continue;
+      let score = 50;
+      score += BIOME_HABITABILITY[biome] || 0;
+      if (parsed.preferredBiomes?.includes(biome)) {
+        score += 20;
+      }
+      const nearWater = isNearWater(x, y, width, height, rivers, biomes);
+      if (parsed.nearWater && nearWater) {
+        score += 15;
+      } else if (parsed.nearWater && !nearWater) {
+        score -= 10;
+      }
+      if (parsed.avoidExistingPOIs) {
+        let tooClose = false;
+        for (const loc of existingLocations) {
+          const dist = Math.sqrt((x - loc.x) ** 2 + (y - loc.y) ** 2);
+          if (dist < (parsed.minDistanceFromPOI || 5)) {
+            tooClose = true;
+            break;
+          }
+        }
+        if (tooClose)
+          continue;
+      }
+      if (poiType === StructureType.CITY || poiType === StructureType.TOWN || poiType === StructureType.VILLAGE) {
+        if (elev >= 20 && elev <= 60)
+          score += 5;
+      }
+      if (poiType === StructureType.DUNGEON) {
+        if (score < 50)
+          score += 10;
+      }
+      candidates.push({
+        x,
+        y,
+        score,
+        biome,
+        elevation: elev,
+        nearWater,
+        regionId
+      });
+    }
+  }
+  candidates.sort((a, b) => b.score - a.score);
+  const count = parsed.count || 3;
+  const topCandidates = candidates.slice(0, count);
+  if (topCandidates.length === 0) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            success: false,
+            message: `No valid locations found for ${poiType}`,
+            suggestedBiomes: getSuggestedBiomesForStructure(poiType)
+          }, null, 2)
+        }
+      ]
+    };
+  }
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({
+          success: true,
+          poiType,
+          candidates: topCandidates,
+          totalValidLocations: candidates.length,
+          hint: `Use these coordinates with apply_map_patch: ADD_STRUCTURE ${poiType} ${topCandidates[0].x} ${topCandidates[0].y}`
+        }, null, 2)
+      }
+    ]
+  };
+}
+function isNearWater(x, y, width, height, rivers, biomes) {
+  const searchRadius = 5;
+  for (let dy = -searchRadius; dy <= searchRadius; dy++) {
+    for (let dx = -searchRadius; dx <= searchRadius; dx++) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height)
+        continue;
+      const nIdx = ny * width + nx;
+      if (rivers[nIdx] > 0)
+        return true;
+      if (WATER_BIOMES.includes(biomes[ny][nx]))
+        return true;
+    }
+  }
+  return false;
+}
+async function handleSuggestPoiLocations(args, ctx) {
+  const parsed = Tools.SUGGEST_POI_LOCATIONS.inputSchema.parse(args);
+  const currentWorld = await getOrRestoreWorld(parsed.worldId, ctx.sessionId);
+  if (!currentWorld) {
+    throw new Error(`World ${parsed.worldId} not found.`);
+  }
+  const results = [];
+  const usedLocations = /* @__PURE__ */ new Set();
+  for (const structure of currentWorld.structures) {
+    usedLocations.add(`${structure.location.x},${structure.location.y}`);
+  }
+  for (const request of parsed.requests) {
+    const locationResult = await handleFindValidPoiLocation({
+      worldId: parsed.worldId,
+      poiType: request.poiType,
+      nearWater: request.nearWater,
+      preferredBiomes: request.preferredBiomes,
+      avoidExistingPOIs: true,
+      count: request.count * 2
+      // Get extra candidates to filter
+    }, ctx);
+    const locationData = JSON.parse(locationResult.content[0].text);
+    if (locationData.success && locationData.candidates) {
+      const availableLocations = locationData.candidates.filter((loc) => {
+        const key = `${loc.x},${loc.y}`;
+        if (usedLocations.has(key))
+          return false;
+        usedLocations.add(key);
+        return true;
+      }).slice(0, request.count);
+      results.push({
+        poiType: request.poiType,
+        locations: availableLocations.map((loc) => ({
+          x: loc.x,
+          y: loc.y,
+          score: loc.score,
+          biome: loc.biome
+        }))
+      });
+    } else {
+      results.push({
+        poiType: request.poiType,
+        locations: []
+      });
+    }
+  }
+  const dslLines = [];
+  let poiIndex = 1;
+  for (const result of results) {
+    for (const loc of result.locations) {
+      dslLines.push(`ADD_STRUCTURE ${result.poiType} ${loc.x} ${loc.y} "${result.poiType.charAt(0).toUpperCase() + result.poiType.slice(1)} ${poiIndex++}"`);
+    }
+  }
+  return {
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({
+          success: true,
+          results,
+          suggestedDSL: dslLines.join("\n"),
+          hint: "Copy the suggestedDSL to apply_map_patch to create all POIs at once"
+        }, null, 2)
+      }
+    ]
+  };
 }
 
 // dist/engine/combat/rng.js
@@ -51589,6 +52094,8 @@ async function main() {
   server.tool(Tools.GET_REGION_MAP.name, Tools.GET_REGION_MAP.description, Tools.GET_REGION_MAP.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(Tools.GET_REGION_MAP.name, withSession(Tools.GET_REGION_MAP.inputSchema, handleGetRegionMap)));
   server.tool(Tools.GET_WORLD_TILES.name, Tools.GET_WORLD_TILES.description, Tools.GET_WORLD_TILES.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(Tools.GET_WORLD_TILES.name, withSession(Tools.GET_WORLD_TILES.inputSchema, handleGetWorldTiles)));
   server.tool(Tools.PREVIEW_MAP_PATCH.name, Tools.PREVIEW_MAP_PATCH.description, Tools.PREVIEW_MAP_PATCH.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(Tools.PREVIEW_MAP_PATCH.name, withSession(Tools.PREVIEW_MAP_PATCH.inputSchema, handlePreviewMapPatch)));
+  server.tool(Tools.FIND_VALID_POI_LOCATION.name, Tools.FIND_VALID_POI_LOCATION.description, Tools.FIND_VALID_POI_LOCATION.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(Tools.FIND_VALID_POI_LOCATION.name, withSession(Tools.FIND_VALID_POI_LOCATION.inputSchema, handleFindValidPoiLocation)));
+  server.tool(Tools.SUGGEST_POI_LOCATIONS.name, Tools.SUGGEST_POI_LOCATIONS.description, Tools.SUGGEST_POI_LOCATIONS.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(Tools.SUGGEST_POI_LOCATIONS.name, withSession(Tools.SUGGEST_POI_LOCATIONS.inputSchema, handleSuggestPoiLocations)));
   server.tool(CombatTools.CREATE_ENCOUNTER.name, CombatTools.CREATE_ENCOUNTER.description, CombatTools.CREATE_ENCOUNTER.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(CombatTools.CREATE_ENCOUNTER.name, withSession(CombatTools.CREATE_ENCOUNTER.inputSchema, handleCreateEncounter)));
   server.tool(CombatTools.GET_ENCOUNTER_STATE.name, CombatTools.GET_ENCOUNTER_STATE.description, CombatTools.GET_ENCOUNTER_STATE.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(CombatTools.GET_ENCOUNTER_STATE.name, withSession(CombatTools.GET_ENCOUNTER_STATE.inputSchema, handleGetEncounterState)));
   server.tool(CombatTools.EXECUTE_COMBAT_ACTION.name, CombatTools.EXECUTE_COMBAT_ACTION.description, CombatTools.EXECUTE_COMBAT_ACTION.inputSchema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(CombatTools.EXECUTE_COMBAT_ACTION.name, withSession(CombatTools.EXECUTE_COMBAT_ACTION.inputSchema, handleExecuteCombatAction)));

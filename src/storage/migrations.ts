@@ -228,6 +228,9 @@ export function migrate(db: Database.Database) {
     current_location TEXT,
     current_quest_id TEXT REFERENCES quests(id) ON DELETE SET NULL,
     formation TEXT NOT NULL DEFAULT 'standard',
+    position_x INTEGER,
+    position_y INTEGER,
+    current_poi TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     last_played_at TEXT
@@ -250,6 +253,7 @@ export function migrate(db: Database.Database) {
   CREATE INDEX IF NOT EXISTS idx_party_members_character ON party_members(character_id);
   CREATE INDEX IF NOT EXISTS idx_parties_status ON parties(status);
   CREATE INDEX IF NOT EXISTS idx_parties_world ON parties(world_id);
+  CREATE INDEX IF NOT EXISTS idx_parties_position ON parties(position_x, position_y);
   `);
 
   // Run migrations for existing databases that don't have the new columns
@@ -267,9 +271,36 @@ function runMigrations(db: Database.Database) {
   
   if (!hasCharacterType) {
     console.error('[Migration] Adding character_type column to characters table');
-    // SQLite doesn't support CHECK constraints in ALTER TABLE, so we add just the column
     db.exec(`ALTER TABLE characters ADD COLUMN character_type TEXT DEFAULT 'pc';`);
   }
+
+  // Check if party position columns exist and add them if missing
+  const partyColumns = db.prepare("PRAGMA table_info(parties)").all() as { name: string }[];
+  const hasPositionX = partyColumns.some(col => col.name === 'position_x');
+  const hasPositionY = partyColumns.some(col => col.name === 'position_y');
+  const hasCurrentPOI = partyColumns.some(col => col.name === 'current_poi');
+  
+  if (!hasPositionX) {
+    console.log('[Migration] Adding position_x column to parties table');
+    db.exec(`ALTER TABLE parties ADD COLUMN position_x INTEGER;`);
+  }
+  
+  if (!hasPositionY) {
+    console.log('[Migration] Adding position_y column to parties table');
+    db.exec(`ALTER TABLE parties ADD COLUMN position_y INTEGER;`);
+  }
+  
+  if (!hasCurrentPOI) {
+    console.log('[Migration] Adding current_poi column to parties table');
+    db.exec(`ALTER TABLE parties ADD COLUMN current_poi TEXT;`);
+  }
+
+  // Set safe default positions for existing parties (map center)
+  db.exec(`
+    UPDATE parties 
+    SET position_x = 50, position_y = 50 
+    WHERE position_x IS NULL;
+  `);
 }
 
 function createPostMigrationIndexes(db: Database.Database) {

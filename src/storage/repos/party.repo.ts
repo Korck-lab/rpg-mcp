@@ -57,9 +57,9 @@ export class PartyRepository {
         
         const stmt = this.db.prepare(`
             INSERT INTO parties (id, name, description, world_id, status, current_location, 
-                current_quest_id, formation, created_at, updated_at, last_played_at)
+                current_quest_id, formation, position_x, position_y, current_poi, created_at, updated_at, last_played_at)
             VALUES (@id, @name, @description, @worldId, @status, @currentLocation, 
-                @currentQuestId, @formation, @createdAt, @updatedAt, @lastPlayedAt)
+                @currentQuestId, @formation, @positionX, @positionY, @currentPOI, @createdAt, @updatedAt, @lastPlayedAt)
         `);
 
         stmt.run({
@@ -71,6 +71,9 @@ export class PartyRepository {
             currentLocation: validated.currentLocation || null,
             currentQuestId: validated.currentQuestId || null,
             formation: validated.formation,
+            positionX: validated.positionX ?? null,
+            positionY: validated.positionY ?? null,
+            currentPOI: validated.currentPOI || null,
             createdAt: validated.createdAt,
             updatedAt: validated.updatedAt,
             lastPlayedAt: validated.lastPlayedAt || null,
@@ -123,6 +126,7 @@ export class PartyRepository {
             UPDATE parties SET 
                 name = ?, description = ?, world_id = ?, status = ?, 
                 current_location = ?, current_quest_id = ?, formation = ?,
+                position_x = ?, position_y = ?, current_poi = ?,
                 updated_at = ?, last_played_at = ?
             WHERE id = ?
         `);
@@ -135,6 +139,9 @@ export class PartyRepository {
             validated.currentLocation || null,
             validated.currentQuestId || null,
             validated.formation,
+            validated.positionX ?? null,
+            validated.positionY ?? null,
+            validated.currentPOI || null,
             validated.updatedAt,
             validated.lastPlayedAt || null,
             id
@@ -363,6 +370,93 @@ export class PartyRepository {
         `).run(now, now, partyId);
     }
 
+    // ========== Party Position Management ==========
+
+    updatePartyPosition(
+        partyId: string,
+        x: number,
+        y: number,
+        locationName: string,
+        poiId?: string
+    ): Party | null {
+        const stmt = this.db.prepare(`
+            UPDATE parties 
+            SET position_x = ?, position_y = ?, current_location = ?, 
+                current_poi = ?, updated_at = ?
+            WHERE id = ?
+            RETURNING *
+        `);
+
+        const result = stmt.get(x, y, locationName, poiId || null, new Date().toISOString(), partyId) as PartyRow | undefined;
+        
+        if (!result) {
+            throw new Error(`Party not found: ${partyId}`);
+        }
+
+        return this.rowToParty(result);
+    }
+
+    getPartyPosition(partyId: string): { x: number; y: number; locationName: string; poiId?: string } | null {
+        const stmt = this.db.prepare(`
+            SELECT position_x, position_y, current_location, current_poi
+            FROM parties
+            WHERE id = ?
+        `);
+
+        const result = stmt.get(partyId) as any;
+        if (!result || result.position_x === null) {
+            return null;
+        }
+
+        return {
+            x: result.position_x,
+            y: result.position_y,
+            locationName: result.current_location || 'Unknown Location',
+            poiId: result.current_poi || undefined,
+        };
+    }
+
+    getPartiesWithPositions(worldId: string): Array<Party & { position: { x: number; y: number; locationName: string; poiId?: string } }> {
+        const stmt = this.db.prepare(`
+            SELECT * FROM parties
+            WHERE world_id = ? AND position_x IS NOT NULL
+            ORDER BY updated_at DESC
+        `);
+
+        const results = stmt.all(worldId) as PartyRow[];
+
+        return results.map((row) => ({
+            ...this.rowToParty(row),
+            position: {
+                x: row.position_x || 0,
+                y: row.position_y || 0,
+                locationName: row.current_location || 'Unknown Location',
+                poiId: row.current_poi || undefined,
+            },
+        }));
+    }
+
+    getPartiesNearPosition(
+        worldId: string,
+        x: number,
+        y: number,
+        radiusSquares: number = 3
+    ): Party[] {
+        const stmt = this.db.prepare(`
+            SELECT * FROM parties
+            WHERE world_id = ?
+                AND position_x IS NOT NULL
+                AND ABS(position_x - ?) <= ?
+                AND ABS(position_y - ?) <= ?
+            ORDER BY (position_x - ?) * (position_x - ?) +
+                     (position_y - ?) * (position_y - ?)
+        `);
+
+        const results = stmt.all(worldId, x, radiusSquares, y, radiusSquares, x, x, y, y) as PartyRow[];
+
+        return results.map(row => this.rowToParty(row));
+    }
+
     // ========== Row converters ==========
 
     private rowToParty(row: PartyRow): Party {
@@ -375,6 +469,9 @@ export class PartyRepository {
             currentLocation: row.current_location ?? undefined,
             currentQuestId: row.current_quest_id ?? undefined,
             formation: row.formation,
+            positionX: (row as any).position_x ?? undefined,
+            positionY: (row as any).position_y ?? undefined,
+            currentPOI: (row as any).current_poi ?? undefined,
             createdAt: row.created_at,
             updatedAt: row.updated_at,
             lastPlayedAt: row.last_played_at ?? undefined,

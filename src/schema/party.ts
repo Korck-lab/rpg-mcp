@@ -22,6 +22,10 @@ export const PartySchema = z.object({
     currentLocation: z.string().optional(),
     currentQuestId: z.string().optional(),
     formation: z.string().default('standard'),
+    // NEW: Position fields for world map location tracking
+    positionX: z.number().int().nonnegative().optional(),
+    positionY: z.number().int().nonnegative().optional(),
+    currentPOI: z.string().optional(), // Structure ID if at a POI
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
     lastPlayedAt: z.string().datetime().optional(),
@@ -77,6 +81,14 @@ export const PartyWithMembersSchema = PartySchema.extend({
 });
 
 export type PartyWithMembers = z.infer<typeof PartyWithMembersSchema>;
+
+// NEW: Party position type
+export interface PartyPosition {
+    x: number;
+    y: number;
+    locationName: string;
+    poiId?: string;
+}
 
 // Party context for LLM (optimized structure)
 export const PartyContextSchema = z.object({

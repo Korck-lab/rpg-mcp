@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { Tools, handleGenerateWorld, handleGetWorldState, handleApplyMapPatch, handleGetWorldMapOverview, handleGetRegionMap, handleGetWorldTiles, handlePreviewMapPatch, setWorldPubSub } from './tools.js';
+import { Tools, handleGenerateWorld, handleGetWorldState, handleApplyMapPatch, handleGetWorldMapOverview, handleGetRegionMap, handleGetWorldTiles, handlePreviewMapPatch, handleFindValidPoiLocation, handleSuggestPoiLocations, setWorldPubSub } from './tools.js';
 import { CombatTools, handleCreateEncounter, handleGetEncounterState, handleExecuteCombatAction, handleAdvanceTurn, handleEndEncounter, handleLoadEncounter, setCombatPubSub } from './combat-tools.js';
 import { CRUDTools, handleCreateWorld, handleGetWorld, handleListWorlds, handleDeleteWorld, handleCreateCharacter, handleGetCharacter, handleUpdateCharacter, handleListCharacters, handleDeleteCharacter, handleUpdateWorldEnvironment } from './crud-tools.js';
 import { InventoryTools, handleCreateItemTemplate, handleGiveItem, handleRemoveItem, handleEquipItem, handleUnequipItem, handleGetInventory, handleGetItem, handleListItems, handleSearchItems, handleUpdateItem, handleDeleteItem, handleTransferItem, handleUseItem, handleGetInventoryDetailed } from './inventory-tools.js';
@@ -82,6 +82,21 @@ async function main() {
         Tools.PREVIEW_MAP_PATCH.description,
         Tools.PREVIEW_MAP_PATCH.inputSchema.extend({ sessionId: z.string().optional() }).shape,
         auditLogger.wrapHandler(Tools.PREVIEW_MAP_PATCH.name, withSession(Tools.PREVIEW_MAP_PATCH.inputSchema, handlePreviewMapPatch))
+    );
+
+    // Register POI Location Tools (terrain-aware placement)
+    server.tool(
+        Tools.FIND_VALID_POI_LOCATION.name,
+        Tools.FIND_VALID_POI_LOCATION.description,
+        Tools.FIND_VALID_POI_LOCATION.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(Tools.FIND_VALID_POI_LOCATION.name, withSession(Tools.FIND_VALID_POI_LOCATION.inputSchema, handleFindValidPoiLocation))
+    );
+
+    server.tool(
+        Tools.SUGGEST_POI_LOCATIONS.name,
+        Tools.SUGGEST_POI_LOCATIONS.description,
+        Tools.SUGGEST_POI_LOCATIONS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(Tools.SUGGEST_POI_LOCATIONS.name, withSession(Tools.SUGGEST_POI_LOCATIONS.inputSchema, handleSuggestPoiLocations))
     );
 
     // Register Combat Tools
@@ -288,6 +303,28 @@ async function main() {
         PartyTools.GET_UNASSIGNED_CHARACTERS.description,
         PartyTools.GET_UNASSIGNED_CHARACTERS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
         auditLogger.wrapHandler(PartyTools.GET_UNASSIGNED_CHARACTERS.name, withSession(PartyTools.GET_UNASSIGNED_CHARACTERS.inputSchema, handleGetUnassignedCharacters))
+    );
+
+    // Register Party Movement Tools (world map positioning)
+    server.tool(
+        PartyTools.MOVE_PARTY.name,
+        PartyTools.MOVE_PARTY.description,
+        PartyTools.MOVE_PARTY.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.MOVE_PARTY.name, withSession(PartyTools.MOVE_PARTY.inputSchema, handleMoveParty))
+    );
+
+    server.tool(
+        PartyTools.GET_PARTY_POSITION.name,
+        PartyTools.GET_PARTY_POSITION.description,
+        PartyTools.GET_PARTY_POSITION.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.GET_PARTY_POSITION.name, withSession(PartyTools.GET_PARTY_POSITION.inputSchema, handleGetPartyPosition))
+    );
+
+    server.tool(
+        PartyTools.GET_PARTIES_IN_REGION.name,
+        PartyTools.GET_PARTIES_IN_REGION.description,
+        PartyTools.GET_PARTIES_IN_REGION.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.GET_PARTIES_IN_REGION.name, withSession(PartyTools.GET_PARTIES_IN_REGION.inputSchema, handleGetPartiesInRegion))
     );
 
     // Register Inventory Tools
