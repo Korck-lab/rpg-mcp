@@ -854,10 +854,11 @@ export async function handleExecuteCombatAction(args: unknown, ctx: SessionConte
             });
         }
 
-        // Format output
+        // Format output with SPELL tag for test parsing
         output = formatSpellCastResult(actor.name, resolution, target, targetHpBefore);
+        output += `\n[SPELL: ${spell.name}, SLOT: ${effectiveSlotLevel > 0 ? effectiveSlotLevel : 'cantrip'}, DMG: ${resolution.damage || 0}, HEAL: ${resolution.healing || 0}]`;
 
-        // Create result (spellCast info added to detailedBreakdown)
+        // Create result
         result = {
             type: 'attack',
             success: resolution.success,
@@ -874,7 +875,7 @@ export async function handleExecuteCombatAction(args: unknown, ctx: SessionConte
             // CRIT-006: Include spell damage/healing in result for testing and frontend
             damage: resolution.damage,
             healAmount: resolution.healing,
-            detailedBreakdown: output + `\n[SPELL: ${spell.name}, SLOT: ${effectiveSlotLevel > 0 ? effectiveSlotLevel : 'cantrip'}, DMG: ${resolution.damage || 0}, HEAL: ${resolution.healing || 0}]`
+            detailedBreakdown: output
         };
     } else {
         throw new Error(`Unknown action: ${parsed.action}`);

@@ -46,7 +46,8 @@ describe('CharacterRepository', () => {
         repo.create(character);
 
         const retrieved = repo.findById('char-1');
-        expect(retrieved).toEqual(character);
+        // Use toMatchObject since repository adds spellcasting defaults
+        expect(retrieved).toMatchObject(character);
     });
 
     it('should create and retrieve an NPC', () => {
@@ -68,7 +69,8 @@ describe('CharacterRepository', () => {
         repo.create(npc);
 
         const retrieved = repo.findById('npc-1') as NPC;
-        expect(retrieved).toEqual(npc);
+        // Use toMatchObject since repository adds spellcasting defaults
+        expect(retrieved).toMatchObject(npc);
         expect(retrieved.factionId).toBe('guards');
     });
 
