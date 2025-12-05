@@ -3,6 +3,13 @@ import { Condition, ConditionType, DurationType, Ability, CONDITION_EFFECTS } fr
 
 /**
  * Character interface for combat participants
+ * 
+ * D&D 5e legendary creature properties:
+ * - legendaryActions: Total actions available (usually 3)
+ * - legendaryActionsRemaining: Actions left this round (resets at start of their turn)
+ * - legendaryResistances: Total resistances (usually 3/day)
+ * - legendaryResistancesRemaining: Resistances left (does NOT reset between rounds)
+ * - hasLairActions: Whether this creature can use lair actions on initiative 20
  */
 export interface CombatParticipant {
     id: string;
@@ -21,6 +28,12 @@ export interface CombatParticipant {
     // HIGH-003: Opportunity attack tracking
     reactionUsed?: boolean;    // Whether reaction has been used this round
     hasDisengaged?: boolean;   // Whether creature took disengage action this turn
+    // LEGENDARY CREATURE SUPPORT
+    legendaryActions?: number;           // Total legendary actions per round (usually 3)
+    legendaryActionsRemaining?: number;  // Remaining legendary actions this round
+    legendaryResistances?: number;       // Total legendary resistances (usually 3/day)
+    legendaryResistancesRemaining?: number; // Remaining legendary resistances
+    hasLairActions?: boolean;            // Can use lair actions on initiative 20
     abilityScores?: {
         strength: number;
         dexterity: number;
@@ -36,13 +49,15 @@ export interface CombatParticipant {
  */
 export interface CombatState {
     participants: CombatParticipant[];
-    turnOrder: string[]; // IDs in initiative order
+    turnOrder: string[]; // IDs in initiative order (may include 'LAIR' for lair actions)
     currentTurnIndex: number;
     round: number;
     terrain?: {  // CRIT-003: Terrain configuration
         obstacles: string[];  // "x,y" format blocking tiles
         difficultTerrain?: string[];
     };
+    hasLairActions?: boolean;  // Whether any participant has lair actions
+    lairOwnerId?: string;      // ID of the creature that owns the lair
 }
 
 /**
@@ -68,6 +83,24 @@ export interface CombatActionResult {
     detailedBreakdown: string;
 }
 
+/**
+ * Result of a legendary action use
+ */
+export interface LegendaryActionResult {
+    success: boolean;
+    remaining: number;
+    error?: string;
+}
+
+/**
+ * Result of a legendary resistance use
+ */
+export interface LegendaryResistanceResult {
+    success: boolean;
+    remaining: number;
+    error?: string;
+}
+
 export interface EventEmitter {
     publish(topic: string, payload: any): void;
 }
@@ -75,6 +108,11 @@ export interface EventEmitter {
 /**
  * Combat Engine for managing RPG combat encounters
  * Handles initiative, turn order, and combat flow
+ * 
+ * Now supports D&D 5e legendary creatures:
+ * - Legendary Actions (usable at end of other creatures' turns)
+ * - Legendary Resistances (auto-succeed failed saves)
+ * - Lair Actions (trigger on initiative count 20)
  */
 export class CombatEngine {
     private rng: CombatRNG;
@@ -89,6 +127,8 @@ export class CombatEngine {
     /**
      * Start a new combat encounter
      * Rolls initiative for all participants and establishes turn order
+     * 
+     * If any participant has hasLairActions=true, adds 'LAIR' to turn order at initiative 20
      */
     startEncounter(participants: CombatParticipant[]): CombatState {
         // Roll initiative for each participant and store the value
@@ -98,9 +138,16 @@ export class CombatEngine {
                 ...p,
                 initiative: rolledInitiative,
                 // Auto-detect isEnemy if not explicitly set
-                isEnemy: p.isEnemy ?? this.detectIsEnemy(p.id, p.name)
+                isEnemy: p.isEnemy ?? this.detectIsEnemy(p.id, p.name),
+                // Initialize legendary actions remaining to max if applicable
+                legendaryActionsRemaining: p.legendaryActions ?? p.legendaryActionsRemaining,
+                legendaryResistancesRemaining: p.legendaryResistances ?? p.legendaryResistancesRemaining
             };
         });
+
+        // Check if any participant has lair actions
+        const lairOwner = participantsWithInitiative.find(p => p.hasLairActions);
+        const hasLairActions = !!lairOwner;
 
         // Sort by initiative (highest first), use ID as tiebreaker for determinism
         participantsWithInitiative.sort((a, b) => {
@@ -110,11 +157,30 @@ export class CombatEngine {
             return a.id.localeCompare(b.id);
         });
 
+        // Build turn order
+        let turnOrder = participantsWithInitiative.map(r => r.id);
+
+        // If there's a lair owner, insert 'LAIR' at initiative 20
+        if (hasLairActions) {
+            // Find the right position for initiative 20
+            // LAIR goes after all creatures with initiative > 20, before those with initiative <= 20
+            const lairIndex = participantsWithInitiative.findIndex(p => (p.initiative ?? 0) <= 20);
+            if (lairIndex === -1) {
+                // All initiatives are above 20, add at end
+                turnOrder.push('LAIR');
+            } else {
+                // Insert LAIR at the correct position
+                turnOrder.splice(lairIndex, 0, 'LAIR');
+            }
+        }
+
         this.state = {
             participants: participantsWithInitiative,
-            turnOrder: participantsWithInitiative.map(r => r.id),
+            turnOrder,
             currentTurnIndex: 0,
-            round: 1
+            round: 1,
+            hasLairActions,
+            lairOwnerId: lairOwner?.id
         };
 
         this.emitter?.publish('combat', {
@@ -137,7 +203,8 @@ export class CombatEngine {
             'goblin', 'orc', 'wolf', 'bandit', 'skeleton', 'zombie',
             'dragon', 'troll', 'ogre', 'kobold', 'gnoll', 'demon',
             'devil', 'undead', 'enemy', 'monster', 'creature', 'beast',
-            'spider', 'rat', 'bat', 'slime', 'ghost', 'wraith'
+            'spider', 'rat', 'bat', 'slime', 'ghost', 'wraith',
+            'dracolich', 'lich', 'vampire', 'golem', 'elemental'
         ];
 
         // Check if ID or name contains enemy patterns
@@ -178,12 +245,146 @@ export class CombatEngine {
 
     /**
      * Get the participant whose turn it currently is
+     * Returns null if it's LAIR's turn
      */
     getCurrentParticipant(): CombatParticipant | null {
         if (!this.state) return null;
 
         const currentId = this.state.turnOrder[this.state.currentTurnIndex];
+        
+        // LAIR is a special entry, not a participant
+        if (currentId === 'LAIR') return null;
+        
         return this.state.participants.find(p => p.id === currentId) || null;
+    }
+
+    /**
+     * Check if it's currently the LAIR's turn (initiative 20)
+     */
+    isLairActionPending(): boolean {
+        if (!this.state) return false;
+        return this.state.turnOrder[this.state.currentTurnIndex] === 'LAIR';
+    }
+
+    /**
+     * Check if a legendary creature can use a legendary action
+     * Rules: Can only use at the end of another creature's turn, not their own
+     */
+    canUseLegendaryAction(participantId: string): boolean {
+        if (!this.state) return false;
+
+        const participant = this.state.participants.find(p => p.id === participantId);
+        if (!participant) return false;
+
+        // Must have legendary actions
+        if (!participant.legendaryActions || participant.legendaryActions <= 0) return false;
+
+        // Must have remaining uses
+        if (!participant.legendaryActionsRemaining || participant.legendaryActionsRemaining <= 0) return false;
+
+        // Cannot use on their own turn
+        const currentId = this.state.turnOrder[this.state.currentTurnIndex];
+        if (currentId === participantId) return false;
+
+        // Cannot use if it's the LAIR's turn (no creature to follow)
+        if (currentId === 'LAIR') return false;
+
+        return true;
+    }
+
+    /**
+     * Use a legendary action
+     * @param participantId - ID of the legendary creature
+     * @param cost - How many legendary actions this use costs (default 1)
+     * @returns Result with success status and remaining actions
+     */
+    useLegendaryAction(participantId: string, cost: number = 1): LegendaryActionResult {
+        if (!this.state) {
+            return { success: false, remaining: 0, error: 'No active combat' };
+        }
+
+        const participant = this.state.participants.find(p => p.id === participantId);
+        if (!participant) {
+            return { success: false, remaining: 0, error: 'Participant not found' };
+        }
+
+        if (!this.canUseLegendaryAction(participantId)) {
+            return { 
+                success: false, 
+                remaining: participant.legendaryActionsRemaining ?? 0,
+                error: 'Cannot use legendary action (own turn, no actions, or none remaining)'
+            };
+        }
+
+        const remaining = participant.legendaryActionsRemaining ?? 0;
+        if (remaining < cost) {
+            return {
+                success: false,
+                remaining,
+                error: `Not enough legendary actions (need ${cost}, have ${remaining})`
+            };
+        }
+
+        participant.legendaryActionsRemaining = remaining - cost;
+
+        this.emitter?.publish('combat', {
+            type: 'legendary_action_used',
+            participantId,
+            cost,
+            remaining: participant.legendaryActionsRemaining
+        });
+
+        return {
+            success: true,
+            remaining: participant.legendaryActionsRemaining
+        };
+    }
+
+    /**
+     * Use a legendary resistance to automatically succeed on a failed save
+     * Unlike legendary actions, these do NOT reset each round
+     */
+    useLegendaryResistance(participantId: string): LegendaryResistanceResult {
+        if (!this.state) {
+            return { success: false, remaining: 0, error: 'No active combat' };
+        }
+
+        const participant = this.state.participants.find(p => p.id === participantId);
+        if (!participant) {
+            return { success: false, remaining: 0, error: 'Participant not found' };
+        }
+
+        // Must have legendary resistances
+        if (!participant.legendaryResistances || participant.legendaryResistances <= 0) {
+            return { success: false, remaining: 0, error: 'No legendary resistances' };
+        }
+
+        const remaining = participant.legendaryResistancesRemaining ?? 0;
+        if (remaining <= 0) {
+            return { success: false, remaining: 0, error: 'No legendary resistances remaining' };
+        }
+
+        participant.legendaryResistancesRemaining = remaining - 1;
+
+        this.emitter?.publish('combat', {
+            type: 'legendary_resistance_used',
+            participantId,
+            remaining: participant.legendaryResistancesRemaining
+        });
+
+        return {
+            success: true,
+            remaining: participant.legendaryResistancesRemaining
+        };
+    }
+
+    /**
+     * Reset legendary actions for a participant (called at start of their turn)
+     */
+    private resetLegendaryActions(participant: CombatParticipant): void {
+        if (participant.legendaryActions && participant.legendaryActions > 0) {
+            participant.legendaryActionsRemaining = participant.legendaryActions;
+        }
     }
 
     /**
@@ -542,6 +743,9 @@ export class CombatEngine {
         // HIGH-003: Reset reaction at start of turn
         this.resetTurnResources(participant);
 
+        // LEGENDARY: Reset legendary actions at start of legendary creature's turn
+        this.resetLegendaryActions(participant);
+
         for (const condition of [...participant.conditions]) {
             // Process ongoing effects
             if (condition.ongoingEffects) {
@@ -622,12 +826,12 @@ export class CombatEngine {
     }
 
     /**
-     * Enhanced nextTurn with condition processing
+     * Enhanced nextTurn with condition processing and legendary action reset
      */
     nextTurnWithConditions(): CombatParticipant | null {
         if (!this.state) return null;
 
-        // Process end-of-turn conditions for current participant
+        // Process end-of-turn conditions for current participant (if not LAIR)
         const currentParticipant = this.getCurrentParticipant();
         if (currentParticipant) {
             this.processEndOfTurnConditions(currentParticipant);
@@ -641,7 +845,7 @@ export class CombatEngine {
             this.state.round++;
         }
 
-        // Process start-of-turn conditions for new current participant
+        // Process start-of-turn conditions for new current participant (if not LAIR)
         const newParticipant = this.getCurrentParticipant();
         if (newParticipant) {
             this.processStartOfTurnConditions(newParticipant);
@@ -650,7 +854,8 @@ export class CombatEngine {
         this.emitter?.publish('combat', {
             type: 'turn_changed',
             round: this.state.round,
-            activeParticipantId: newParticipant?.id
+            activeParticipantId: newParticipant?.id,
+            isLairAction: this.isLairActionPending()
         });
 
         return newParticipant;

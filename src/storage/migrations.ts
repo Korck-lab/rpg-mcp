@@ -315,6 +315,34 @@ export function migrate(db: Database.Database) {
   CREATE INDEX IF NOT EXISTS idx_parties_status ON parties(status);
   CREATE INDEX IF NOT EXISTS idx_parties_world ON parties(world_id);
   -- idx_parties_position moved to createPostMigrationIndexes (depends on position_x column)
+
+  -- HIGH-004: NPC Memory System
+  CREATE TABLE IF NOT EXISTS npc_relationships(
+    character_id TEXT NOT NULL,
+    npc_id TEXT NOT NULL,
+    familiarity TEXT NOT NULL DEFAULT 'stranger' CHECK (familiarity IN ('stranger', 'acquaintance', 'friend', 'close_friend', 'rival', 'enemy')),
+    disposition TEXT NOT NULL DEFAULT 'neutral' CHECK (disposition IN ('hostile', 'unfriendly', 'neutral', 'friendly', 'helpful')),
+    notes TEXT,
+    first_met_at TEXT NOT NULL,
+    last_interaction_at TEXT NOT NULL,
+    interaction_count INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY(character_id, npc_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS conversation_memories(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id TEXT NOT NULL,
+    npc_id TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    importance TEXT NOT NULL DEFAULT 'medium' CHECK (importance IN ('low', 'medium', 'high', 'critical')),
+    topics TEXT NOT NULL DEFAULT '[]', --JSON array of topic keywords
+    created_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_npc_relationships_char ON npc_relationships(character_id);
+  CREATE INDEX IF NOT EXISTS idx_npc_relationships_npc ON npc_relationships(npc_id);
+  CREATE INDEX IF NOT EXISTS idx_conversation_memories_char_npc ON conversation_memories(character_id, npc_id);
+  CREATE INDEX IF NOT EXISTS idx_conversation_memories_importance ON conversation_memories(importance);
   `);
 
   // Run migrations for existing databases that don't have the new columns
