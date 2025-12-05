@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Skill(rpg-mcp-backend)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(cat:*)",
+      "Bash(node -e:*)"
     ],
     "deny": [],
     "ask": []
