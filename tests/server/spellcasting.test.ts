@@ -72,6 +72,10 @@ async function createTestCharacter(overrides: CharacterOptions = {}) {
     };
     const merged = { ...defaults, ...overrides };
 
+    // Compute maxSpellLevel based on class and level
+    const charClass = (merged.characterClass || 'fighter') as CharacterClass;
+    const maxSpellLevel = getMaxSpellLevel(charClass, merged.level || 1);
+
     // Create character in database with all spellcasting fields
     charRepo.create({
         id: merged.id!,
@@ -82,12 +86,13 @@ async function createTestCharacter(overrides: CharacterOptions = {}) {
         ac: merged.ac!,
         level: merged.level!,
         // CRIT-002/006: Include spellcasting fields
-        characterClass: merged.characterClass || 'fighter',
+        characterClass: charClass,
         knownSpells: merged.knownSpells || [],
         preparedSpells: merged.preparedSpells || [],
         cantripsKnown: merged.cantripsKnown || [],
         spellSlots: merged.spellSlots,
         pactMagicSlots: merged.pactMagicSlots,
+        maxSpellLevel,
         conditions: merged.conditions || [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -279,7 +284,11 @@ describe('Category 1: Spell Level Violations', () => {
 
     // 1.1 - Level 1 wizard cannot cast 9th level spell
     test('1.1 - level 1 wizard cannot cast Meteor Swarm (9th level)', async () => {
-        const wizard = await createWizard(1);
+        // Add Meteor Swarm to known/prepared to test level check (not spell-known check)
+        const wizard = await createWizard(1, {
+            knownSpells: ['Magic Missile', 'Meteor Swarm'],
+            preparedSpells: ['Magic Missile', 'Meteor Swarm']
+        });
 
         await expect(castSpell(wizard.id!, 'Meteor Swarm')).rejects.toThrow(
             /cannot cast level 9 spells/i
@@ -288,7 +297,11 @@ describe('Category 1: Spell Level Violations', () => {
 
     // 1.2 - Level 5 wizard max spell level is 3rd
     test('1.2 - level 5 wizard cannot cast Disintegrate (6th level)', async () => {
-        const wizard = await createWizard(5);
+        // Add Disintegrate to known/prepared to test level check
+        const wizard = await createWizard(5, {
+            knownSpells: ['Magic Missile', 'Fireball', 'Disintegrate'],
+            preparedSpells: ['Magic Missile', 'Fireball', 'Disintegrate']
+        });
 
         await expect(castSpell(wizard.id!, 'Disintegrate')).rejects.toThrow(
             /cannot cast level 6 spells/i
@@ -325,7 +338,9 @@ describe('Category 1: Spell Level Violations', () => {
             characterClass: 'paladin',
             level: 2,
             stats: { str: 16, dex: 10, con: 14, int: 10, wis: 10, cha: 16 },
-            knownSpells: ['Cure Wounds']
+            knownSpells: ['Cure Wounds'],
+            preparedSpells: ['Cure Wounds'],
+            spellSlots: getInitialSpellSlots('paladin' as CharacterClass, 2)
         });
 
         const result = await castSpell(paladin.id!, 'Cure Wounds', { targetId: paladin.id });
