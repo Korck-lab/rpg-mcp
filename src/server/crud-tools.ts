@@ -1,15 +1,21 @@
-import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { WorldRepository } from '../storage/repos/world.repo.js';
 import { CharacterRepository } from '../storage/repos/character.repo.js';
 import { World, WorldSchema } from '../schema/world.js';
 import { Character, NPC, NPCSchema } from '../schema/character.js';
+import { CharacterTypeSchema } from '../schema/party.js';
+import { z } from 'zod';
 
 import { getDb, closeDb } from '../storage/index.js';
 import { SessionContext } from './types.js';
 
 function ensureDb() {
-    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const dbPath = process.env.NODE_ENV === 'test' 
+        ? ':memory:' 
+        : process.env.RPG_DATA_DIR 
+            ? `${process.env.RPG_DATA_DIR}/rpg.db`
+            : 'rpg.db';
+    const db = getDb(dbPath);
     const worldRepo = new WorldRepository(db);
     const charRepo = new CharacterRepository(db);
     return { db, worldRepo, charRepo };
@@ -43,6 +49,22 @@ Example:
         description: 'List all worlds.',
         inputSchema: z.object({})
     },
+    UPDATE_WORLD_ENVIRONMENT: {
+        name: 'update_world_environment',
+        description: 'Update environmental properties (time, weather, lighting, etc.) for a world.',
+        inputSchema: z.object({
+            id: z.string(),
+            environment: z.object({
+                date: z.string().optional(),
+                timeOfDay: z.string().optional(),
+                season: z.string().optional(),
+                moonPhase: z.string().optional(),
+                weatherConditions: z.string().optional(),
+                temperature: z.string().optional(),
+                lighting: z.string().optional(),
+            }).passthrough()
+        })
+    },
     DELETE_WORLD: {
         name: 'delete_world',
         description: 'Delete a world by ID.',
@@ -56,6 +78,12 @@ Example:
         name: 'create_character',
         description: `Create a new character.
 
+Character types:
+- pc: Player character (default)
+- npc: Non-player character (ally or neutral)
+- enemy: Hostile creature
+- neutral: Non-hostile, non-ally
+
 Example:
 {
   "name": "Valeros",
@@ -63,11 +91,14 @@ Example:
   "maxHp": 20,
   "ac": 18,
   "level": 1,
-  "stats": { "str": 16, "dex": 14, "con": 14, "int": 10, "wis": 12, "cha": 10 }
+  "stats": { "str": 16, "dex": 14, "con": 14, "int": 10, "wis": 12, "cha": 10 },
+  "characterType": "pc"
 }`,
         // Use NPCSchema as the base since it includes all fields (Character + faction/behavior)
         // Make NPC fields optional which they already are in NPCSchema
-        inputSchema: NPCSchema.omit({ id: true, createdAt: true, updatedAt: true })
+        inputSchema: NPCSchema.omit({ id: true, createdAt: true, updatedAt: true }).extend({
+            characterType: CharacterTypeSchema.optional().default('pc'),
+        })
     },
     GET_CHARACTER: {
         name: 'get_character',
@@ -84,18 +115,24 @@ Example:
 {
   "id": "char-123",
   "hp": 15,
-  "level": 2
+  "level": 2,
+  "characterType": "npc"
 }`,
         inputSchema: z.object({
             id: z.string(),
             hp: z.number().int().min(0).optional(),
-            level: z.number().int().min(1).optional()
+            level: z.number().int().min(1).optional(),
+            characterType: CharacterTypeSchema.optional(),
         })
     },
     LIST_CHARACTERS: {
         name: 'list_characters',
-        description: 'List all characters.',
-        inputSchema: z.object({})
+        description: `List all characters, optionally filtered by type.
+
+Character types: pc, npc, enemy, neutral`,
+        inputSchema: z.object({
+            characterType: CharacterTypeSchema.optional(),
+        })
     },
     DELETE_CHARACTER: {
         name: 'delete_character',
@@ -142,6 +179,23 @@ export async function handleGetWorld(args: unknown, _ctx: SessionContext) {
         content: [{
             type: 'text' as const,
             text: JSON.stringify(world, null, 2)
+        }]
+    };
+}
+
+export async function handleUpdateWorldEnvironment(args: unknown, _ctx: SessionContext) {
+    const { worldRepo } = ensureDb();
+    const parsed = CRUDTools.UPDATE_WORLD_ENVIRONMENT.inputSchema.parse(args);
+
+    const updated = worldRepo.updateEnvironment(parsed.id, parsed.environment);
+    if (!updated) {
+        throw new Error(`World not found: ${parsed.id}`);
+    }
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: JSON.stringify(updated, null, 2)
         }]
     };
 }
@@ -227,7 +281,8 @@ export async function handleUpdateCharacter(args: unknown, _ctx: SessionContext)
     // Update using repository
     const updated = charRepo.update(parsed.id, {
         ...(parsed.hp !== undefined && { hp: parsed.hp }),
-        ...(parsed.level !== undefined && { level: parsed.level })
+        ...(parsed.level !== undefined && { level: parsed.level }),
+        ...(parsed.characterType !== undefined && { characterType: parsed.characterType }),
     });
 
     if (!updated) {
@@ -244,9 +299,11 @@ export async function handleUpdateCharacter(args: unknown, _ctx: SessionContext)
 
 export async function handleListCharacters(args: unknown, _ctx: SessionContext) {
     const { charRepo } = ensureDb();
-    CRUDTools.LIST_CHARACTERS.inputSchema.parse(args);
+    const parsed = CRUDTools.LIST_CHARACTERS.inputSchema.parse(args);
 
-    const characters = charRepo.findAll();
+    const characters = charRepo.findAll({
+        characterType: parsed.characterType,
+    });
 
     return {
         content: [{

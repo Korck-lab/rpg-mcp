@@ -1,12 +1,16 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { Tools, handleGenerateWorld, handleGetWorldState, handleApplyMapPatch, handleGetWorldMapOverview, handleGetRegionMap, handlePreviewMapPatch, setWorldPubSub } from './tools.js';
+import { Tools, handleGenerateWorld, handleGetWorldState, handleApplyMapPatch, handleGetWorldMapOverview, handleGetRegionMap, handleGetWorldTiles, handlePreviewMapPatch, handleFindValidPoiLocation, handleSuggestPoiLocations, setWorldPubSub } from './tools.js';
 import { CombatTools, handleCreateEncounter, handleGetEncounterState, handleExecuteCombatAction, handleAdvanceTurn, handleEndEncounter, handleLoadEncounter, setCombatPubSub } from './combat-tools.js';
-import { CRUDTools, handleCreateWorld, handleGetWorld, handleListWorlds, handleDeleteWorld, handleCreateCharacter, handleGetCharacter, handleUpdateCharacter, handleListCharacters, handleDeleteCharacter } from './crud-tools.js';
-import { InventoryTools, handleCreateItemTemplate, handleGiveItem, handleRemoveItem, handleEquipItem, handleUnequipItem, handleGetInventory } from './inventory-tools.js';
-import { QuestTools, handleCreateQuest, handleAssignQuest, handleUpdateObjective, handleCompleteQuest, handleGetQuestLog } from './quest-tools.js';
+import { CRUDTools, handleCreateWorld, handleGetWorld, handleListWorlds, handleDeleteWorld, handleCreateCharacter, handleGetCharacter, handleUpdateCharacter, handleListCharacters, handleDeleteCharacter, handleUpdateWorldEnvironment } from './crud-tools.js';
+import { InventoryTools, handleCreateItemTemplate, handleGiveItem, handleRemoveItem, handleEquipItem, handleUnequipItem, handleGetInventory, handleGetItem, handleListItems, handleSearchItems, handleUpdateItem, handleDeleteItem, handleTransferItem, handleUseItem, handleGetInventoryDetailed } from './inventory-tools.js';
+import { QuestTools, handleCreateQuest, handleGetQuest, handleListQuests, handleAssignQuest, handleUpdateObjective, handleCompleteObjective, handleCompleteQuest, handleGetQuestLog } from './quest-tools.js';
 import { MathTools, handleDiceRoll, handleProbabilityCalculate, handleAlgebraSolve, handleAlgebraSimplify, handlePhysicsProjectile } from './math-tools.js';
+import { StrategyTools, handleStrategyTool } from './strategy-tools.js';
+import { TurnManagementTools, handleTurnManagementTool } from './turn-management-tools.js';
+import { SecretTools, handleCreateSecret, handleGetSecret, handleListSecrets, handleUpdateSecret, handleDeleteSecret, handleRevealSecret, handleCheckRevealConditions, handleGetSecretsForContext, handleCheckForLeaks } from './secret-tools.js';
+import { PartyTools, handleCreateParty, handleGetParty, handleListParties, handleUpdateParty, handleDeleteParty, handleAddPartyMember, handleRemovePartyMember, handleUpdatePartyMember, handleSetPartyLeader, handleSetActiveCharacter, handleGetPartyMembers, handleGetPartyContext, handleGetUnassignedCharacters, handleMoveParty, handleGetPartyPosition, handleGetPartiesInRegion } from './party-tools.js';
 import { PubSub } from '../engine/pubsub.js';
 import { registerEventTools } from './events.js';
 import { AuditLogger } from './audit.js';
@@ -16,7 +20,7 @@ async function main() {
     // Create server instance
     const server = new McpServer({
         name: 'rpg-mcp',
-        version: '1.0.0'
+        version: '1.1.0'
     });
 
     // Initialize PubSub
@@ -67,10 +71,32 @@ async function main() {
     );
 
     server.tool(
+        Tools.GET_WORLD_TILES.name,
+        Tools.GET_WORLD_TILES.description,
+        Tools.GET_WORLD_TILES.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(Tools.GET_WORLD_TILES.name, withSession(Tools.GET_WORLD_TILES.inputSchema, handleGetWorldTiles))
+    );
+
+    server.tool(
         Tools.PREVIEW_MAP_PATCH.name,
         Tools.PREVIEW_MAP_PATCH.description,
         Tools.PREVIEW_MAP_PATCH.inputSchema.extend({ sessionId: z.string().optional() }).shape,
         auditLogger.wrapHandler(Tools.PREVIEW_MAP_PATCH.name, withSession(Tools.PREVIEW_MAP_PATCH.inputSchema, handlePreviewMapPatch))
+    );
+
+    // Register POI Location Tools (terrain-aware placement)
+    server.tool(
+        Tools.FIND_VALID_POI_LOCATION.name,
+        Tools.FIND_VALID_POI_LOCATION.description,
+        Tools.FIND_VALID_POI_LOCATION.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(Tools.FIND_VALID_POI_LOCATION.name, withSession(Tools.FIND_VALID_POI_LOCATION.inputSchema, handleFindValidPoiLocation))
+    );
+
+    server.tool(
+        Tools.SUGGEST_POI_LOCATIONS.name,
+        Tools.SUGGEST_POI_LOCATIONS.description,
+        Tools.SUGGEST_POI_LOCATIONS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(Tools.SUGGEST_POI_LOCATIONS.name, withSession(Tools.SUGGEST_POI_LOCATIONS.inputSchema, handleSuggestPoiLocations))
     );
 
     // Register Combat Tools
@@ -139,6 +165,13 @@ async function main() {
     );
 
     server.tool(
+        CRUDTools.UPDATE_WORLD_ENVIRONMENT.name,
+        CRUDTools.UPDATE_WORLD_ENVIRONMENT.description,
+        CRUDTools.UPDATE_WORLD_ENVIRONMENT.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(CRUDTools.UPDATE_WORLD_ENVIRONMENT.name, withSession(CRUDTools.UPDATE_WORLD_ENVIRONMENT.inputSchema, handleUpdateWorldEnvironment))
+    );
+
+    server.tool(
         CRUDTools.DELETE_WORLD.name,
         CRUDTools.DELETE_WORLD.description,
         CRUDTools.DELETE_WORLD.inputSchema.extend({ sessionId: z.string().optional() }).shape,
@@ -178,6 +211,120 @@ async function main() {
         CRUDTools.DELETE_CHARACTER.description,
         CRUDTools.DELETE_CHARACTER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
         auditLogger.wrapHandler(CRUDTools.DELETE_CHARACTER.name, withSession(CRUDTools.DELETE_CHARACTER.inputSchema, handleDeleteCharacter))
+    );
+
+    // Register Party Tools
+    server.tool(
+        PartyTools.CREATE_PARTY.name,
+        PartyTools.CREATE_PARTY.description,
+        PartyTools.CREATE_PARTY.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.CREATE_PARTY.name, withSession(PartyTools.CREATE_PARTY.inputSchema, handleCreateParty))
+    );
+
+    server.tool(
+        PartyTools.GET_PARTY.name,
+        PartyTools.GET_PARTY.description,
+        PartyTools.GET_PARTY.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.GET_PARTY.name, withSession(PartyTools.GET_PARTY.inputSchema, handleGetParty))
+    );
+
+    server.tool(
+        PartyTools.LIST_PARTIES.name,
+        PartyTools.LIST_PARTIES.description,
+        PartyTools.LIST_PARTIES.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.LIST_PARTIES.name, withSession(PartyTools.LIST_PARTIES.inputSchema, handleListParties))
+    );
+
+    server.tool(
+        PartyTools.UPDATE_PARTY.name,
+        PartyTools.UPDATE_PARTY.description,
+        PartyTools.UPDATE_PARTY.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.UPDATE_PARTY.name, withSession(PartyTools.UPDATE_PARTY.inputSchema, handleUpdateParty))
+    );
+
+    server.tool(
+        PartyTools.DELETE_PARTY.name,
+        PartyTools.DELETE_PARTY.description,
+        PartyTools.DELETE_PARTY.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.DELETE_PARTY.name, withSession(PartyTools.DELETE_PARTY.inputSchema, handleDeleteParty))
+    );
+
+    server.tool(
+        PartyTools.ADD_PARTY_MEMBER.name,
+        PartyTools.ADD_PARTY_MEMBER.description,
+        PartyTools.ADD_PARTY_MEMBER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.ADD_PARTY_MEMBER.name, withSession(PartyTools.ADD_PARTY_MEMBER.inputSchema, handleAddPartyMember))
+    );
+
+    server.tool(
+        PartyTools.REMOVE_PARTY_MEMBER.name,
+        PartyTools.REMOVE_PARTY_MEMBER.description,
+        PartyTools.REMOVE_PARTY_MEMBER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.REMOVE_PARTY_MEMBER.name, withSession(PartyTools.REMOVE_PARTY_MEMBER.inputSchema, handleRemovePartyMember))
+    );
+
+    server.tool(
+        PartyTools.UPDATE_PARTY_MEMBER.name,
+        PartyTools.UPDATE_PARTY_MEMBER.description,
+        PartyTools.UPDATE_PARTY_MEMBER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.UPDATE_PARTY_MEMBER.name, withSession(PartyTools.UPDATE_PARTY_MEMBER.inputSchema, handleUpdatePartyMember))
+    );
+
+    server.tool(
+        PartyTools.SET_PARTY_LEADER.name,
+        PartyTools.SET_PARTY_LEADER.description,
+        PartyTools.SET_PARTY_LEADER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.SET_PARTY_LEADER.name, withSession(PartyTools.SET_PARTY_LEADER.inputSchema, handleSetPartyLeader))
+    );
+
+    server.tool(
+        PartyTools.SET_ACTIVE_CHARACTER.name,
+        PartyTools.SET_ACTIVE_CHARACTER.description,
+        PartyTools.SET_ACTIVE_CHARACTER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.SET_ACTIVE_CHARACTER.name, withSession(PartyTools.SET_ACTIVE_CHARACTER.inputSchema, handleSetActiveCharacter))
+    );
+
+    server.tool(
+        PartyTools.GET_PARTY_MEMBERS.name,
+        PartyTools.GET_PARTY_MEMBERS.description,
+        PartyTools.GET_PARTY_MEMBERS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.GET_PARTY_MEMBERS.name, withSession(PartyTools.GET_PARTY_MEMBERS.inputSchema, handleGetPartyMembers))
+    );
+
+    server.tool(
+        PartyTools.GET_PARTY_CONTEXT.name,
+        PartyTools.GET_PARTY_CONTEXT.description,
+        PartyTools.GET_PARTY_CONTEXT.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.GET_PARTY_CONTEXT.name, withSession(PartyTools.GET_PARTY_CONTEXT.inputSchema, handleGetPartyContext))
+    );
+
+    server.tool(
+        PartyTools.GET_UNASSIGNED_CHARACTERS.name,
+        PartyTools.GET_UNASSIGNED_CHARACTERS.description,
+        PartyTools.GET_UNASSIGNED_CHARACTERS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.GET_UNASSIGNED_CHARACTERS.name, withSession(PartyTools.GET_UNASSIGNED_CHARACTERS.inputSchema, handleGetUnassignedCharacters))
+    );
+
+    // Register Party Movement Tools (world map positioning)
+    server.tool(
+        PartyTools.MOVE_PARTY.name,
+        PartyTools.MOVE_PARTY.description,
+        PartyTools.MOVE_PARTY.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.MOVE_PARTY.name, withSession(PartyTools.MOVE_PARTY.inputSchema, handleMoveParty))
+    );
+
+    server.tool(
+        PartyTools.GET_PARTY_POSITION.name,
+        PartyTools.GET_PARTY_POSITION.description,
+        PartyTools.GET_PARTY_POSITION.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.GET_PARTY_POSITION.name, withSession(PartyTools.GET_PARTY_POSITION.inputSchema, handleGetPartyPosition))
+    );
+
+    server.tool(
+        PartyTools.GET_PARTIES_IN_REGION.name,
+        PartyTools.GET_PARTIES_IN_REGION.description,
+        PartyTools.GET_PARTIES_IN_REGION.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(PartyTools.GET_PARTIES_IN_REGION.name, withSession(PartyTools.GET_PARTIES_IN_REGION.inputSchema, handleGetPartiesInRegion))
     );
 
     // Register Inventory Tools
@@ -223,12 +370,82 @@ async function main() {
         auditLogger.wrapHandler(InventoryTools.GET_INVENTORY.name, withSession(InventoryTools.GET_INVENTORY.inputSchema, handleGetInventory))
     );
 
+    server.tool(
+        InventoryTools.GET_ITEM.name,
+        InventoryTools.GET_ITEM.description,
+        InventoryTools.GET_ITEM.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(InventoryTools.GET_ITEM.name, withSession(InventoryTools.GET_ITEM.inputSchema, handleGetItem))
+    );
+
+    server.tool(
+        InventoryTools.LIST_ITEMS.name,
+        InventoryTools.LIST_ITEMS.description,
+        InventoryTools.LIST_ITEMS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(InventoryTools.LIST_ITEMS.name, withSession(InventoryTools.LIST_ITEMS.inputSchema, handleListItems))
+    );
+
+    server.tool(
+        InventoryTools.SEARCH_ITEMS.name,
+        InventoryTools.SEARCH_ITEMS.description,
+        InventoryTools.SEARCH_ITEMS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(InventoryTools.SEARCH_ITEMS.name, withSession(InventoryTools.SEARCH_ITEMS.inputSchema, handleSearchItems))
+    );
+
+    server.tool(
+        InventoryTools.UPDATE_ITEM.name,
+        InventoryTools.UPDATE_ITEM.description,
+        InventoryTools.UPDATE_ITEM.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(InventoryTools.UPDATE_ITEM.name, withSession(InventoryTools.UPDATE_ITEM.inputSchema, handleUpdateItem))
+    );
+
+    server.tool(
+        InventoryTools.DELETE_ITEM.name,
+        InventoryTools.DELETE_ITEM.description,
+        InventoryTools.DELETE_ITEM.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(InventoryTools.DELETE_ITEM.name, withSession(InventoryTools.DELETE_ITEM.inputSchema, handleDeleteItem))
+    );
+
+    server.tool(
+        InventoryTools.TRANSFER_ITEM.name,
+        InventoryTools.TRANSFER_ITEM.description,
+        InventoryTools.TRANSFER_ITEM.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(InventoryTools.TRANSFER_ITEM.name, withSession(InventoryTools.TRANSFER_ITEM.inputSchema, handleTransferItem))
+    );
+
+    server.tool(
+        InventoryTools.USE_ITEM.name,
+        InventoryTools.USE_ITEM.description,
+        InventoryTools.USE_ITEM.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(InventoryTools.USE_ITEM.name, withSession(InventoryTools.USE_ITEM.inputSchema, handleUseItem))
+    );
+
+    server.tool(
+        InventoryTools.GET_INVENTORY_DETAILED.name,
+        InventoryTools.GET_INVENTORY_DETAILED.description,
+        InventoryTools.GET_INVENTORY_DETAILED.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(InventoryTools.GET_INVENTORY_DETAILED.name, withSession(InventoryTools.GET_INVENTORY_DETAILED.inputSchema, handleGetInventoryDetailed))
+    );
+
     // Register Quest Tools
     server.tool(
         QuestTools.CREATE_QUEST.name,
         QuestTools.CREATE_QUEST.description,
         QuestTools.CREATE_QUEST.inputSchema.extend({ sessionId: z.string().optional() }).shape,
         auditLogger.wrapHandler(QuestTools.CREATE_QUEST.name, withSession(QuestTools.CREATE_QUEST.inputSchema, handleCreateQuest))
+    );
+
+    server.tool(
+        QuestTools.GET_QUEST.name,
+        QuestTools.GET_QUEST.description,
+        QuestTools.GET_QUEST.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(QuestTools.GET_QUEST.name, withSession(QuestTools.GET_QUEST.inputSchema, handleGetQuest))
+    );
+
+    server.tool(
+        QuestTools.LIST_QUESTS.name,
+        QuestTools.LIST_QUESTS.description,
+        QuestTools.LIST_QUESTS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(QuestTools.LIST_QUESTS.name, withSession(QuestTools.LIST_QUESTS.inputSchema, handleListQuests))
     );
 
     server.tool(
@@ -243,6 +460,13 @@ async function main() {
         QuestTools.UPDATE_OBJECTIVE.description,
         QuestTools.UPDATE_OBJECTIVE.inputSchema.extend({ sessionId: z.string().optional() }).shape,
         auditLogger.wrapHandler(QuestTools.UPDATE_OBJECTIVE.name, withSession(QuestTools.UPDATE_OBJECTIVE.inputSchema, handleUpdateObjective))
+    );
+
+    server.tool(
+        QuestTools.COMPLETE_OBJECTIVE.name,
+        QuestTools.COMPLETE_OBJECTIVE.description,
+        QuestTools.COMPLETE_OBJECTIVE.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(QuestTools.COMPLETE_OBJECTIVE.name, withSession(QuestTools.COMPLETE_OBJECTIVE.inputSchema, handleCompleteObjective))
     );
 
     server.tool(
@@ -293,6 +517,149 @@ async function main() {
         MathTools.PHYSICS_PROJECTILE.description,
         MathTools.PHYSICS_PROJECTILE.inputSchema.extend({ sessionId: z.string().optional() }).shape,
         auditLogger.wrapHandler(MathTools.PHYSICS_PROJECTILE.name, withSession(MathTools.PHYSICS_PROJECTILE.inputSchema, handlePhysicsProjectile))
+    );
+
+    // Register Strategy Tools
+    server.tool(
+        StrategyTools.CREATE_NATION.name,
+        StrategyTools.CREATE_NATION.description,
+        StrategyTools.CREATE_NATION.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(StrategyTools.CREATE_NATION.name, withSession(StrategyTools.CREATE_NATION.inputSchema, handleStrategyTool.bind(null, StrategyTools.CREATE_NATION.name)))
+    );
+
+    server.tool(
+        StrategyTools.GET_STRATEGY_STATE.name,
+        StrategyTools.GET_STRATEGY_STATE.description,
+        StrategyTools.GET_STRATEGY_STATE.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(StrategyTools.GET_STRATEGY_STATE.name, withSession(StrategyTools.GET_STRATEGY_STATE.inputSchema, handleStrategyTool.bind(null, StrategyTools.GET_STRATEGY_STATE.name)))
+    );
+
+    server.tool(
+        StrategyTools.GET_NATION_STATE.name,
+        StrategyTools.GET_NATION_STATE.description,
+        StrategyTools.GET_NATION_STATE.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(StrategyTools.GET_NATION_STATE.name, withSession(StrategyTools.GET_NATION_STATE.inputSchema, handleStrategyTool.bind(null, StrategyTools.GET_NATION_STATE.name)))
+    );
+
+    server.tool(
+        StrategyTools.PROPOSE_ALLIANCE.name,
+        StrategyTools.PROPOSE_ALLIANCE.description,
+        StrategyTools.PROPOSE_ALLIANCE.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(StrategyTools.PROPOSE_ALLIANCE.name, withSession(StrategyTools.PROPOSE_ALLIANCE.inputSchema, handleStrategyTool.bind(null, StrategyTools.PROPOSE_ALLIANCE.name)))
+    );
+
+    server.tool(
+        StrategyTools.CLAIM_REGION.name,
+        StrategyTools.CLAIM_REGION.description,
+        StrategyTools.CLAIM_REGION.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(StrategyTools.CLAIM_REGION.name, withSession(StrategyTools.CLAIM_REGION.inputSchema, handleStrategyTool.bind(null, StrategyTools.CLAIM_REGION.name)))
+    );
+
+    server.tool(
+        StrategyTools.RESOLVE_TURN.name,
+        StrategyTools.RESOLVE_TURN.description,
+        StrategyTools.RESOLVE_TURN.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(StrategyTools.RESOLVE_TURN.name, withSession(StrategyTools.RESOLVE_TURN.inputSchema, handleStrategyTool.bind(null, StrategyTools.RESOLVE_TURN.name)))
+    );
+
+    // Turn Management Tools
+    server.tool(
+        TurnManagementTools.INIT_TURN_STATE.name,
+        TurnManagementTools.INIT_TURN_STATE.description,
+        TurnManagementTools.INIT_TURN_STATE.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(TurnManagementTools.INIT_TURN_STATE.name, withSession(TurnManagementTools.INIT_TURN_STATE.inputSchema, handleTurnManagementTool.bind(null, TurnManagementTools.INIT_TURN_STATE.name)))
+    );
+
+    server.tool(
+        TurnManagementTools.GET_TURN_STATUS.name,
+        TurnManagementTools.GET_TURN_STATUS.description,
+        TurnManagementTools.GET_TURN_STATUS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(TurnManagementTools.GET_TURN_STATUS.name, withSession(TurnManagementTools.GET_TURN_STATUS.inputSchema, handleTurnManagementTool.bind(null, TurnManagementTools.GET_TURN_STATUS.name)))
+    );
+
+    server.tool(
+        TurnManagementTools.SUBMIT_TURN_ACTIONS.name,
+        TurnManagementTools.SUBMIT_TURN_ACTIONS.description,
+        TurnManagementTools.SUBMIT_TURN_ACTIONS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(TurnManagementTools.SUBMIT_TURN_ACTIONS.name, withSession(TurnManagementTools.SUBMIT_TURN_ACTIONS.inputSchema, handleTurnManagementTool.bind(null, TurnManagementTools.SUBMIT_TURN_ACTIONS.name)))
+    );
+
+    server.tool(
+        TurnManagementTools.MARK_READY.name,
+        TurnManagementTools.MARK_READY.description,
+        TurnManagementTools.MARK_READY.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(TurnManagementTools.MARK_READY.name, withSession(TurnManagementTools.MARK_READY.inputSchema, handleTurnManagementTool.bind(null, TurnManagementTools.MARK_READY.name)))
+    );
+
+    server.tool(
+        TurnManagementTools.POLL_TURN_RESULTS.name,
+        TurnManagementTools.POLL_TURN_RESULTS.description,
+        TurnManagementTools.POLL_TURN_RESULTS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(TurnManagementTools.POLL_TURN_RESULTS.name, withSession(TurnManagementTools.POLL_TURN_RESULTS.inputSchema, handleTurnManagementTool.bind(null, TurnManagementTools.POLL_TURN_RESULTS.name)))
+    );
+
+    // Register Secret Tools (DM Secret Keeper System)
+    server.tool(
+        SecretTools.CREATE_SECRET.name,
+        SecretTools.CREATE_SECRET.description,
+        SecretTools.CREATE_SECRET.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(SecretTools.CREATE_SECRET.name, withSession(SecretTools.CREATE_SECRET.inputSchema, handleCreateSecret))
+    );
+
+    server.tool(
+        SecretTools.GET_SECRET.name,
+        SecretTools.GET_SECRET.description,
+        SecretTools.GET_SECRET.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(SecretTools.GET_SECRET.name, withSession(SecretTools.GET_SECRET.inputSchema, handleGetSecret))
+    );
+
+    server.tool(
+        SecretTools.LIST_SECRETS.name,
+        SecretTools.LIST_SECRETS.description,
+        SecretTools.LIST_SECRETS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(SecretTools.LIST_SECRETS.name, withSession(SecretTools.LIST_SECRETS.inputSchema, handleListSecrets))
+    );
+
+    server.tool(
+        SecretTools.UPDATE_SECRET.name,
+        SecretTools.UPDATE_SECRET.description,
+        SecretTools.UPDATE_SECRET.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(SecretTools.UPDATE_SECRET.name, withSession(SecretTools.UPDATE_SECRET.inputSchema, handleUpdateSecret))
+    );
+
+    server.tool(
+        SecretTools.DELETE_SECRET.name,
+        SecretTools.DELETE_SECRET.description,
+        SecretTools.DELETE_SECRET.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(SecretTools.DELETE_SECRET.name, withSession(SecretTools.DELETE_SECRET.inputSchema, handleDeleteSecret))
+    );
+
+    server.tool(
+        SecretTools.REVEAL_SECRET.name,
+        SecretTools.REVEAL_SECRET.description,
+        SecretTools.REVEAL_SECRET.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(SecretTools.REVEAL_SECRET.name, withSession(SecretTools.REVEAL_SECRET.inputSchema, handleRevealSecret))
+    );
+
+    server.tool(
+        SecretTools.CHECK_REVEAL_CONDITIONS.name,
+        SecretTools.CHECK_REVEAL_CONDITIONS.description,
+        SecretTools.CHECK_REVEAL_CONDITIONS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(SecretTools.CHECK_REVEAL_CONDITIONS.name, withSession(SecretTools.CHECK_REVEAL_CONDITIONS.inputSchema, handleCheckRevealConditions))
+    );
+
+    server.tool(
+        SecretTools.GET_SECRETS_FOR_CONTEXT.name,
+        SecretTools.GET_SECRETS_FOR_CONTEXT.description,
+        SecretTools.GET_SECRETS_FOR_CONTEXT.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(SecretTools.GET_SECRETS_FOR_CONTEXT.name, withSession(SecretTools.GET_SECRETS_FOR_CONTEXT.inputSchema, handleGetSecretsForContext))
+    );
+
+    server.tool(
+        SecretTools.CHECK_FOR_LEAKS.name,
+        SecretTools.CHECK_FOR_LEAKS.description,
+        SecretTools.CHECK_FOR_LEAKS.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(SecretTools.CHECK_FOR_LEAKS.name, withSession(SecretTools.CHECK_FOR_LEAKS.inputSchema, handleCheckForLeaks))
     );
 
     // Connect transport

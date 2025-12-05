@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CharacterTypeSchema } from './party.js';
 
 export const CharacterSchema = z.object({
     id: z.string(),
@@ -15,6 +16,7 @@ export const CharacterSchema = z.object({
     maxHp: z.number().int().min(0),
     ac: z.number().int().min(0),
     level: z.number().int().min(1),
+    characterType: CharacterTypeSchema.optional().default('pc'),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
 });
