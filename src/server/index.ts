@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { Tools, handleGenerateWorld, handleGetWorldState, handleApplyMapPatch, handleGetWorldMapOverview, handleGetRegionMap, handleGetWorldTiles, handlePreviewMapPatch, handleFindValidPoiLocation, handleSuggestPoiLocations, setWorldPubSub } from './tools.js';
-import { CombatTools, handleCreateEncounter, handleGetEncounterState, handleExecuteCombatAction, handleAdvanceTurn, handleEndEncounter, handleLoadEncounter, setCombatPubSub } from './combat-tools.js';
+import { CombatTools, handleCreateEncounter, handleGetEncounterState, handleExecuteCombatAction, handleAdvanceTurn, handleEndEncounter, handleLoadEncounter, handleExecuteLairAction, setCombatPubSub } from './combat-tools.js';
 import { CRUDTools, handleCreateWorld, handleGetWorld, handleListWorlds, handleDeleteWorld, handleCreateCharacter, handleGetCharacter, handleUpdateCharacter, handleListCharacters, handleDeleteCharacter, handleUpdateWorldEnvironment } from './crud-tools.js';
 import { InventoryTools, handleCreateItemTemplate, handleGiveItem, handleRemoveItem, handleEquipItem, handleUnequipItem, handleGetInventory, handleGetItem, handleListItems, handleSearchItems, handleUpdateItem, handleDeleteItem, handleTransferItem, handleUseItem, handleGetInventoryDetailed } from './inventory-tools.js';
 import { QuestTools, handleCreateQuest, handleGetQuest, handleListQuests, handleAssignQuest, handleUpdateObjective, handleCompleteObjective, handleCompleteQuest, handleGetQuestLog } from './quest-tools.js';
@@ -202,6 +202,14 @@ async function main() {
         CombatTools.LOAD_ENCOUNTER.description,
         CombatTools.LOAD_ENCOUNTER.inputSchema.extend({ sessionId: z.string().optional() }).shape,
         auditLogger.wrapHandler(CombatTools.LOAD_ENCOUNTER.name, withSession(CombatTools.LOAD_ENCOUNTER.inputSchema, handleLoadEncounter))
+    );
+
+    // HIGH-006: Lair Action Tool
+    server.tool(
+        CombatTools.EXECUTE_LAIR_ACTION.name,
+        CombatTools.EXECUTE_LAIR_ACTION.description,
+        CombatTools.EXECUTE_LAIR_ACTION.inputSchema.extend({ sessionId: z.string().optional() }).shape,
+        auditLogger.wrapHandler(CombatTools.EXECUTE_LAIR_ACTION.name, withSession(CombatTools.EXECUTE_LAIR_ACTION.inputSchema, handleExecuteLairAction))
     );
 
     // Register CRUD Tools

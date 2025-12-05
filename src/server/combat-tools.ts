@@ -57,7 +57,11 @@ function buildStateJson(state: CombatState, encounterId: string) {
             conditions: p.conditions.map(c => c.type),
             isDefeated: p.hp <= 0,
             isCurrentTurn: p.id === currentParticipant?.id
-        }))
+        })),
+        // HIGH-006: Lair action status
+        isLairActionPending: state.turnOrder[state.currentTurnIndex] === 'LAIR',
+        hasLairActions: state.hasLairActions ?? false,
+        lairOwnerId: state.lairOwnerId
     };
 }
 
@@ -436,6 +440,32 @@ Examples:
         description: 'Load a combat encounter from the database.',
         inputSchema: z.object({
             encounterId: z.string().describe('The ID of the encounter to load')
+        })
+    },
+    EXECUTE_LAIR_ACTION: {
+        name: 'execute_lair_action',
+        description: `Execute a lair action when it's initiative 20 (the lair's turn).
+
+Lair actions are special environmental effects that legendary creatures can trigger in their lair.
+Examples:
+- Magma geysers erupt
+- Ceiling collapses
+- Shadow tentacles emerge
+- Poison gas vents open
+
+This tool should only be called when isLairActionPending is true in the encounter state.
+The effect and targets are provided by the caller (DM/LLM) - the engine validates timing and applies damage.`,
+        inputSchema: z.object({
+            encounterId: z.string().describe('The ID of the encounter'),
+            actionDescription: z.string().describe('Description of the lair action'),
+            targetIds: z.array(z.string()).optional().describe('IDs of affected participants (optional)'),
+            damage: z.number().int().min(0).optional().describe('Damage dealt by the lair action'),
+            damageType: z.string().optional().describe('Type of damage (fire, cold, etc.)'),
+            savingThrow: z.object({
+                ability: z.enum(['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma']),
+                dc: z.number().int().min(1).max(30)
+            }).optional().describe('Saving throw required to avoid/reduce effect'),
+            halfDamageOnSave: z.boolean().default(true).describe('Whether successful save halves damage')
         })
     }
 } as const;
@@ -1044,6 +1074,133 @@ export async function handleLoadEncounter(args: unknown, ctx: SessionContext) {
     let output = `📥 ENCOUNTER LOADED\nEncounter ID: ${parsed.encounterId}\n`;
     output += formatCombatStateText(state);
     output += `\n\n<!-- STATE_JSON\n${JSON.stringify(stateJson)}\nSTATE_JSON -->`;
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+/**
+ * HIGH-006: Execute a lair action on initiative 20
+ */
+export async function handleExecuteLairAction(args: unknown, ctx: SessionContext) {
+    const parsed = CombatTools.EXECUTE_LAIR_ACTION.inputSchema.parse(args);
+    const engine = getCombatManager().get(`${ctx.sessionId}:${parsed.encounterId}`);
+
+    if (!engine) {
+        throw new Error(`No active encounter with ID ${parsed.encounterId}`);
+    }
+
+    const state = engine.getState();
+    if (!state) {
+        throw new Error('Encounter has no active state');
+    }
+
+    // Validate it's the lair's turn
+    if (!engine.isLairActionPending()) {
+        throw new Error('Cannot execute lair action: it is not the lair\'s turn (initiative 20)');
+    }
+
+    let output = `\n┌─────────────────────────────────────────┐\n`;
+    output += `│ 🏰 LAIR ACTION (Initiative 20)\n`;
+    output += `└─────────────────────────────────────────┘\n\n`;
+    output += `${parsed.actionDescription}\n\n`;
+
+    const results: Array<{
+        targetId: string;
+        targetName: string;
+        saveRoll?: number;
+        saveTotal?: number;
+        saved: boolean;
+        damageTaken: number;
+    }> = [];
+
+    // Apply damage to targets if specified
+    if (parsed.targetIds && parsed.targetIds.length > 0 && parsed.damage) {
+        for (const targetId of parsed.targetIds) {
+            const target = state.participants.find(p => p.id === targetId);
+            if (!target) {
+                output += `⚠️ Target ${targetId} not found in encounter\n`;
+                continue;
+            }
+
+            let damageTaken = parsed.damage;
+            let saved = false;
+            let saveRoll: number | undefined;
+            let saveTotal: number | undefined;
+
+            // Handle saving throw if specified
+            if (parsed.savingThrow) {
+                // Roll saving throw
+                saveRoll = Math.floor(Math.random() * 20) + 1;
+                const abilityScore = target.abilityScores?.[parsed.savingThrow.ability] ?? 10;
+                const modifier = Math.floor((abilityScore - 10) / 2);
+                saveTotal = saveRoll + modifier;
+                saved = saveTotal >= parsed.savingThrow.dc;
+
+                if (saved && parsed.halfDamageOnSave) {
+                    damageTaken = Math.floor(parsed.damage / 2);
+                } else if (saved) {
+                    damageTaken = 0;
+                }
+            }
+
+            // Apply damage (considering resistances/immunities/vulnerabilities)
+            const damageType = parsed.damageType?.toLowerCase() || 'untyped';
+            if (target.immunities?.includes(damageType)) {
+                damageTaken = 0;
+            } else if (target.resistances?.includes(damageType)) {
+                damageTaken = Math.floor(damageTaken / 2);
+            } else if (target.vulnerabilities?.includes(damageType)) {
+                damageTaken = damageTaken * 2;
+            }
+
+            // Deal damage via engine
+            if (damageTaken > 0) {
+                engine.applyDamage(targetId, damageTaken);
+            }
+
+            results.push({
+                targetId,
+                targetName: target.name,
+                saveRoll,
+                saveTotal,
+                saved,
+                damageTaken
+            });
+
+            // Format result
+            output += `🎯 ${target.name}`;
+            if (parsed.savingThrow) {
+                const saveAbility = parsed.savingThrow.ability.charAt(0).toUpperCase() + parsed.savingThrow.ability.slice(1);
+                output += ` - ${saveAbility} Save: ${saveRoll} + ${Math.floor(((target.abilityScores?.[parsed.savingThrow.ability] ?? 10) - 10) / 2)} = ${saveTotal} vs DC ${parsed.savingThrow.dc}`;
+                output += saved ? ' ✓ SAVED' : ' ✗ FAILED';
+            }
+            output += `\n`;
+            output += `   Damage: ${damageTaken}${parsed.damageType ? ` ${parsed.damageType}` : ''}\n`;
+
+            const updatedTarget = engine.getState()!.participants.find(p => p.id === targetId);
+            if (updatedTarget) {
+                output += `   HP: ${updatedTarget.hp}/${updatedTarget.maxHp}`;
+                if (updatedTarget.hp <= 0) {
+                    output += ' 💀 DEFEATED';
+                }
+                output += '\n';
+            }
+        }
+    } else {
+        output += `(No mechanical effect - narrative only)\n`;
+    }
+
+    output += `\n→ Call advance_turn to proceed to the next combatant`;
+
+    // Save state
+    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const repo = new EncounterRepository(db);
+    repo.saveState(parsed.encounterId, engine.getState()!);
 
     return {
         content: [{
