@@ -14,10 +14,14 @@ export class CharacterRepository {
       INSERT INTO characters (id, name, stats, hp, max_hp, ac, level, faction_id, behavior, character_type,
                               character_class, spell_slots, pact_magic_slots, known_spells, prepared_spells,
                               cantrips_known, max_spell_level, concentrating_on, conditions,
+                              legendary_actions, legendary_actions_remaining, legendary_resistances,
+                              legendary_resistances_remaining, has_lair_actions, resistances, vulnerabilities, immunities,
                               created_at, updated_at)
       VALUES (@id, @name, @stats, @hp, @maxHp, @ac, @level, @factionId, @behavior, @characterType,
               @characterClass, @spellSlots, @pactMagicSlots, @knownSpells, @preparedSpells,
               @cantripsKnown, @maxSpellLevel, @concentratingOn, @conditions,
+              @legendaryActions, @legendaryActionsRemaining, @legendaryResistances,
+              @legendaryResistancesRemaining, @hasLairActions, @resistances, @vulnerabilities, @immunities,
               @createdAt, @updatedAt)
     `);
 
@@ -42,6 +46,15 @@ export class CharacterRepository {
             maxSpellLevel: validChar.maxSpellLevel || 0,
             concentratingOn: validChar.concentratingOn || null,
             conditions: JSON.stringify(validChar.conditions || []),
+            // HIGH-007: Legendary creature fields
+            legendaryActions: validChar.legendaryActions ?? null,
+            legendaryActionsRemaining: validChar.legendaryActionsRemaining ?? null,
+            legendaryResistances: validChar.legendaryResistances ?? null,
+            legendaryResistancesRemaining: validChar.legendaryResistancesRemaining ?? null,
+            hasLairActions: validChar.hasLairActions ? 1 : 0,
+            resistances: JSON.stringify(validChar.resistances || []),
+            vulnerabilities: JSON.stringify(validChar.vulnerabilities || []),
+            immunities: JSON.stringify(validChar.immunities || []),
             createdAt: validChar.createdAt,
             updatedAt: validChar.updatedAt,
         });
@@ -96,6 +109,9 @@ export class CharacterRepository {
                 character_class = ?, spell_slots = ?, pact_magic_slots = ?,
                 known_spells = ?, prepared_spells = ?, cantrips_known = ?,
                 max_spell_level = ?, concentrating_on = ?, conditions = ?,
+                legendary_actions = ?, legendary_actions_remaining = ?,
+                legendary_resistances = ?, legendary_resistances_remaining = ?,
+                has_lair_actions = ?, resistances = ?, vulnerabilities = ?, immunities = ?,
                 updated_at = ?
             WHERE id = ?
         `);
@@ -120,6 +136,15 @@ export class CharacterRepository {
             validChar.maxSpellLevel || 0,
             validChar.concentratingOn || null,
             JSON.stringify(validChar.conditions || []),
+            // HIGH-007: Legendary creature fields
+            validChar.legendaryActions ?? null,
+            validChar.legendaryActionsRemaining ?? null,
+            validChar.legendaryResistances ?? null,
+            validChar.legendaryResistancesRemaining ?? null,
+            validChar.hasLairActions ? 1 : 0,
+            JSON.stringify(validChar.resistances || []),
+            JSON.stringify(validChar.vulnerabilities || []),
+            JSON.stringify(validChar.immunities || []),
             validChar.updatedAt,
             id
         );
@@ -153,6 +178,15 @@ export class CharacterRepository {
             maxSpellLevel: row.max_spell_level || 0,
             concentratingOn: row.concentrating_on || null,
             conditions: row.conditions ? JSON.parse(row.conditions) : [],
+            // HIGH-007: Legendary creature fields
+            legendaryActions: row.legendary_actions ?? undefined,
+            legendaryActionsRemaining: row.legendary_actions_remaining ?? undefined,
+            legendaryResistances: row.legendary_resistances ?? undefined,
+            legendaryResistancesRemaining: row.legendary_resistances_remaining ?? undefined,
+            hasLairActions: row.has_lair_actions === 1,
+            resistances: row.resistances ? JSON.parse(row.resistances) : [],
+            vulnerabilities: row.vulnerabilities ? JSON.parse(row.vulnerabilities) : [],
+            immunities: row.immunities ? JSON.parse(row.immunities) : [],
             createdAt: row.created_at,
             updatedAt: row.updated_at,
         };
@@ -190,6 +224,15 @@ interface CharacterRow {
     max_spell_level: number | null;
     concentrating_on: string | null;
     conditions: string | null;
+    // HIGH-007: Legendary creature columns
+    legendary_actions: number | null;
+    legendary_actions_remaining: number | null;
+    legendary_resistances: number | null;
+    legendary_resistances_remaining: number | null;
+    has_lair_actions: number | null;
+    resistances: string | null;
+    vulnerabilities: string | null;
+    immunities: string | null;
     created_at: string;
     updated_at: string;
 }

@@ -453,6 +453,49 @@ function runMigrations(db: Database.Database) {
     console.error('[Migration] Adding conditions column to characters table');
     db.exec(`ALTER TABLE characters ADD COLUMN conditions TEXT DEFAULT '[]';`);
   }
+
+  // HIGH-007: Add legendary creature columns to characters table
+  const hasLegendaryActions = charColumns.some(col => col.name === 'legendary_actions');
+  const hasLegendaryActionsRemaining = charColumns.some(col => col.name === 'legendary_actions_remaining');
+  const hasLegendaryResistances = charColumns.some(col => col.name === 'legendary_resistances');
+  const hasLegendaryResistancesRemaining = charColumns.some(col => col.name === 'legendary_resistances_remaining');
+  const hasLairActions = charColumns.some(col => col.name === 'has_lair_actions');
+  const hasResistances = charColumns.some(col => col.name === 'resistances');
+  const hasVulnerabilities = charColumns.some(col => col.name === 'vulnerabilities');
+  const hasImmunities = charColumns.some(col => col.name === 'immunities');
+
+  if (!hasLegendaryActions) {
+    console.error('[Migration] Adding legendary_actions column to characters table');
+    db.exec(`ALTER TABLE characters ADD COLUMN legendary_actions INTEGER;`);
+  }
+  if (!hasLegendaryActionsRemaining) {
+    console.error('[Migration] Adding legendary_actions_remaining column to characters table');
+    db.exec(`ALTER TABLE characters ADD COLUMN legendary_actions_remaining INTEGER;`);
+  }
+  if (!hasLegendaryResistances) {
+    console.error('[Migration] Adding legendary_resistances column to characters table');
+    db.exec(`ALTER TABLE characters ADD COLUMN legendary_resistances INTEGER;`);
+  }
+  if (!hasLegendaryResistancesRemaining) {
+    console.error('[Migration] Adding legendary_resistances_remaining column to characters table');
+    db.exec(`ALTER TABLE characters ADD COLUMN legendary_resistances_remaining INTEGER;`);
+  }
+  if (!hasLairActions) {
+    console.error('[Migration] Adding has_lair_actions column to characters table');
+    db.exec(`ALTER TABLE characters ADD COLUMN has_lair_actions INTEGER DEFAULT 0;`);
+  }
+  if (!hasResistances) {
+    console.error('[Migration] Adding resistances column to characters table');
+    db.exec(`ALTER TABLE characters ADD COLUMN resistances TEXT DEFAULT '[]';`);
+  }
+  if (!hasVulnerabilities) {
+    console.error('[Migration] Adding vulnerabilities column to characters table');
+    db.exec(`ALTER TABLE characters ADD COLUMN vulnerabilities TEXT DEFAULT '[]';`);
+  }
+  if (!hasImmunities) {
+    console.error('[Migration] Adding immunities column to characters table');
+    db.exec(`ALTER TABLE characters ADD COLUMN immunities TEXT DEFAULT '[]';`);
+  }
 }
 
 function createPostMigrationIndexes(db: Database.Database) {

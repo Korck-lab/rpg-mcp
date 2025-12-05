@@ -45,6 +45,26 @@ export const CharacterSchema = z.object({
         y: z.number()
     }).optional(),
 
+    // HIGH-007: Legendary creature fields
+    legendaryActions: z.number().int().min(0).optional()
+        .describe('Total legendary actions per round (usually 3)'),
+    legendaryActionsRemaining: z.number().int().min(0).optional()
+        .describe('Remaining legendary actions this round'),
+    legendaryResistances: z.number().int().min(0).optional()
+        .describe('Total legendary resistances per day (usually 3)'),
+    legendaryResistancesRemaining: z.number().int().min(0).optional()
+        .describe('Remaining legendary resistances'),
+    hasLairActions: z.boolean().optional().default(false)
+        .describe('Whether this creature can use lair actions on initiative 20'),
+
+    // HIGH-002: Damage modifiers
+    resistances: z.array(z.string()).optional().default([])
+        .describe('Damage types that deal half damage (e.g., ["fire", "cold"])'),
+    vulnerabilities: z.array(z.string()).optional().default([])
+        .describe('Damage types that deal double damage'),
+    immunities: z.array(z.string()).optional().default([])
+        .describe('Damage types that deal no damage'),
+
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
 });
