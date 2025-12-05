@@ -487,7 +487,7 @@ export async function handleExecuteCombatAction(args: unknown, ctx: SessionConte
         getCombatManager().create(`${ctx.sessionId}:${parsed.encounterId}`, engine);
     }
 
-    let result: CombatActionResult;
+    let result: CombatActionResult | undefined;
     let output = '';
 
     if (parsed.action === 'attack') {
