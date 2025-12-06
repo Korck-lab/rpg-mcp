@@ -51297,6 +51297,37 @@ Example - Lightning Bolt (100ft line):
       length: external_exports.number().optional().describe("Length for cone/line shapes (in tiles)"),
       angle: external_exports.number().optional().describe("Angle for cone shape (in degrees, e.g., 90 for quarter circle)")
     })
+  },
+  UPDATE_TERRAIN: {
+    name: "update_terrain",
+    description: `Add, remove, or modify terrain in an active encounter. Use this to dynamically change the battlefield.
+
+Supports:
+- obstacles: Blocking terrain (walls, rocks, fallen trees)
+- difficultTerrain: Half-speed terrain (mud, rubble, underbrush)
+- water: Watery terrain (streams, rivers, pools)
+
+Example - Add a river:
+{
+  "encounterId": "encounter-1",
+  "operation": "add",
+  "terrainType": "water",
+  "tiles": ["40,0", "40,1", "40,2", "40,3", "40,4"]
+}
+
+Example - Remove obstacles:
+{
+  "encounterId": "encounter-1",
+  "operation": "remove",
+  "terrainType": "obstacles",
+  "tiles": ["5,5", "5,6"]
+}`,
+    inputSchema: external_exports.object({
+      encounterId: external_exports.string().describe("The ID of the encounter"),
+      operation: external_exports.enum(["add", "remove"]).describe("Add or remove terrain"),
+      terrainType: external_exports.enum(["obstacles", "difficultTerrain", "water"]).describe("Type of terrain to modify"),
+      tiles: external_exports.array(external_exports.string()).min(1).describe('Array of "x,y" coordinate strings')
+    })
   }
 };
 async function handleCreateEncounter(args, ctx) {
@@ -52099,6 +52130,63 @@ async function handleCalculateAoe(args, ctx) {
 <!-- AOE_JSON
 ${JSON.stringify(result)}
 AOE_JSON -->`;
+  return {
+    content: [{
+      type: "text",
+      text: output
+    }]
+  };
+}
+async function handleUpdateTerrain(args, ctx) {
+  const parsed = CombatTools.UPDATE_TERRAIN.inputSchema.parse(args);
+  let engine = getCombatManager().get(`${ctx.sessionId}:${parsed.encounterId}`);
+  if (!engine) {
+    const db2 = getDb(process.env.NODE_ENV === "test" ? ":memory:" : "rpg.db");
+    const repo2 = new EncounterRepository(db2);
+    const state2 = repo2.loadState(parsed.encounterId);
+    if (!state2) {
+      throw new Error(`Encounter ${parsed.encounterId} not found.`);
+    }
+    engine = new CombatEngine(parsed.encounterId, pubsub2 || void 0);
+    engine.loadState(state2);
+    getCombatManager().create(`${ctx.sessionId}:${parsed.encounterId}`, engine);
+  }
+  const state = engine.getState();
+  if (!state) {
+    throw new Error("No active encounter");
+  }
+  if (!state.terrain) {
+    state.terrain = { obstacles: [], difficultTerrain: [], water: [] };
+  }
+  const terrainKey = parsed.terrainType;
+  if (!state.terrain[terrainKey]) {
+    state.terrain[terrainKey] = [];
+  }
+  const terrainArray = state.terrain[terrainKey];
+  let modified = 0;
+  if (parsed.operation === "add") {
+    for (const tile of parsed.tiles) {
+      if (!terrainArray.includes(tile)) {
+        terrainArray.push(tile);
+        modified++;
+      }
+    }
+  } else {
+    const tileSet = new Set(parsed.tiles);
+    const originalLength = terrainArray.length;
+    state.terrain[terrainKey] = terrainArray.filter((t) => !tileSet.has(t));
+    modified = originalLength - state.terrain[terrainKey].length;
+  }
+  const db = getDb(process.env.NODE_ENV === "test" ? ":memory:" : "rpg.db");
+  const repo = new EncounterRepository(db);
+  repo.saveState(parsed.encounterId, state);
+  const stateJson = buildStateJson(state, parsed.encounterId);
+  let output = `\\n\u26CF\uFE0F TERRAIN UPDATED\\n`;
+  output += `\u251C\u2500 Operation: ${parsed.operation.toUpperCase()}\\n`;
+  output += `\u251C\u2500 Type: ${parsed.terrainType}\\n`;
+  output += `\u251C\u2500 Tiles modified: ${modified}\\n`;
+  output += `\u2514\u2500 Total ${parsed.terrainType}: ${state.terrain[terrainKey].length}\\n`;
+  output += `\\n\\n<!-- STATE_JSON\\n${JSON.stringify(stateJson)}\\nSTATE_JSON -->`;
   return {
     content: [{
       type: "text",
@@ -64382,6 +64470,11 @@ function buildToolRegistry() {
       metadata: meta(CombatTools.CALCULATE_AOE.name, CombatTools.CALCULATE_AOE.description, "combat", ["aoe", "area", "effect", "fireball", "cone", "line", "spell", "radius"], ["AoE calculation", "Target detection", "Spell area"], false, "medium"),
       schema: CombatTools.CALCULATE_AOE.inputSchema,
       handler: handleCalculateAoe
+    },
+    [CombatTools.UPDATE_TERRAIN.name]: {
+      metadata: meta(CombatTools.UPDATE_TERRAIN.name, CombatTools.UPDATE_TERRAIN.description, "combat", ["terrain", "update", "add", "remove", "obstacle", "water", "difficult", "battlefield"], ["Dynamic terrain", "On-the-fly map editing", "Mid-combat terrain changes"], false, "medium"),
+      schema: CombatTools.UPDATE_TERRAIN.inputSchema,
+      handler: handleUpdateTerrain
     },
     // === CHARACTER/CRUD TOOLS ===
     [CRUDTools.CREATE_WORLD.name]: {

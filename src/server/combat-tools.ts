@@ -679,6 +679,37 @@ Example - Lightning Bolt (100ft line):
             length: z.number().optional().describe('Length for cone/line shapes (in tiles)'),
             angle: z.number().optional().describe('Angle for cone shape (in degrees, e.g., 90 for quarter circle)')
         })
+    },
+    UPDATE_TERRAIN: {
+        name: 'update_terrain',
+        description: `Add, remove, or modify terrain in an active encounter. Use this to dynamically change the battlefield.
+
+Supports:
+- obstacles: Blocking terrain (walls, rocks, fallen trees)
+- difficultTerrain: Half-speed terrain (mud, rubble, underbrush)
+- water: Watery terrain (streams, rivers, pools)
+
+Example - Add a river:
+{
+  "encounterId": "encounter-1",
+  "operation": "add",
+  "terrainType": "water",
+  "tiles": ["40,0", "40,1", "40,2", "40,3", "40,4"]
+}
+
+Example - Remove obstacles:
+{
+  "encounterId": "encounter-1",
+  "operation": "remove",
+  "terrainType": "obstacles",
+  "tiles": ["5,5", "5,6"]
+}`,
+        inputSchema: z.object({
+            encounterId: z.string().describe('The ID of the encounter'),
+            operation: z.enum(['add', 'remove']).describe('Add or remove terrain'),
+            terrainType: z.enum(['obstacles', 'difficultTerrain', 'water']).describe('Type of terrain to modify'),
+            tiles: z.array(z.string()).min(1).describe('Array of "x,y" coordinate strings')
+        })
     }
 } as const;
 
@@ -1680,6 +1711,87 @@ export async function handleCalculateAoe(args: unknown, ctx: SessionContext) {
 
     // Also return JSON for programmatic use
     output += `\n<!-- AOE_JSON\n${JSON.stringify(result)}\nAOE_JSON -->`;
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+/**
+ * Handle updating terrain during an active encounter
+ */
+export async function handleUpdateTerrain(args: unknown, ctx: SessionContext) {
+    const parsed = CombatTools.UPDATE_TERRAIN.inputSchema.parse(args);
+    let engine = getCombatManager().get(`${ctx.sessionId}:${parsed.encounterId}`);
+
+    // Auto-load from database if not in memory
+    if (!engine) {
+        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const repo = new EncounterRepository(db);
+        const state = repo.loadState(parsed.encounterId);
+
+        if (!state) {
+            throw new Error(`Encounter ${parsed.encounterId} not found.`);
+        }
+
+        engine = new CombatEngine(parsed.encounterId, pubsub || undefined);
+        engine.loadState(state);
+        getCombatManager().create(`${ctx.sessionId}:${parsed.encounterId}`, engine);
+    }
+
+    const state = engine.getState();
+    if (!state) {
+        throw new Error('No active encounter');
+    }
+
+    // Initialize terrain if it doesn't exist
+    if (!state.terrain) {
+        state.terrain = { obstacles: [], difficultTerrain: [], water: [] };
+    }
+
+    // Get or create the appropriate terrain array
+    const terrainKey = parsed.terrainType as 'obstacles' | 'difficultTerrain' | 'water';
+    if (!state.terrain[terrainKey]) {
+        state.terrain[terrainKey] = [];
+    }
+    
+    const terrainArray = state.terrain[terrainKey] as string[];
+    let modified = 0;
+
+    if (parsed.operation === 'add') {
+        // Add tiles that don't already exist
+        for (const tile of parsed.tiles) {
+            if (!terrainArray.includes(tile)) {
+                terrainArray.push(tile);
+                modified++;
+            }
+        }
+    } else {
+        // Remove tiles
+        const tileSet = new Set(parsed.tiles);
+        const originalLength = terrainArray.length;
+        state.terrain[terrainKey] = terrainArray.filter(t => !tileSet.has(t));
+        modified = originalLength - (state.terrain[terrainKey] as string[]).length;
+    }
+
+    // Save updated state to database
+    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const repo = new EncounterRepository(db);
+    repo.saveState(parsed.encounterId, state);
+
+    // Build response
+    const stateJson = buildStateJson(state, parsed.encounterId);
+    let output = `\\n⛏️ TERRAIN UPDATED\\n`;
+    output += `├─ Operation: ${parsed.operation.toUpperCase()}\\n`;
+    output += `├─ Type: ${parsed.terrainType}\\n`;
+    output += `├─ Tiles modified: ${modified}\\n`;
+    output += `└─ Total ${parsed.terrainType}: ${(state.terrain[terrainKey] as string[]).length}\\n`;
+
+    // Append JSON for frontend parsing
+    output += `\\n\\n<!-- STATE_JSON\\n${JSON.stringify(stateJson)}\\nSTATE_JSON -->`;
 
     return {
         content: [{

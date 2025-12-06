@@ -73,6 +73,7 @@ export interface CombatState {
     terrain?: {  // CRIT-003: Terrain configuration
         obstacles: string[];  // "x,y" format blocking tiles
         difficultTerrain?: string[];
+        water?: string[];  // Water terrain (streams, rivers)
     };
     gridBounds?: GridBounds;   // Phase 2: Spatial boundary validation (BUG-001 fix)
     hasLairActions?: boolean;  // Whether any participant has lair actions
