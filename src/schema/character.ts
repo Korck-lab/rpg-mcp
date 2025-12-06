@@ -10,7 +10,9 @@ import {
 
 export const CharacterSchema = z.object({
     id: z.string(),
-    name: z.string(),
+    name: z.string()
+        .min(1, 'Character name cannot be empty')
+        .max(100, 'Character name cannot exceed 100 characters'),
     stats: z.object({
         str: z.number().int().min(0),
         dex: z.number().int().min(0),

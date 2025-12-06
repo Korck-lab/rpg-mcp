@@ -117,4 +117,45 @@ describe('CharacterRepository', () => {
         expect(all).toHaveLength(2);
         expect(all.map(c => c.id).sort()).toEqual(['c1', 'c2']);
     });
+
+    // EDGE-003: Character name length limits
+    it('EDGE-003: should reject empty character names', () => {
+        const character: Character = {
+            id: 'edge-empty',
+            name: '',  // Empty name - should be rejected
+            stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+            hp: 10, maxHp: 10, ac: 10, level: 1,
+            createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP
+        };
+
+        expect(() => repo.create(character)).toThrow();
+    });
+
+    it('EDGE-003: should reject excessively long character names', () => {
+        const longName = 'A'.repeat(200);  // 200 chars - too long
+        const character: Character = {
+            id: 'edge-long',
+            name: longName,
+            stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+            hp: 10, maxHp: 10, ac: 10, level: 1,
+            createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP
+        };
+
+        expect(() => repo.create(character)).toThrow('Character name cannot exceed 100 characters');
+    });
+
+    it('EDGE-003: should accept character names up to 100 characters', () => {
+        const maxName = 'A'.repeat(100);  // Exactly 100 chars - should work
+        const character: Character = {
+            id: 'edge-max',
+            name: maxName,
+            stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+            hp: 10, maxHp: 10, ac: 10, level: 1,
+            createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP
+        };
+
+        repo.create(character);
+        const retrieved = repo.findById('edge-max');
+        expect(retrieved?.name).toBe(maxName);
+    });
 });
