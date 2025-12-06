@@ -467,6 +467,42 @@ describe('Category 3: Fence Operations', () => {
         const fence = theftRepo.getFence(fenceNpc.id);
         expect(fence?.currentDailyHeat).toBe(0);
     });
+
+    // EDGE-006: Victim/fence conflict detection
+    test('3.10 - EDGE-006: registering victim as fence returns warning', () => {
+        const victimMerchant = createCharacter({ name: 'Victim Merchant' });
+        const thief = createCharacter({ name: 'Thief' });
+        const itemId = createItem('Stolen Item');
+        addItemToInventory(victimMerchant.id, itemId);
+
+        // First, steal from the merchant
+        theftRepo.recordTheft({
+            itemId,
+            stolenFrom: victimMerchant.id,
+            stolenBy: thief.id
+        });
+
+        // Now register the victim as a fence - should work but return warning
+        const result = theftRepo.registerFence({
+            npcId: victimMerchant.id,
+            buyRate: 0.3
+        });
+
+        expect(result.npcId).toBe(victimMerchant.id);
+        expect(result.warning).toContain('victim');
+    });
+
+    test('3.11 - EDGE-006: registering non-victim as fence has no warning', () => {
+        const normalFence = createCharacter({ name: 'Normal Fence' });
+
+        const result = theftRepo.registerFence({
+            npcId: normalFence.id,
+            buyRate: 0.5
+        });
+
+        expect(result.npcId).toBe(normalFence.id);
+        expect(result.warning).toBeUndefined();
+    });
 });
 
 // ============================================================================

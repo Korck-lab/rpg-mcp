@@ -282,6 +282,7 @@ export class TheftRepository {
 
     /**
      * Register an NPC as a fence
+     * EDGE-006: Returns warning if NPC has been a theft victim
      */
     registerFence(fence: {
         npcId: string;
@@ -292,8 +293,14 @@ export class TheftRepository {
         specializations?: string[];
         cooldownDays?: number;
         reputation?: number;
-    }): FenceNpc {
+    }): FenceNpc & { warning?: string } {
         const now = new Date().toISOString();
+
+        // EDGE-006: Check if this NPC has been a theft victim
+        const victimCheck = this.db.prepare(
+            'SELECT COUNT(*) as count FROM stolen_items WHERE stolen_from = ?'
+        ).get(fence.npcId) as { count: number };
+        const wasVictim = victimCheck.count > 0;
 
         const stmt = this.db.prepare(`
             INSERT INTO fence_npcs (
@@ -314,7 +321,16 @@ export class TheftRepository {
             fence.reputation ?? 50
         );
 
-        return this.getFence(fence.npcId)!;
+        const result = this.getFence(fence.npcId)!;
+
+        if (wasVictim) {
+            return {
+                ...result,
+                warning: 'This NPC has been a theft victim - registering as fence may cause conflicts'
+            };
+        }
+
+        return result;
     }
 
     /**
