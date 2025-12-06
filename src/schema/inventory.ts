@@ -10,7 +10,9 @@ export const INVENTORY_LIMITS = {
 
 export const ItemSchema = z.object({
     id: z.string(),
-    name: z.string(),
+    name: z.string()
+        .min(1, 'Item name cannot be empty')
+        .refine(s => s.trim().length > 0, 'Item name cannot be whitespace only'),
     description: z.string().optional(),
     type: z.enum(['weapon', 'armor', 'consumable', 'quest', 'misc']),
     weight: z.number().min(0).default(0),

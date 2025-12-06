@@ -174,4 +174,23 @@ describe('Inventory System', () => {
 
         expect(inventory.items[0].quantity).toBe(8);
     });
+
+    // EDGE-004: Empty item names validation
+    it('EDGE-004: should reject empty item names', async () => {
+        await expect(handleCreateItemTemplate({
+            name: '',  // Empty name - should be rejected
+            type: 'misc',
+            weight: 1,
+            value: 10
+        }, mockCtx)).rejects.toThrow();
+    });
+
+    it('EDGE-004: should reject whitespace-only item names', async () => {
+        await expect(handleCreateItemTemplate({
+            name: '   ',  // Whitespace only - should be rejected
+            type: 'misc',
+            weight: 1,
+            value: 10
+        }, mockCtx)).rejects.toThrow();
+    });
 });
