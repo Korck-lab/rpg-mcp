@@ -30504,12 +30504,12 @@ var unix_exports = {};
 __export(unix_exports, {
   UnixServerTransport: () => UnixServerTransport
 });
-var import_net2, import_fs2, UnixServerTransport;
+var import_net2, import_fs3, UnixServerTransport;
 var init_unix = __esm({
   "dist/server/transport/unix.js"() {
     "use strict";
     import_net2 = require("net");
-    import_fs2 = __toESM(require("fs"), 1);
+    import_fs3 = __toESM(require("fs"), 1);
     UnixServerTransport = class {
       path;
       server;
@@ -30550,8 +30550,8 @@ var init_unix = __esm({
         });
       }
       async start() {
-        if (process.platform !== "win32" && import_fs2.default.existsSync(this.path)) {
-          import_fs2.default.unlinkSync(this.path);
+        if (process.platform !== "win32" && import_fs3.default.existsSync(this.path)) {
+          import_fs3.default.unlinkSync(this.path);
         }
         return new Promise((resolve) => {
           this.server.listen(this.path, () => {
@@ -44949,6 +44949,7 @@ var WorldRepository = class {
 
 // dist/storage/index.js
 var import_path = require("path");
+var import_fs2 = require("fs");
 
 // dist/storage/db.js
 var import_better_sqlite3 = __toESM(require_better_sqlite3(), 1);
@@ -45888,7 +45889,26 @@ function getDefaultDbPath() {
   const exePath = process.execPath;
   const exeDir = (0, import_path.dirname)(exePath);
   if (process.pkg || exePath.includes("rpg-mcp-server")) {
-    return (0, import_path.join)(exeDir, "rpg.db");
+    const prodPath = (0, import_path.join)(exeDir, "rpg.db");
+    if ((0, import_fs2.existsSync)(prodPath)) {
+      return prodPath;
+    }
+    let searchDir = exeDir;
+    for (let i = 0; i < 5; i++) {
+      const tauriDevPath = (0, import_path.join)(searchDir, "binaries", "rpg.db");
+      if ((0, import_fs2.existsSync)(tauriDevPath)) {
+        console.error(`[Database] Found database at Tauri dev path: ${tauriDevPath}`);
+        return tauriDevPath;
+      }
+      const srcTauriPath = (0, import_path.join)(searchDir, "src-tauri", "binaries", "rpg.db");
+      if ((0, import_fs2.existsSync)(srcTauriPath)) {
+        console.error(`[Database] Found database at src-tauri path: ${srcTauriPath}`);
+        return srcTauriPath;
+      }
+      searchDir = (0, import_path.dirname)(searchDir);
+    }
+    console.error(`[Database] No existing database found, will create at: ${prodPath}`);
+    return prodPath;
   }
   return (0, import_path.join)(process.cwd(), "rpg.db");
 }
@@ -64838,9 +64858,6 @@ var MetaTools = {
   }
 };
 
-// dist/server/tool-metadata.js
-var MINIMAL_SCHEMA = {};
-
 // dist/engine/pubsub.js
 var PubSub = class {
   subscribers = /* @__PURE__ */ new Map();
@@ -65034,13 +65051,7 @@ async function main() {
   const registry2 = buildToolRegistry();
   const toolCount = Object.keys(registry2).length;
   for (const [toolName, entry] of Object.entries(registry2)) {
-    server.tool(
-      toolName,
-      entry.metadata.description,
-      MINIMAL_SCHEMA,
-      // ← Key change: minimal schema instead of full Zod schema
-      auditLogger.wrapHandler(toolName, withSession(entry.schema, entry.handler))
-    );
+    server.tool(toolName, entry.metadata.description, entry.schema.extend({ sessionId: external_exports.string().optional() }).shape, auditLogger.wrapHandler(toolName, withSession(entry.schema, entry.handler)));
   }
   console.error(`[Server] Registered ${toolCount} tools with minimal schemas`);
   console.error(`[Server] Meta-tools: search_tools, load_tool_schema`);

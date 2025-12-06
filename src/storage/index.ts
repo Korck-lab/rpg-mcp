@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { join, dirname, isAbsolute } from 'path';
+import { existsSync } from 'fs';
 import { initDB } from './db.js';
 import { migrate } from './migrations.js';
 
@@ -9,6 +10,10 @@ let configuredDbPath: string | null = null;
 /**
  * Get the default database path.
  * Uses environment variable, CLI argument, or falls back to user data directory.
+ *
+ * For Tauri sidecar usage:
+ * - Production: rpg.db is bundled alongside the executable
+ * - Dev mode: rpg.db is in src-tauri/binaries/ (need to search up from target/debug/)
  */
 function getDefaultDbPath(): string {
     // Check for environment variable first
@@ -32,7 +37,36 @@ function getDefaultDbPath(): string {
     // The bundled executable will have a snapshot filesystem
     // Use type assertion since 'pkg' is added by the pkg bundler at runtime
     if ((process as unknown as { pkg?: unknown }).pkg || exePath.includes('rpg-mcp-server')) {
-        return join(exeDir, 'rpg.db');
+        // First, check if rpg.db exists next to the executable (production mode)
+        const prodPath = join(exeDir, 'rpg.db');
+        if (existsSync(prodPath)) {
+            return prodPath;
+        }
+
+        // Tauri dev mode: executable is in target/debug/ or target/release/
+        // but the database is in src-tauri/binaries/
+        // Search up the directory tree for src-tauri/binaries/rpg.db
+        let searchDir = exeDir;
+        for (let i = 0; i < 5; i++) {
+            const tauriDevPath = join(searchDir, 'binaries', 'rpg.db');
+            if (existsSync(tauriDevPath)) {
+                console.error(`[Database] Found database at Tauri dev path: ${tauriDevPath}`);
+                return tauriDevPath;
+            }
+
+            // Also check for src-tauri/binaries pattern
+            const srcTauriPath = join(searchDir, 'src-tauri', 'binaries', 'rpg.db');
+            if (existsSync(srcTauriPath)) {
+                console.error(`[Database] Found database at src-tauri path: ${srcTauriPath}`);
+                return srcTauriPath;
+            }
+
+            searchDir = dirname(searchDir);
+        }
+
+        // Fall back to executable directory (will create new DB if not found)
+        console.error(`[Database] No existing database found, will create at: ${prodPath}`);
+        return prodPath;
     }
 
     // For development, use current working directory

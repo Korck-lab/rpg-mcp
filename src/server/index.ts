@@ -15,7 +15,7 @@ import { z } from 'zod';
 // Meta-tools and registry
 import { MetaTools, handleSearchTools, handleLoadToolSchema } from './meta-tools.js';
 import { buildToolRegistry } from './tool-registry.js';
-import { MINIMAL_SCHEMA } from './tool-metadata.js';
+// MINIMAL_SCHEMA removed - must pass actual schema for MCP SDK to pass arguments
 
 // PubSub and utilities
 import { PubSub } from '../engine/pubsub.js';
@@ -122,12 +122,14 @@ async function main() {
   const toolCount = Object.keys(registry).length;
   
   for (const [toolName, entry] of Object.entries(registry)) {
+    // Must use .extend().shape pattern for MCP SDK to properly pass arguments
+    // This works with all Zod schema types (object, omit, pick, etc.)
     server.tool(
       toolName,
       entry.metadata.description,
-      MINIMAL_SCHEMA, // ← Key change: minimal schema instead of full Zod schema
+      entry.schema.extend({ sessionId: z.string().optional() }).shape,
       auditLogger.wrapHandler(
-        toolName, 
+        toolName,
         withSession(entry.schema, entry.handler as any)
       )
     );

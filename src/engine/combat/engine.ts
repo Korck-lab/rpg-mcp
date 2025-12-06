@@ -1,15 +1,23 @@
 import { CombatRNG, CheckResult } from './rng.js';
 import { Condition, ConditionType, DurationType, Ability, CONDITION_EFFECTS } from './conditions.js';
 
+import { SizeCategory, GridBounds } from '../../schema/encounter.js';
+
 /**
  * Character interface for combat participants
- * 
+ *
  * D&D 5e legendary creature properties:
  * - legendaryActions: Total actions available (usually 3)
  * - legendaryActionsRemaining: Actions left this round (resets at start of their turn)
  * - legendaryResistances: Total resistances (usually 3/day)
  * - legendaryResistancesRemaining: Resistances left (does NOT reset between rounds)
  * - hasLairActions: Whether this creature can use lair actions on initiative 20
+ *
+ * Spatial combat properties (Phase 1-4):
+ * - position: Current grid position
+ * - movementSpeed: Base speed in feet (default 30)
+ * - movementRemaining: Remaining movement this turn
+ * - size: Creature size category (affects footprint)
  */
 export interface CombatParticipant {
     id: string;
@@ -21,6 +29,11 @@ export interface CombatParticipant {
     maxHp: number;
     conditions: Condition[];
     position?: { x: number; y: number; z?: number };  // CRIT-003: Spatial position
+    // Phase 4: Movement economy
+    movementSpeed?: number;       // Base speed in feet (default 30)
+    movementRemaining?: number;   // Remaining movement this turn (in feet)
+    size?: SizeCategory;          // Creature size for footprint calculation
+    hasDashed?: boolean;          // Whether dash action was used this turn
     // HIGH-002: Damage modifiers
     resistances?: string[];    // Damage types that deal half damage
     vulnerabilities?: string[]; // Damage types that deal double damage
@@ -61,6 +74,7 @@ export interface CombatState {
         obstacles: string[];  // "x,y" format blocking tiles
         difficultTerrain?: string[];
     };
+    gridBounds?: GridBounds;   // Phase 2: Spatial boundary validation (BUG-001 fix)
     hasLairActions?: boolean;  // Whether any participant has lair actions
     lairOwnerId?: string;      // ID of the creature that owns the lair
 }

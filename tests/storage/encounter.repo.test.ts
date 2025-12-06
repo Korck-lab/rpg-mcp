@@ -71,7 +71,10 @@ describe('EncounterRepository', () => {
                     initiativeBonus: 0,
                     hp: 10,
                     maxHp: 10,
-                    conditions: []
+                    conditions: [],
+                    // Spatial combat defaults (Phase 4)
+                    movementSpeed: 30,
+                    size: 'medium'
                 },
             ],
             round: 1,
