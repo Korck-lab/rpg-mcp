@@ -32,6 +32,8 @@ interface CorpseRow {
     looted: number;
     looted_by: string | null;
     looted_at: string | null;
+    currency: string | null;
+    currency_looted: number;
     harvestable: number;
     harvestable_resources: string;
     created_at: string;
@@ -308,6 +310,47 @@ export class CorpseRepository {
     }
 
     /**
+     * Loot currency from a corpse
+     * @param transferToLooter - If true, adds currency to looter's inventory
+     */
+    lootCurrency(corpseId: string, looterId: string, transferToLooter?: boolean): {
+        success: boolean;
+        currency: { gold: number; silver: number; copper: number };
+        transferred: boolean;
+        reason?: string;
+    } {
+        const corpse = this.findById(corpseId);
+        if (!corpse) {
+            return { success: false, currency: { gold: 0, silver: 0, copper: 0 }, transferred: false, reason: 'Corpse not found' };
+        }
+
+        if (corpse.currencyLooted) {
+            return { success: false, currency: { gold: 0, silver: 0, copper: 0 }, transferred: false, reason: 'Currency already looted' };
+        }
+
+        const currency = corpse.currency;
+        if (currency.gold === 0 && currency.silver === 0 && currency.copper === 0) {
+            return { success: false, currency: { gold: 0, silver: 0, copper: 0 }, transferred: false, reason: 'No currency on corpse' };
+        }
+
+        // Mark currency as looted
+        const now = new Date().toISOString();
+        const stmt = this.db.prepare(`
+            UPDATE corpses SET currency_looted = 1, updated_at = ? WHERE id = ?
+        `);
+        stmt.run(now, corpseId);
+
+        // Optionally transfer to looter's inventory
+        let transferred = false;
+        if (transferToLooter) {
+            this.inventoryRepo.addCurrency(looterId, currency);
+            transferred = true;
+        }
+
+        return { success: true, currency, transferred };
+    }
+
+    /**
      * Generate loot for a corpse based on creature type
      */
     generateLoot(corpseId: string, creatureType: string, cr?: number): {
@@ -387,7 +430,7 @@ export class CorpseRepository {
             );
         }
 
-        this.markLootGenerated(corpseId);
+        this.markLootGenerated(corpseId, { gold, silver, copper });
 
         return { itemsAdded, currency: { gold, silver, copper }, harvestable };
     }
@@ -504,12 +547,19 @@ export class CorpseRepository {
     /**
      * Mark corpse as loot generated
      */
-    private markLootGenerated(corpseId: string): void {
+    private markLootGenerated(corpseId: string, currency?: { gold: number; silver: number; copper: number }): void {
         const now = new Date().toISOString();
-        const stmt = this.db.prepare(`
-            UPDATE corpses SET loot_generated = 1, updated_at = ? WHERE id = ?
-        `);
-        stmt.run(now, corpseId);
+        if (currency && (currency.gold > 0 || currency.silver > 0 || currency.copper > 0)) {
+            const stmt = this.db.prepare(`
+                UPDATE corpses SET loot_generated = 1, currency = ?, updated_at = ? WHERE id = ?
+            `);
+            stmt.run(JSON.stringify(currency), now, corpseId);
+        } else {
+            const stmt = this.db.prepare(`
+                UPDATE corpses SET loot_generated = 1, updated_at = ? WHERE id = ?
+            `);
+            stmt.run(now, corpseId);
+        }
     }
 
     // ============================================================
@@ -623,6 +673,20 @@ export class CorpseRepository {
     }
 
     private rowToCorpse(row: CorpseRow): Corpse {
+        let currency = { gold: 0, silver: 0, copper: 0 };
+        if (row.currency) {
+            try {
+                const parsed = JSON.parse(row.currency);
+                currency = {
+                    gold: parsed.gold ?? 0,
+                    silver: parsed.silver ?? 0,
+                    copper: parsed.copper ?? 0
+                };
+            } catch {
+                // Keep default
+            }
+        }
+
         return {
             id: row.id,
             characterId: row.character_id,
@@ -642,6 +706,8 @@ export class CorpseRepository {
             looted: row.looted === 1,
             lootedBy: row.looted_by,
             lootedAt: row.looted_at,
+            currency,
+            currencyLooted: row.currency_looted === 1,
             harvestable: row.harvestable === 1,
             harvestableResources: JSON.parse(row.harvestable_resources),
             createdAt: row.created_at,

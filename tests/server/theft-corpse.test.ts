@@ -1548,3 +1548,212 @@ describe('Category 13: Fence Payment', () => {
         expect(invRepo.getCurrency(thief.id).gold).toBe(0);
     });
 });
+
+// ============================================================================
+// CATEGORY 14: CORPSE CURRENCY LOOTING
+// ============================================================================
+describe('Category 14: Corpse Currency Looting', () => {
+
+    test('14.1 - new corpse has no currency by default', () => {
+        const enemy = createCharacter({ name: 'Broke Goblin' });
+
+        const corpse = corpseRepo.createFromDeath(
+            enemy.id,
+            enemy.name,
+            'enemy',
+            { worldId: 'test-world' }
+        );
+
+        expect(corpse.currency.gold).toBe(0);
+        expect(corpse.currency.silver).toBe(0);
+        expect(corpse.currency.copper).toBe(0);
+        expect(corpse.currencyLooted).toBe(false);
+    });
+
+    test('14.2 - generateLoot stores currency on corpse', () => {
+        const enemy = createCharacter({ name: 'Rich Goblin' });
+
+        const corpse = corpseRepo.createFromDeath(
+            enemy.id,
+            enemy.name,
+            'enemy',
+            { creatureType: 'goblin', cr: 0.25, worldId: 'test-world' }
+        );
+
+        // Create loot table with guaranteed currency
+        corpseRepo.createLootTable({
+            name: 'Currency Test Table',
+            creatureTypes: ['goblin'],
+            guaranteedDrops: [],
+            randomDrops: [],
+            currencyRange: {
+                gold: { min: 5, max: 5 }, // Fixed 5 gold for testing
+                silver: { min: 10, max: 10 },
+                copper: { min: 20, max: 20 }
+            }
+        });
+
+        const loot = corpseRepo.generateLoot(corpse.id, 'goblin', 0.25);
+
+        // Check returned currency
+        expect(loot.currency.gold).toBe(5);
+        expect(loot.currency.silver).toBe(10);
+        expect(loot.currency.copper).toBe(20);
+
+        // Check currency stored on corpse
+        const updated = corpseRepo.findById(corpse.id);
+        expect(updated?.currency.gold).toBe(5);
+        expect(updated?.currency.silver).toBe(10);
+        expect(updated?.currency.copper).toBe(20);
+    });
+
+    test('14.3 - lootCurrency without transfer (narrative only)', () => {
+        const enemy = createCharacter({ name: 'Currency Enemy' });
+        const looter = createCharacter({ name: 'Narrative Looter' });
+
+        const corpse = corpseRepo.createFromDeath(
+            enemy.id,
+            enemy.name,
+            'enemy',
+            { worldId: 'test-world' }
+        );
+
+        // Manually set currency on corpse
+        db.prepare('UPDATE corpses SET currency = ? WHERE id = ?')
+            .run(JSON.stringify({ gold: 10, silver: 5, copper: 0 }), corpse.id);
+
+        const result = corpseRepo.lootCurrency(corpse.id, looter.id, false);
+
+        expect(result.success).toBe(true);
+        expect(result.currency.gold).toBe(10);
+        expect(result.currency.silver).toBe(5);
+        expect(result.transferred).toBe(false);
+
+        // Looter should NOT have the gold
+        expect(invRepo.getCurrency(looter.id).gold).toBe(0);
+
+        // Corpse should be marked as currency looted
+        const updated = corpseRepo.findById(corpse.id);
+        expect(updated?.currencyLooted).toBe(true);
+    });
+
+    test('14.4 - lootCurrency with transfer adds to looter', () => {
+        const enemy = createCharacter({ name: 'Treasure Enemy' });
+        const looter = createCharacter({ name: 'Treasure Hunter' });
+
+        const corpse = corpseRepo.createFromDeath(
+            enemy.id,
+            enemy.name,
+            'enemy',
+            { worldId: 'test-world' }
+        );
+
+        // Manually set currency on corpse
+        db.prepare('UPDATE corpses SET currency = ? WHERE id = ?')
+            .run(JSON.stringify({ gold: 25, silver: 10, copper: 50 }), corpse.id);
+
+        const result = corpseRepo.lootCurrency(corpse.id, looter.id, true);
+
+        expect(result.success).toBe(true);
+        expect(result.currency.gold).toBe(25);
+        expect(result.transferred).toBe(true);
+
+        // Looter should have the currency
+        const currency = invRepo.getCurrency(looter.id);
+        expect(currency.gold).toBe(25);
+        expect(currency.silver).toBe(10);
+        expect(currency.copper).toBe(50);
+    });
+
+    test('14.5 - cannot loot currency twice', () => {
+        const enemy = createCharacter({ name: 'One-time Enemy' });
+        const looter = createCharacter({ name: 'Greedy Looter' });
+
+        const corpse = corpseRepo.createFromDeath(
+            enemy.id,
+            enemy.name,
+            'enemy',
+            { worldId: 'test-world' }
+        );
+
+        db.prepare('UPDATE corpses SET currency = ? WHERE id = ?')
+            .run(JSON.stringify({ gold: 15, silver: 0, copper: 0 }), corpse.id);
+
+        // First loot succeeds
+        const first = corpseRepo.lootCurrency(corpse.id, looter.id, true);
+        expect(first.success).toBe(true);
+        expect(invRepo.getCurrency(looter.id).gold).toBe(15);
+
+        // Second loot fails
+        const second = corpseRepo.lootCurrency(corpse.id, looter.id, true);
+        expect(second.success).toBe(false);
+        expect(second.reason).toContain('already looted');
+
+        // Looter should still only have 15 gold
+        expect(invRepo.getCurrency(looter.id).gold).toBe(15);
+    });
+
+    test('14.6 - lootCurrency fails on empty corpse', () => {
+        const enemy = createCharacter({ name: 'Penniless Enemy' });
+        const looter = createCharacter({ name: 'Disappointed Looter' });
+
+        const corpse = corpseRepo.createFromDeath(
+            enemy.id,
+            enemy.name,
+            'enemy',
+            { worldId: 'test-world' }
+        );
+
+        // No currency set
+        const result = corpseRepo.lootCurrency(corpse.id, looter.id, true);
+
+        expect(result.success).toBe(false);
+        expect(result.reason).toContain('No currency');
+    });
+
+    test('14.7 - lootCurrency accumulates with existing gold', () => {
+        const enemy = createCharacter({ name: 'Bonus Enemy' });
+        const looter = createCharacter({ name: 'Already Rich' });
+
+        // Looter already has some gold
+        invRepo.setCurrency(looter.id, { gold: 100, silver: 50 });
+
+        const corpse = corpseRepo.createFromDeath(
+            enemy.id,
+            enemy.name,
+            'enemy',
+            { worldId: 'test-world' }
+        );
+
+        db.prepare('UPDATE corpses SET currency = ? WHERE id = ?')
+            .run(JSON.stringify({ gold: 30, silver: 20, copper: 10 }), corpse.id);
+
+        corpseRepo.lootCurrency(corpse.id, looter.id, true);
+
+        const currency = invRepo.getCurrency(looter.id);
+        expect(currency.gold).toBe(130); // 100 + 30
+        expect(currency.silver).toBe(70); // 50 + 20
+        expect(currency.copper).toBe(10);
+    });
+
+    test('14.8 - corpse findById includes currency info', () => {
+        const enemy = createCharacter({ name: 'Currency Check' });
+
+        const corpse = corpseRepo.createFromDeath(
+            enemy.id,
+            enemy.name,
+            'enemy',
+            { worldId: 'test-world' }
+        );
+
+        db.prepare('UPDATE corpses SET currency = ?, currency_looted = 1 WHERE id = ?')
+            .run(JSON.stringify({ gold: 50, silver: 25, copper: 100 }), corpse.id);
+
+        const found = corpseRepo.findById(corpse.id);
+
+        expect(found?.currency.gold).toBe(50);
+        expect(found?.currency.silver).toBe(25);
+        expect(found?.currency.copper).toBe(100);
+        expect(found?.currencyLooted).toBe(true);
+    });
+});

@@ -35,6 +35,14 @@ export const CorpseSchema = z.object({
     lootedBy: z.string().nullable(),
     lootedAt: z.string().datetime().nullable(),
 
+    // Currency (from loot generation)
+    currency: z.object({
+        gold: z.number().int().min(0).default(0),
+        silver: z.number().int().min(0).default(0),
+        copper: z.number().int().min(0).default(0)
+    }).default({ gold: 0, silver: 0, copper: 0 }),
+    currencyLooted: z.boolean().default(false),
+
     // Harvesting
     harvestable: z.boolean().default(false),
     harvestableResources: z.array(z.object({

@@ -613,6 +613,21 @@ function runMigrations(db: Database.Database) {
     console.error('[Migration] Adding currency column to characters table');
     db.exec(`ALTER TABLE characters ADD COLUMN currency TEXT DEFAULT '{"gold":0,"silver":0,"copper":0}';`);
   }
+
+  // Add currency column to corpses table for generated loot currency
+  const corpseColumns = db.prepare("PRAGMA table_info(corpses)").all() as { name: string }[];
+  const hasCorpseCurrency = corpseColumns.some(col => col.name === 'currency');
+  if (!hasCorpseCurrency) {
+    console.error('[Migration] Adding currency column to corpses table');
+    db.exec(`ALTER TABLE corpses ADD COLUMN currency TEXT DEFAULT '{"gold":0,"silver":0,"copper":0}';`);
+  }
+
+  // Add currency_looted flag to corpses table
+  const hasCorpseCurrencyLooted = corpseColumns.some(col => col.name === 'currency_looted');
+  if (!hasCorpseCurrencyLooted) {
+    console.error('[Migration] Adding currency_looted column to corpses table');
+    db.exec(`ALTER TABLE corpses ADD COLUMN currency_looted INTEGER NOT NULL DEFAULT 0;`);
+  }
 }
 
 function createPostMigrationIndexes(db: Database.Database) {
