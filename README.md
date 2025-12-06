@@ -3,6 +3,8 @@
 [![License: ISC](https://img.shields.io/badge/license-ISC-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)]()
 [![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)]()
+[![Tests](https://img.shields.io/badge/tests-659%20passing-brightgreen.svg)]()
+[![Tools](https://img.shields.io/badge/MCP%20tools-122-blue.svg)]()
 
 **A deterministic, schema-driven, multi-world simulation engine for embodied AI agents.**
 
@@ -10,9 +12,23 @@ RPG-MCP is not a game—it's a **world kernel**. It provides the physics, constr
 
 ---
 
+## What's New (December 2025)
+
+- **122 MCP Tools** - Complete RPG mechanics coverage
+- **659 Passing Tests** - Comprehensive test coverage
+- **Full Spellcasting System** - 15+ SRD spells, class progression, slot tracking
+- **Theft & Fence System** - Heat decay, witness tracking, black market economy
+- **Corpse & Loot System** - Decay states, harvestable resources, loot tables
+- **NPC Memory System** - Relationship tracking, conversation history, context injection
+- **Improvisation Engine** - Rule of Cool stunts, custom effects, arcane synthesis
+- **Legendary Creatures** - Lair actions, legendary resistances, boss mechanics
+- **Death Saving Throws** - Full D&D 5e rules with stabilization
+
+---
+
 ## Architecture Philosophy
 
-This engine implements the **Event-Driven Agentic AI Architecture** described in our [white paper](docs/WHITE_PAPER.md):
+This engine implements the **Event-Driven Agentic AI Architecture**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────────┐
@@ -52,6 +68,8 @@ This engine implements the **Event-Driven Agentic AI Architecture** described in
 
 ## Features
 
+### Core Systems
+
 **Multi-tenant & Multi-world**
 - Isolated projects (`projectId`) and parallel worlds (`worldId`)
 - Fork worlds for branching timelines or "what-if" simulations
@@ -71,10 +89,51 @@ This engine implements the **Event-Driven Agentic AI Architecture** described in
 - Reproducible world steps—same inputs always yield same outputs
 - Full audit trail: snapshots, event logs, action history
 
-**MCP Tool Interface**
-- Standard Model Context Protocol tools for LLM integration
-- Clean separation: read tools (sensors) vs. write tools (muscles)
-- Designed for Claude, GPT, or any MCP-compatible agent
+### Combat & Encounters
+
+- **Initiative tracking** with advantage/disadvantage
+- **Spatial combat** with grid positioning and collision
+- **Opportunity attacks** with reaction economy
+- **Death saving throws** (D&D 5e rules)
+- **Damage resistance/vulnerability/immunity**
+- **Legendary creatures** with lair actions and legendary resistances
+
+### Magic System
+
+- **15+ SRD spells** (Magic Missile, Fireball, Cure Wounds, etc.)
+- **Spell slot tracking** with class-based progression
+- **Warlock pact magic** with short rest recovery
+- **Concentration tracking**
+- **Anti-hallucination validation** - LLMs cannot cast spells they don't know
+- **Rest mechanics** restore spell slots and HP
+
+### Theft & Economy
+
+- **Stolen item tracking** with heat levels (burning → cold)
+- **Witness recording** for theft detection
+- **Fence NPCs** with buy rates and heat capacity
+- **Item recognition** - original owners detect their stolen goods
+- **Heat decay** over time
+
+### Corpse & Loot
+
+- **Corpse creation** on creature death
+- **Loot tables** with guaranteed and random drops
+- **Harvestable resources** (pelts, fangs, etc.)
+- **Decay system** (fresh → decaying → skeletal → gone)
+
+### NPC Memory
+
+- **Relationship tracking** (familiarity + disposition)
+- **Conversation memory** with importance levels
+- **Context injection** for LLM prompts
+- **Interaction history** across sessions
+
+### Improvisation Engine
+
+- **Rule of Cool stunts** - "I kick the brazier into the zombies"
+- **Custom effects** - Divine boons, curses, transformations
+- **Arcane synthesis** - Dynamic spell creation with wild surge risk
 
 ---
 
@@ -82,13 +141,28 @@ This engine implements the **Event-Driven Agentic AI Architecture** described in
 
 ```
 src/
-├── schema/          # Zod schemas: entities, actions, world state, constraints
-├── engine/          # World loop, physics, constraint validator, action queue
+├── schema/           # Zod schemas: entities, actions, world state, constraints
+├── engine/
+│   ├── combat/       # Encounters, initiative, damage, death saves
+│   ├── spatial/      # Grid, collision, movement, opportunity attacks
+│   ├── worldgen/     # Procedural generation (28+ biomes)
+│   ├── magic/        # Spell database, validation, resolution
+│   └── strategy/     # Nation simulation (grand strategy mode)
 ├── storage/
-│   ├── migrations/  # SQLite schema definitions
-│   └── repos/       # Repository pattern for persistence
-├── api/             # MCP tool definitions
-└── tests/           # Unit & integration tests
+│   ├── migrations.ts # SQLite schema definitions
+│   └── repos/        # Repository pattern for persistence
+├── server/           # MCP tool handlers
+│   ├── combat-tools.ts
+│   ├── corpse-tools.ts
+│   ├── improvisation-tools.ts
+│   ├── inventory-tools.ts
+│   ├── npc-memory-tools.ts
+│   ├── theft-tools.ts
+│   └── ... (14 tool modules)
+└── api/              # MCP server entry point
+
+tests/                # 659 tests mirroring src/ structure
+Agents/               # Development docs, playtest logs, discovery log
 ```
 
 ---
@@ -129,12 +203,13 @@ git clone https://github.com/Mnehmos/rpg-mcp.git
 cd rpg-mcp
 npm install
 npm run build
+npm test  # 659 tests should pass
 ```
 
 To build binaries yourself:
 ```bash
 npm run build:binaries
-# Output: bin/rpg-mcp-win.exe, bin/rpg-mcp-macos, bin/rpg-mcp-linux
+# Output: dist-bundle/rpg-mcp-win.exe, rpg-mcp-macos, rpg-mcp-linux
 ```
 
 ### MCP Client Configuration
@@ -166,150 +241,254 @@ To use with an MCP-compatible client (Claude Desktop, etc.), add to your client'
 
 ---
 
-## Quick Start
+## MCP Tools Reference (122 Tools)
 
-```bash
-git clone https://github.com/Mnehmos/rpg-mcp.git
-cd rpg-mcp
-npm install
-npm run build
-npm test
-```
-
-### Basic Usage
-
-```typescript
-import { 
-  createWorld, 
-  worldStep, 
-  proposeAction, 
-  getObservation 
-} from 'rpg-mcp'
-
-// Initialize world
-const world = createWorld({ 
-  projectId: 'campaign-alpha', 
-  worldId: 'dungeon-level-1' 
-})
-
-// Spawn an entity
-await spawnEntity(world, {
-  entityId: 'hero-1',
-  position: { x: 0, y: 0, z: 0 },
-  stats: { hp: 100, speed: 5 }
-})
-
-// Agent observes (OODA: Observe)
-const obs = await getObservation(world, 'hero-1')
-console.log(obs.visibleEntities, obs.nearbyTerrain)
-
-// Agent decides and acts (OODA: Orient → Decide → Act)
-const result = await proposeAction(world, {
-  actionType: 'MOVE_TO',
-  actorEntityId: 'hero-1',
-  target: { x: 10, y: 5, z: 0 }
-})
-
-if (!result.success) {
-  console.log('Action rejected:', result.reason)
-  // e.g., "Path blocked by wall at (5, 5, 0)"
-}
-
-// Advance simulation (physics tick)
-await worldStep(world, { deltaTime: 1 })
-
-// Loop continues...
-```
-
-This is the **closed-loop OODA pattern**: Observe → Orient → Decide → Act → (Validate) → Observe...
-
----
-
-## MCP Tools Reference
-
-### Observation Tools (Sensors)
-
+### World Management (12 tools)
 | Tool | Description |
 |------|-------------|
-| `getObservation(worldId, entityId)` | Returns visible entities, terrain, sounds within sensory range |
-| `getWorldSnapshot(worldId)` | Full world state dump (admin/debug) |
-| `queryEntities(worldId, filter)` | Query entities by type, position, status |
-| `getEntityState(worldId, entityId)` | Detailed state for a single entity |
+| `create_world` | Create a new world |
+| `get_world` | Retrieve world by ID |
+| `list_worlds` | List all worlds |
+| `delete_world` | Delete world (cascades) |
+| `generate_world` | Procedural generation with Perlin noise |
+| `get_world_state` | Full world state dump |
+| `get_world_map_overview` | Summary stats & biome distribution |
+| `get_world_tiles` | Full tile grid |
+| `get_region_map` | Single region details |
+| `apply_map_patch` | DSL for map modifications |
+| `preview_map_patch` | Dry-run of patch |
+| `update_world_environment` | Time, weather, season |
 
-### Action Tools (Muscles)
-
+### Character Management (5 tools)
 | Tool | Description |
 |------|-------------|
-| `proposeAction(worldId, action)` | Submit intent; engine validates and queues |
-| `worldStep(worldId, deltaTime)` | Advance physics simulation by N ticks |
-| `forkWorld(sourceWorldId, newWorldId)` | Branch world state for parallel simulation |
-| `revertToSnapshot(worldId, snapshotId)` | Restore world to previous state |
+| `create_character` | Full D&D stat block support |
+| `get_character` | Retrieve by ID |
+| `update_character` | Update any field |
+| `list_characters` | List all characters |
+| `delete_character` | Remove from DB |
 
-### Action Types
-
-```typescript
-type ActionType = 
-  | 'MOVE_TO'        // Navigate to position
-  | 'ATTACK'         // Melee/ranged attack target
-  | 'CAST_SPELL'     // Use ability with targeting
-  | 'INTERACT'       // Use object, open door, etc.
-  | 'PICK_UP'        // Add item to inventory
-  | 'DROP'           // Remove item from inventory
-  | 'WAIT'           // Pass turn / hold action
-```
-
-### Math Engine Tools
-
+### Inventory & Items (14 tools)
 | Tool | Description |
 |------|-------------|
-| `dice_roll(expression, seed?, exportFormat?)` | Roll dice with standard notation (2d6+3), supports advantage/disadvantage |
-| `probability_calculate(expression, target, comparison)` | Calculate probabilities and expected values for dice rolls |
-| `algebra_solve(equation, variable?, exportFormat?)` | Solve algebraic equations symbolically |
-| `algebra_simplify(expression, exportFormat?)` | Simplify algebraic expressions |
-| `physics_projectile(velocity, angle, height?, gravity?)` | Calculate projectile motion trajectories |
+| `create_item_template` | Define item types |
+| `get_item` | Get template by ID |
+| `list_items` | All templates |
+| `search_items` | Query by name/type/value |
+| `update_item` | Modify template |
+| `delete_item` | Remove template |
+| `give_item` | Add to character inventory |
+| `remove_item` | Take from inventory |
+| `transfer_item` | Move between characters |
+| `use_item` | Consume items |
+| `equip_item` | Assign to equipment slot |
+| `unequip_item` | Return to inventory |
+| `get_inventory` | Basic inventory list |
+| `get_inventory_detailed` | Full item info, sorted |
 
-**Export Formats**: `latex`, `mathml`, `plaintext`, `steps`
+### Combat & Encounters (7 tools)
+| Tool | Description |
+|------|-------------|
+| `create_encounter` | Initialize combat with participants |
+| `get_encounter_state` | Current combat status |
+| `load_encounter` | Resume saved encounter |
+| `end_encounter` | End combat, sync HP |
+| `execute_combat_action` | Attack/heal/move/cast spell |
+| `advance_turn` | Move to next in initiative |
+| `roll_death_save` | D&D 5e death saving throws |
+| `execute_lair_action` | Legendary creature lair actions |
+
+### Spellcasting (integrated with combat)
+| Action | Description |
+|--------|-------------|
+| `cast_spell` | Cast known spell with slot consumption |
+
+### Rest System (2 tools)
+| Tool | Description |
+|------|-------------|
+| `take_long_rest` | Restore all HP and spell slots |
+| `take_short_rest` | Hit dice healing, Warlock pact slots |
+
+### Theft & Fence System (10 tools)
+| Tool | Description |
+|------|-------------|
+| `steal_item` | Record theft with heat tracking |
+| `check_item_stolen` | Check if item is stolen |
+| `check_stolen_items_on_character` | List all stolen items held |
+| `check_item_recognition` | NPC recognition check |
+| `sell_to_fence` | Sell stolen goods |
+| `register_fence` | Register NPC as fence |
+| `report_theft` | Report to guards (adds bounty) |
+| `advance_heat_decay` | Process heat decay |
+| `get_fence` | Get fence details |
+| `list_fences` | List all fences |
+
+### Corpse & Loot System (14 tools)
+| Tool | Description |
+|------|-------------|
+| `create_corpse` | Create corpse from dead character |
+| `get_corpse` | Get corpse by ID |
+| `get_corpse_by_character` | Get by original character |
+| `get_corpse_inventory` | Items on corpse |
+| `list_corpses_in_encounter` | Corpses in combat |
+| `list_corpses_nearby` | Corpses near position |
+| `loot_corpse` | Loot single item |
+| `harvest_corpse` | Harvest resources |
+| `generate_loot` | Generate from loot table |
+| `create_loot_table` | Custom loot tables |
+| `get_loot_table` | Get table by ID |
+| `list_loot_tables` | List all tables |
+| `advance_corpse_decay` | Process decay |
+| `cleanup_corpses` | Remove decayed corpses |
+
+### NPC Memory System (6 tools)
+| Tool | Description |
+|------|-------------|
+| `get_npc_relationship` | Get relationship status |
+| `update_npc_relationship` | Create/update relationship |
+| `record_conversation_memory` | Store conversation summary |
+| `get_conversation_history` | Get memories with NPC |
+| `get_recent_interactions` | Recent memories across NPCs |
+| `get_npc_context` | Full context for LLM injection |
+
+### Improvisation System (8 tools)
+| Tool | Description |
+|------|-------------|
+| `resolve_improvised_stunt` | Rule of Cool resolution |
+| `apply_custom_effect` | Apply boons/curses/transformations |
+| `get_custom_effects` | Get active effects |
+| `remove_custom_effect` | Remove effect |
+| `process_effect_triggers` | Fire effect triggers |
+| `advance_effect_durations` | Tick effect durations |
+| `attempt_arcane_synthesis` | Dynamic spell creation |
+| `get_synthesized_spells` | Get mastered spells |
+
+### Quest System (8 tools)
+| Tool | Description |
+|------|-------------|
+| `create_quest` | Define quest with objectives |
+| `get_quest` | Single quest details |
+| `list_quests` | All quests |
+| `assign_quest` | Give quest to character |
+| `update_objective` | Increment progress |
+| `complete_objective` | Mark objective done |
+| `complete_quest` | Complete entire quest |
+| `get_quest_log` | Full quest objects |
+
+### Secrets System (9 tools)
+| Tool | Description |
+|------|-------------|
+| `create_secret` | Hidden info with reveal conditions |
+| `get_secret` | DM-only view |
+| `list_secrets` | All secrets for world |
+| `update_secret` | Modify properties |
+| `delete_secret` | Remove secret |
+| `reveal_secret` | Show to player |
+| `check_reveal_conditions` | Test if conditions met |
+| `get_secrets_for_context` | Format for LLM injection |
+| `check_for_leaks` | Scan text for accidental reveals |
+
+### Party System (10 tools)
+| Tool | Description |
+|------|-------------|
+| `create_party` | Create adventuring party |
+| `get_party` | Get party details |
+| `list_parties` | All parties |
+| `delete_party` | Remove party |
+| `add_party_member` | Add character to party |
+| `remove_party_member` | Remove from party |
+| `set_party_leader` | Change leadership |
+| `move_party` | Move entire party |
+| `get_party_position` | Party location |
+| `get_party_context` | Party summary for LLM |
+
+### Math & Dice (5 tools)
+| Tool | Description |
+|------|-------------|
+| `dice_roll` | Full D&D notation (2d6+3, 4d6dl1, adv/dis) |
+| `probability_calculate` | Calculate odds |
+| `algebra_solve` | Solve equations |
+| `algebra_simplify` | Simplify expressions |
+| `physics_projectile` | Trajectory calculations |
+
+### Grand Strategy (11 tools)
+| Tool | Description |
+|------|-------------|
+| `create_nation` | Create nation with resources |
+| `get_nation_state` | Private nation state |
+| `get_strategy_state` | World with fog of war |
+| `propose_alliance` | Diplomatic action |
+| `claim_region` | Territorial claims |
+| `init_turn_state` | Initialize turn management |
+| `get_turn_status` | Check nation readiness |
+| `submit_turn_actions` | Batch action submission |
+| `mark_ready` | Signal turn complete |
+| `resolve_turn` | Process all actions |
+| `poll_turn_results` | Get resolution results |
 
 ---
 
 ## Use Cases
 
-**Tabletop RPG Backend**  
-Run D&D, Död Magiker, or custom systems with AI dungeon masters and NPCs that have real bodies and spatial reasoning.
+**Tabletop RPG Backend**
+Run D&D, Pathfinder, or custom systems with AI dungeon masters and NPCs that have real bodies and spatial reasoning.
 
-**Multi-Agent Simulation**  
+**Multi-Agent Simulation**
 Test agent coordination, emergent behavior, or adversarial scenarios in a controlled, reproducible environment.
 
-**Embodied AI Research**  
+**Embodied AI Research**
 Study how LLMs behave when constrained by physics, resources, and perception limits—not just text.
 
-**Game Development**  
+**Game Development**
 Use as a headless game server with deterministic state, replay capability, and clean API boundaries.
 
-**Training Data Generation**  
+**Training Data Generation**
 Fork worlds, run thousands of parallel scenarios, collect structured action/outcome pairs.
 
 ---
 
 ## Design Principles
 
-1. **LLMs propose, never execute**  
+1. **LLMs propose, never execute**
    The brain suggests; the nervous system validates.
 
-2. **All action is tool-mediated**  
+2. **All action is tool-mediated**
    No direct world mutation. Every change flows through MCP tools.
 
-3. **Validation precedes observation**  
+3. **Validation precedes observation**
    Act → Validate → Observe. The reflex arc pattern.
 
-4. **Events trigger tasks**  
+4. **Events trigger tasks**
    JIT execution. No polling, no stale state.
 
-5. **Deterministic outcomes**  
+5. **Deterministic outcomes**
    Same inputs → same outputs. Always reproducible.
 
-6. **Schema-driven everything**  
+6. **Schema-driven everything**
    Zod validates all data at boundaries. Type safety end-to-end.
+
+7. **Anti-hallucination by design**
+   LLMs cannot cast spells they don't know or claim damage they didn't roll.
+
+---
+
+## Test Coverage
+
+```bash
+npm test
+# 659 tests passing
+# 81 test files
+# Coverage across all major systems
+```
+
+Key test areas:
+- Combat encounters and HP persistence
+- Spellcasting validation (anti-hallucination)
+- Inventory integrity and exploit prevention
+- Theft/fence mechanics with heat decay
+- Corpse/loot system with decay states
+- NPC memory and relationship tracking
+- Improvisation system (stunts, effects, synthesis)
 
 ---
 
@@ -329,12 +508,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## Roadmap
 
+- [x] Full spellcasting system with validation
+- [x] Theft and fence economy
+- [x] Corpse and loot mechanics
+- [x] NPC memory and relationships
+- [x] Improvisation engine
 - [ ] WebSocket real-time subscriptions
-- [ ] Spatial indexing (R-tree) for large worlds
-- [ ] Plugin system for custom physics/rules
-- [ ] Multi-agent turn coordination modes
+- [ ] Dialogue tree system
+- [ ] Cover mechanics in combat
+- [ ] Quest chains with prerequisites
 - [ ] Visual debugger / world inspector UI
-- [ ] Docker deployment template
 
 ---
 
@@ -346,15 +529,17 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## Related
 
-- [White Paper: Event-Driven Agentic AI Architecture](docs/WHITE_PAPER.md)
 - [Model Context Protocol Specification](https://modelcontextprotocol.io)
 - [Quest Keeper](https://github.com/Mnehmos/quest-keeper) — Browser-based AI dungeon master using this engine
 
 ---
 
-## Documentation & Build Diary
+## Documentation
 
-For a detailed history of the development process, technical decisions, and progress logs, see the **[Build Diary](docs/BUILD_DIARY.md)**.
+- **[CLAUDE.md](CLAUDE.md)** - Claude Code development instructions
+- **[Agents/TOOL_CATALOG.md](Agents/TOOL_CATALOG.md)** - Complete tool reference with examples
+- **[Agents/EMERGENT_DISCOVERY_LOG.md](Agents/EMERGENT_DISCOVERY_LOG.md)** - Bug tracking and playtest findings
+- **[Agents/PROJECT_CONTEXT.md](Agents/PROJECT_CONTEXT.md)** - Architecture and frontend integration
 
 ---
 
