@@ -11,12 +11,12 @@ export class SpatialRepository {
             INSERT INTO room_nodes (
                 id, name, base_description, biome_context, atmospherics,
                 exits, entity_ids, created_at, updated_at, visited_count, last_visited_at,
-                world_x, world_y, network_id
+                network_id, local_x, local_y
             )
             VALUES (
                 @id, @name, @baseDescription, @biomeContext, @atmospherics,
                 @exits, @entityIds, @createdAt, @updatedAt, @visitedCount, @lastVisitedAt,
-                @worldX, @worldY, @networkId
+                @networkId, @localX, @localY
             )
         `);
 
@@ -32,9 +32,9 @@ export class SpatialRepository {
             updatedAt: validRoom.updatedAt,
             visitedCount: validRoom.visitedCount,
             lastVisitedAt: validRoom.lastVisitedAt || null,
-            worldX: validRoom.worldX !== undefined ? validRoom.worldX : null,
-            worldY: validRoom.worldY !== undefined ? validRoom.worldY : null,
             networkId: validRoom.networkId || null,
+            localX: validRoom.localX !== undefined ? validRoom.localX : null,
+            localY: validRoom.localY !== undefined ? validRoom.localY : null,
         });
     }
 
@@ -76,7 +76,7 @@ export class SpatialRepository {
             SET name = ?, base_description = ?, biome_context = ?,
                 atmospherics = ?, exits = ?, entity_ids = ?,
                 visited_count = ?, last_visited_at = ?, updated_at = ?,
-                world_x = ?, world_y = ?, network_id = ?
+                network_id = ?, local_x = ?, local_y = ?
             WHERE id = ?
         `);
 
@@ -90,9 +90,9 @@ export class SpatialRepository {
             validRoom.visitedCount,
             validRoom.lastVisitedAt || null,
             validRoom.updatedAt,
-            validRoom.worldX !== undefined ? validRoom.worldX : null,
-            validRoom.worldY !== undefined ? validRoom.worldY : null,
             validRoom.networkId || null,
+            validRoom.localX !== undefined ? validRoom.localX : null,
+            validRoom.localY !== undefined ? validRoom.localY : null,
             id
         );
 
@@ -165,41 +165,44 @@ export class SpatialRepository {
     }
 
     // ============================================================
-    // COORDINATE-BASED QUERIES
+    // LOCAL COORDINATE QUERIES (within networks)
     // ============================================================
 
-    findRoomsByCoordinates(x: number, y: number): RoomNode[] {
+    findRoomsByLocalCoordinates(networkId: string, x: number, y: number): RoomNode[] {
         const stmt = this.db.prepare(
-            'SELECT * FROM room_nodes WHERE world_x = ? AND world_y = ? ORDER BY name'
+            'SELECT * FROM room_nodes WHERE network_id = ? AND local_x = ? AND local_y = ? ORDER BY name'
         );
-        const rows = stmt.all(x, y) as RoomNodeRow[];
+        const rows = stmt.all(networkId, x, y) as RoomNodeRow[];
         return rows.map(row => this.rowToRoomNode(row));
     }
 
-    findRoomsInBoundingBox(minX: number, maxX: number, minY: number, maxY: number): RoomNode[] {
+    // ============================================================
+    // NETWORK COORDINATE QUERIES (world map coordinates)
+    // ============================================================
+
+    findNetworksInBoundingBox(minX: number, maxX: number, minY: number, maxY: number): NodeNetwork[] {
         const stmt = this.db.prepare(`
-            SELECT * FROM room_nodes
-            WHERE world_x >= ? AND world_x <= ?
-              AND world_y >= ? AND world_y <= ?
-            ORDER BY world_x, world_y, name
+            SELECT * FROM node_networks
+            WHERE center_x >= ? AND center_x <= ?
+              AND center_y >= ? AND center_y <= ?
+            ORDER BY center_x, center_y, name
         `);
-        const rows = stmt.all(minX, maxX, minY, maxY) as RoomNodeRow[];
-        return rows.map(row => this.rowToRoomNode(row));
+        const rows = stmt.all(minX, maxX, minY, maxY) as NodeNetworkRow[];
+        return rows.map(row => this.rowToNodeNetwork(row));
     }
 
-    findNearestRoom(x: number, y: number): RoomNode | null {
-        // Find room with minimum Euclidean distance
+    findNearestNetwork(x: number, y: number): NodeNetwork | null {
+        // Find network with minimum Euclidean distance
         const stmt = this.db.prepare(`
             SELECT *,
-                   ((world_x - ?) * (world_x - ?) + (world_y - ?) * (world_y - ?)) as distance_squared
-            FROM room_nodes
-            WHERE world_x IS NOT NULL AND world_y IS NOT NULL
+                   ((center_x - ?) * (center_x - ?) + (center_y - ?) * (center_y - ?)) as distance_squared
+            FROM node_networks
             ORDER BY distance_squared
             LIMIT 1
         `);
-        const row = stmt.get(x, x, y, y) as RoomNodeRow | undefined;
+        const row = stmt.get(x, x, y, y) as NodeNetworkRow | undefined;
         if (!row) return null;
-        return this.rowToRoomNode(row);
+        return this.rowToNodeNetwork(row);
     }
 
     // ============================================================
@@ -292,9 +295,9 @@ export class SpatialRepository {
             updatedAt: row.updated_at,
             visitedCount: row.visited_count,
             lastVisitedAt: row.last_visited_at || undefined,
-            worldX: row.world_x !== null ? row.world_x : undefined,
-            worldY: row.world_y !== null ? row.world_y : undefined,
             networkId: row.network_id || undefined,
+            localX: row.local_x !== null ? row.local_x : undefined,
+            localY: row.local_y !== null ? row.local_y : undefined,
         });
     }
 
@@ -325,9 +328,9 @@ interface RoomNodeRow {
     updated_at: string;
     visited_count: number;
     last_visited_at: string | null;
-    world_x: number | null;
-    world_y: number | null;
     network_id: string | null;
+    local_x: number | null;
+    local_y: number | null;
 }
 
 interface NodeNetworkRow {

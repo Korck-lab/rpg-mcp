@@ -94,13 +94,13 @@ export const RoomNodeSchema = z.object({
     atmospherics: z.array(AtmosphericSchema).default([])
         .describe('Environmental effects that modify perception and abilities'),
 
-    // Spatial coordinates (optional - some rooms are abstract/non-physical)
-    worldX: z.number().int().min(0).optional()
-        .describe('X coordinate on world map grid'),
-    worldY: z.number().int().min(0).optional()
-        .describe('Y coordinate on world map grid'),
+    // Network membership and local coordinates
     networkId: z.string().uuid().optional()
         .describe('ID of node network this room belongs to (town, road, dungeon)'),
+    localX: z.number().int().min(0).optional()
+        .describe('X coordinate within node network (relative to network origin)'),
+    localY: z.number().int().min(0).optional()
+        .describe('Y coordinate within node network (relative to network origin)'),
 
     // Connections
     exits: z.array(ExitSchema)

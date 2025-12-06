@@ -25,68 +25,101 @@ describe('Spatial Coordinate System', () => {
         spatialRepo = new SpatialRepository(db);
     });
 
-    describe('Category 1: RoomNode World Coordinates', () => {
-        it('1.1: Room can have world coordinates matching its location', () => {
+    describe('Category 1: RoomNode Local Coordinates', () => {
+        it('1.1: Room can have local coordinates within its network', () => {
+            const town = createNodeNetwork({
+                name: 'Bree',
+                type: 'cluster',
+                worldId: 'world-1',
+                centerX: 10,
+                centerY: 20
+            });
+
             const tavern = createRoom({
                 name: 'The Prancing Pony',
-                worldX: 10,
-                worldY: 20,
+                networkId: town.id,
+                localX: 0,
+                localY: 0,
                 biomeContext: 'urban'
             });
 
             const retrieved = spatialRepo.findById(tavern.id);
-            expect(retrieved?.worldX).toBe(10);
-            expect(retrieved?.worldY).toBe(20);
+            expect(retrieved?.localX).toBe(0);
+            expect(retrieved?.localY).toBe(0);
+            expect(retrieved?.networkId).toBe(town.id);
         });
 
-        it('1.2: Room coordinates are optional (for abstract spaces)', () => {
+        it('1.2: Room coordinates are optional (for abstract/standalone rooms)', () => {
             const dreamscape = createRoom({
                 name: 'Ethereal Dreamscape',
                 biomeContext: 'arcane'
-                // No worldX/worldY - abstract location
+                // No localX/localY or networkId - abstract location
             });
 
             const retrieved = spatialRepo.findById(dreamscape.id);
-            expect(retrieved?.worldX).toBeUndefined();
-            expect(retrieved?.worldY).toBeUndefined();
+            expect(retrieved?.localX).toBeUndefined();
+            expect(retrieved?.localY).toBeUndefined();
+            expect(retrieved?.networkId).toBeUndefined();
         });
 
-        it('1.3: Multiple rooms can share same coordinates (multi-level buildings)', () => {
+        it('1.3: Multiple rooms can share same local coordinates (multi-level buildings)', () => {
+            const town = createNodeNetwork({
+                name: 'Neverwinter',
+                type: 'cluster',
+                worldId: 'world-1',
+                centerX: 25,
+                centerY: 25
+            });
+
             const groundFloor = createRoom({
                 name: 'Tavern - Ground Floor',
-                worldX: 10,
-                worldY: 20,
+                networkId: town.id,
+                localX: 5,
+                localY: 5,
                 biomeContext: 'urban'
             });
 
             const secondFloor = createRoom({
                 name: 'Tavern - Second Floor',
-                worldX: 10,
-                worldY: 20,
+                networkId: town.id,
+                localX: 5,
+                localY: 5,
                 biomeContext: 'urban'
             });
 
-            expect(groundFloor.worldX).toBe(secondFloor.worldX);
-            expect(groundFloor.worldY).toBe(secondFloor.worldY);
+            expect(groundFloor.localX).toBe(secondFloor.localX);
+            expect(groundFloor.localY).toBe(secondFloor.localY);
+            expect(groundFloor.networkId).toBe(secondFloor.networkId);
         });
 
-        it('1.4: Rooms can span adjacent tiles (large structures)', () => {
-            const castleMain = createRoom({
-                name: 'Castle Main Hall',
-                worldX: 15,
-                worldY: 15,
+        it('1.4: Rooms within network use local coordinate system', () => {
+            const city = createNodeNetwork({
+                name: 'Waterdeep',
+                type: 'cluster',
+                worldId: 'world-1',
+                centerX: 100,
+                centerY: 100
+            });
+
+            const mainGate = createRoom({
+                name: 'Main Gate',
+                networkId: city.id,
+                localX: 0,
+                localY: 0,
                 biomeContext: 'urban'
             });
 
-            const castleTower = createRoom({
-                name: 'Castle Tower',
-                worldX: 16, // Adjacent tile
-                worldY: 15,
+            const castleDistrict = createRoom({
+                name: 'Castle District',
+                networkId: city.id,
+                localX: 10,
+                localY: 10,
                 biomeContext: 'urban'
             });
 
-            // Both are part of same structure but different tiles
-            expect(Math.abs(castleTower.worldX! - castleMain.worldX!)).toBe(1);
+            // Local coordinates are relative to network, not world tiles
+            expect(mainGate.localX).toBe(0);
+            expect(castleDistrict.localX).toBe(10);
         });
     });
 
@@ -140,16 +173,16 @@ describe('Spatial Coordinate System', () => {
             const tavern = createRoom({
                 name: 'Yawning Portal',
                 networkId: waterdeep.id,
-                worldX: 50,
-                worldY: 50,
+                localX: 0,
+                localY: 0,
                 biomeContext: 'urban'
             });
 
             const market = createRoom({
                 name: 'Market Square',
                 networkId: waterdeep.id,
-                worldX: 50,
-                worldY: 51,
+                localX: 1,
+                localY: 0,
                 biomeContext: 'urban'
             });
 
@@ -207,7 +240,7 @@ describe('Spatial Coordinate System', () => {
             expect(retrieved?.type).toBe('linear');
         });
 
-        it('3.2: Linear network rooms form a path with coordinates', () => {
+        it('3.2: Linear network rooms form a path with local coordinates', () => {
             const road = createNodeNetwork({
                 name: 'Trade Route',
                 type: 'linear',
@@ -219,24 +252,24 @@ describe('Spatial Coordinate System', () => {
             const waypoint1 = createRoom({
                 name: 'Northern Crossroads',
                 networkId: road.id,
-                worldX: 30,
-                worldY: 25,
+                localX: 0,
+                localY: 0,
                 biomeContext: 'forest'
             });
 
             const waypoint2 = createRoom({
                 name: 'Midway Inn',
                 networkId: road.id,
-                worldX: 30,
-                worldY: 30,
+                localX: 0,
+                localY: 5,
                 biomeContext: 'urban'
             });
 
             const waypoint3 = createRoom({
                 name: 'Southern Bridge',
                 networkId: road.id,
-                worldX: 30,
-                worldY: 35,
+                localX: 0,
+                localY: 10,
                 biomeContext: 'coastal'
             });
 
@@ -244,9 +277,9 @@ describe('Spatial Coordinate System', () => {
             const roadRooms = spatialRepo.findRoomsByNetwork(road.id);
             expect(roadRooms).toHaveLength(3);
 
-            // Should form a north-south line
-            const yCoords = roadRooms.map(r => r.worldY!).sort((a, b) => a - b);
-            expect(yCoords).toEqual([25, 30, 35]);
+            // Should form a north-south line in local coordinates
+            const yCoords = roadRooms.map(r => r.localY!).sort((a, b) => a - b);
+            expect(yCoords).toEqual([0, 5, 10]);
         });
     });
 
@@ -358,97 +391,115 @@ describe('Spatial Coordinate System', () => {
         });
     });
 
-    describe('Category 5: Coordinate-based Queries', () => {
-        it('5.1: Can find rooms at specific world coordinates', () => {
+    describe('Category 5: Coordinate-based Queries for Networks', () => {
+        it('5.1: Can find rooms by local coordinates within a network', () => {
+            const town = createNodeNetwork({
+                name: 'Neverwinter',
+                type: 'cluster',
+                worldId: 'world-1',
+                centerX: 10,
+                centerY: 10
+            });
+
             const tavern1 = createRoom({
                 name: 'Tavern Ground Floor',
-                worldX: 10,
-                worldY: 10,
+                networkId: town.id,
+                localX: 5,
+                localY: 5,
                 biomeContext: 'urban'
             });
 
             const tavern2 = createRoom({
                 name: 'Tavern Upper Floor',
-                worldX: 10,
-                worldY: 10,
+                networkId: town.id,
+                localX: 5,
+                localY: 5,
                 biomeContext: 'urban'
             });
 
             const market = createRoom({
                 name: 'Market',
-                worldX: 10,
-                worldY: 11,
+                networkId: town.id,
+                localX: 6,
+                localY: 5,
                 biomeContext: 'urban'
             });
 
-            const roomsAt10_10 = spatialRepo.findRoomsByCoordinates(10, 10);
-            expect(roomsAt10_10).toHaveLength(2);
-            expect(roomsAt10_10.map(r => r.id)).toContain(tavern1.id);
-            expect(roomsAt10_10.map(r => r.id)).toContain(tavern2.id);
-            expect(roomsAt10_10.map(r => r.id)).not.toContain(market.id);
+            const roomsAt5_5 = spatialRepo.findRoomsByLocalCoordinates(town.id, 5, 5);
+            expect(roomsAt5_5).toHaveLength(2);
+            expect(roomsAt5_5.map(r => r.id)).toContain(tavern1.id);
+            expect(roomsAt5_5.map(r => r.id)).toContain(tavern2.id);
+            expect(roomsAt5_5.map(r => r.id)).not.toContain(market.id);
         });
 
-        it('5.2: Can find rooms in bounding box (area search)', () => {
-            const room1 = createRoom({
-                name: 'North Gate',
-                worldX: 50,
-                worldY: 48,
-                biomeContext: 'urban'
+        it('5.2: Can find networks in bounding box (area search)', () => {
+            const north = createNodeNetwork({
+                name: 'Northern City',
+                type: 'cluster',
+                worldId: 'world-1',
+                centerX: 50,
+                centerY: 48
             });
 
-            const room2 = createRoom({
-                name: 'Town Center',
-                worldX: 50,
-                worldY: 50,
-                biomeContext: 'urban'
+            const center = createNodeNetwork({
+                name: 'Central City',
+                type: 'cluster',
+                worldId: 'world-1',
+                centerX: 50,
+                centerY: 50
             });
 
-            const room3 = createRoom({
-                name: 'South Gate',
-                worldX: 50,
-                worldY: 52,
-                biomeContext: 'urban'
+            const south = createNodeNetwork({
+                name: 'Southern City',
+                type: 'cluster',
+                worldId: 'world-1',
+                centerX: 50,
+                centerY: 52
             });
 
-            const farAway = createRoom({
+            const farAway = createNodeNetwork({
                 name: 'Distant Tower',
-                worldX: 100,
-                worldY: 100,
-                biomeContext: 'mountain'
+                type: 'cluster',
+                worldId: 'world-1',
+                centerX: 100,
+                centerY: 100
             });
 
-            const roomsInArea = spatialRepo.findRoomsInBoundingBox(48, 52, 48, 52);
-            expect(roomsInArea).toHaveLength(3);
-            expect(roomsInArea.map(r => r.id)).not.toContain(farAway.id);
+            const networksInArea = spatialRepo.findNetworksInBoundingBox(48, 52, 48, 52);
+            expect(networksInArea).toHaveLength(3);
+            expect(networksInArea.map(n => n.id)).not.toContain(farAway.id);
         });
 
-        it('5.3: Can find nearest room to coordinates', () => {
-            const north = createRoom({
+        it('5.3: Can find nearest network to world coordinates', () => {
+            const north = createNodeNetwork({
                 name: 'Northern Outpost',
-                worldX: 50,
-                worldY: 45,
-                biomeContext: 'forest'
+                type: 'cluster',
+                worldId: 'world-1',
+                centerX: 50,
+                centerY: 45
             });
 
-            const center = createRoom({
+            const center = createNodeNetwork({
                 name: 'Central Keep',
-                worldX: 50,
-                worldY: 50,
-                biomeContext: 'urban'
+                type: 'cluster',
+                worldId: 'world-1',
+                centerX: 50,
+                centerY: 50
             });
 
-            const south = createRoom({
+            const south = createNodeNetwork({
                 name: 'Southern Watch',
-                worldX: 50,
-                worldY: 60,
-                biomeContext: 'coastal'
+                type: 'cluster',
+                worldId: 'world-1',
+                centerX: 50,
+                centerY: 60
             });
 
             // Find nearest to (50, 47) - should be north (distance 2)
             // north at (50, 45) distance = 2
             // center at (50, 50) distance = 3
             // south at (50, 60) distance = 13
-            const nearest = spatialRepo.findNearestRoom(50, 47);
+            const nearest = spatialRepo.findNearestNetwork(50, 47);
             expect(nearest?.id).toBe(north.id);
         });
     });
@@ -538,8 +589,8 @@ describe('Spatial Coordinate System', () => {
             createdAt: now,
             updatedAt: now,
             visitedCount: 0,
-            worldX: overrides.worldX,
-            worldY: overrides.worldY,
+            localX: overrides.localX,
+            localY: overrides.localY,
             networkId: overrides.networkId,
             ...overrides
         };

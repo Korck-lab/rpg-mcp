@@ -734,18 +734,30 @@ function runMigrations(db: Database.Database) {
 
   // SPATIAL: Add coordinate and network support to room_nodes
   const roomColumns = db.prepare('PRAGMA table_info(room_nodes)').all() as Array<{ name: string }>;
+  const hasNetworkId = roomColumns.some(col => col.name === 'network_id');
+  const hasLocalX = roomColumns.some(col => col.name === 'local_x');
+  const hasLocalY = roomColumns.some(col => col.name === 'local_y');
+
+  // Migration: Rename world_x/world_y to local_x/local_y if needed
   const hasWorldX = roomColumns.some(col => col.name === 'world_x');
   const hasWorldY = roomColumns.some(col => col.name === 'world_y');
-  const hasNetworkId = roomColumns.some(col => col.name === 'network_id');
 
-  if (!hasWorldX) {
-    console.error('[Migration] Adding world_x column to room_nodes table');
-    db.exec(`ALTER TABLE room_nodes ADD COLUMN world_x INTEGER;`);
+  if (hasWorldX && !hasLocalX) {
+    console.error('[Migration] Renaming world_x to local_x in room_nodes table');
+    db.exec(`ALTER TABLE room_nodes RENAME COLUMN world_x TO local_x;`);
+  } else if (!hasLocalX && !hasWorldX) {
+    console.error('[Migration] Adding local_x column to room_nodes table');
+    db.exec(`ALTER TABLE room_nodes ADD COLUMN local_x INTEGER;`);
   }
-  if (!hasWorldY) {
-    console.error('[Migration] Adding world_y column to room_nodes table');
-    db.exec(`ALTER TABLE room_nodes ADD COLUMN world_y INTEGER;`);
+
+  if (hasWorldY && !hasLocalY) {
+    console.error('[Migration] Renaming world_y to local_y in room_nodes table');
+    db.exec(`ALTER TABLE room_nodes RENAME COLUMN world_y TO local_y;`);
+  } else if (!hasLocalY && !hasWorldY) {
+    console.error('[Migration] Adding local_y column to room_nodes table');
+    db.exec(`ALTER TABLE room_nodes ADD COLUMN local_y INTEGER;`);
   }
+
   if (!hasNetworkId) {
     console.error('[Migration] Adding network_id column to room_nodes table');
     db.exec(`ALTER TABLE room_nodes ADD COLUMN network_id TEXT REFERENCES node_networks(id) ON DELETE SET NULL;`);
@@ -767,7 +779,7 @@ function runMigrations(db: Database.Database) {
 
     CREATE INDEX IF NOT EXISTS idx_node_networks_coords ON node_networks(center_x, center_y);
     CREATE INDEX IF NOT EXISTS idx_node_networks_world ON node_networks(world_id);
-    CREATE INDEX IF NOT EXISTS idx_room_nodes_coords ON room_nodes(world_x, world_y);
+    CREATE INDEX IF NOT EXISTS idx_room_nodes_local_coords ON room_nodes(local_x, local_y);
     CREATE INDEX IF NOT EXISTS idx_room_nodes_network ON room_nodes(network_id);
   `);
 }
