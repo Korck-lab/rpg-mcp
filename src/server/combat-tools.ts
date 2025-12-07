@@ -444,30 +444,41 @@ function calculateAoE(
 export const CombatTools = {
     CREATE_ENCOUNTER: {
         name: 'create_encounter',
-        description: `Create a new combat encounter with the specified participants.
-Initiative is rolled automatically (1d20 + initiativeBonus).
-Enemy detection is automatic based on ID/name patterns, but you can override with isEnemy.
+        description: `Create a combat encounter with positioned combatants and terrain.
+
+📋 WORKFLOW:
+1. Generate terrain (obstacles, water, difficult)
+2. Add props (buildings, trees, cover)
+3. Place party (safe starting positions)
+4. Place enemies (tactical positions)
+
+⚠️ CRITICAL VERTICALITY RULES:
+- z=0 means "standing on surface at (x,y)" - EVEN ON TOP OF OBSTACLES
+- If obstacles exist at (15,3), placing a unit at {x:15,y:3,z:0} = STANDING ON the obstacle
+- z>0 = FLYING/LEVITATING only. Creatures without flight condition WILL FALL!
+- Do NOT use z values to represent "standing on high ground"
+
+✅ CORRECT: Goblin on rock at (15,3) → position: {x:15, y:3, z:0}
+❌ WRONG: Goblin on rock → position: {x:15, y:3, z:25} (will fall!)
+
+🏔️ TERRAIN GENERATION:
+- Obstacles should CLUSTER to form hills/mountains/caverns
+- Include SLOPES: Adjacent tiles stepping down to ground level
+- Isolated cliffs only if intentionally inaccessible
+- Water must CONNECT (rivers/streams/pools), never isolated tiles
 
 Example:
 {
   "seed": "battle-1",
+  "terrain": {
+    "obstacles": ["10,5", "11,5", "10,6"],  // Clustered hill
+    "water": ["5,10", "5,11", "6,11"]       // Connected stream
+  },
   "participants": [
-    {
-      "id": "hero-1",
-      "name": "Valeros",
-      "initiativeBonus": 2,
-      "hp": 20,
-      "maxHp": 20,
-      "isEnemy": false
-    },
-    {
-      "id": "goblin-1",
-      "name": "Goblin",
-      "initiativeBonus": 1,
-      "hp": 7,
-      "maxHp": 7,
-      "isEnemy": true
-    }
+    {"id": "hero-1", "name": "Valeros", "hp": 20, "maxHp": 20, "initiativeBonus": 2, 
+     "position": {"x": 15, "y": 15, "z": 0}},
+    {"id": "goblin-1", "name": "Goblin Archer", "hp": 7, "maxHp": 7, "initiativeBonus": 1,
+     "position": {"x": 10, "y": 5, "z": 0}, "isEnemy": true}
   ]
 }`,
         inputSchema: z.object({
@@ -717,45 +728,38 @@ Example - Remove obstacles:
         description: `Place an improvised prop/object on the battlefield during combat.
 
 Props are free-form terrain features with rich description that can be interacted with.
-Think: ladders, buggies, train tracks, trees, buildings, towers, cliffs, chandeliers, etc.
+Think: ladders, wagons, trees, buildings, towers, cliffs, chandeliers, etc.
+
+⚠️ HEIGHT SEMANTICS (CRITICAL):
+- heightFeet describes the PROP'S visual/physical height, NOT entity position
+- A 30ft cliff at (5,5) is visually tall 
+- Entities standing ON such a prop use position (5,5, z=0), NOT z=30!
+- The terrain height is implicit in the visualization
+
+🏗️ PROP TYPES:
+- cliff: Stacked rocky terrain with slopes
+- wall: Stone/brick barriers  
+- bridge: Spanning structures over gaps
+- tree: Vegetation cover
+- stairs: Stepped access to elevation
+- pit: Below-ground areas (negative Y)
 
 Cover Types (D&D 5e):
 - half: +2 AC (waist-high wall, thick furniture)
 - three_quarter: +5 AC (arrow slit, portcullis)
 - full: Total cover (complete obstruction)
 
-Example - Place a climbable tree:
+Example - Climbable cliff with slopes adjacent:
 {
   "encounterId": "encounter-1",
   "position": "15,20",
-  "label": "Large Oak Tree",
+  "label": "Rocky Cliff",
   "propType": "structure",
-  "heightFeet": 30,
+  "heightFeet": 25,
   "cover": "half",
   "climbable": true,
-  "climbDC": 10,
-  "description": "A gnarled oak with thick branches, perfect for climbing or hiding behind"
-}
-
-Example - Place a ladder:
-{
-  "encounterId": "encounter-1",
-  "position": "8,12",
-  "label": "Wooden Ladder",
-  "propType": "climbable",
-  "heightFeet": 15,
-  "climbable": true,
-  "description": "A rickety ladder leading to the upper platform"
-}
-
-Example - Place a wagon for cover:
-{
-  "encounterId": "encounter-1",
-  "position": "25,30",
-  "label": "Overturned Wagon",
-  "propType": "cover",
-  "cover": "three_quarter",
-  "description": "A merchant's wagon flipped on its side, goods scattered around"
+  "climbDC": 12,
+  "description": "A 25ft rocky outcrop. Adjacent tiles (14,20), (16,20) slope down."
 }`,
         inputSchema: z.object({
             encounterId: z.string().describe('The ID of the encounter'),
