@@ -10,7 +10,7 @@ import { ToolRegistry, ToolMetadata, ToolCategory } from './tool-metadata.js';
 
 // Import all tool definitions (minimal schemas for token efficiency)
 import { Tools, handleGenerateWorld, handleGetWorldState, handleApplyMapPatch, handleGetWorldMapOverview, handleGetRegionMap, handleGetWorldTiles, handlePreviewMapPatch, handleFindValidPoiLocation, handleSuggestPoiLocations } from './tools.js';
-import { CombatTools, handleCreateEncounter, handleGetEncounterState, handleExecuteCombatAction, handleAdvanceTurn, handleEndEncounter, handleLoadEncounter, handleRollDeathSave, handleExecuteLairAction, handleRenderMap, handleCalculateAoe, handleUpdateTerrain } from './combat-tools.js';
+import { CombatTools, handleCreateEncounter, handleGetEncounterState, handleExecuteCombatAction, handleAdvanceTurn, handleEndEncounter, handleLoadEncounter, handleRollDeathSave, handleExecuteLairAction, handleRenderMap, handleCalculateAoe, handleUpdateTerrain, handlePlaceProp, handleMeasureDistance, handleGenerateTerrainPatch } from './combat-tools.js';
 import { CRUDTools, handleCreateWorld, handleGetWorld, handleListWorlds, handleDeleteWorld, handleCreateCharacter, handleGetCharacter, handleUpdateCharacter, handleListCharacters, handleDeleteCharacter, handleUpdateWorldEnvironment } from './crud-tools.js';
 import { InventoryTools, handleCreateItemTemplate, handleGiveItem, handleRemoveItem, handleEquipItem, handleUnequipItem, handleGetInventory, handleGetItem, handleListItems, handleSearchItems, handleUpdateItem, handleDeleteItem, handleTransferItem, handleUseItem, handleGetInventoryDetailed } from './inventory-tools.js';
 import { QuestTools, handleCreateQuest, handleGetQuest, handleListQuests, handleAssignQuest, handleUpdateObjective, handleCompleteObjective, handleCompleteQuest, handleGetQuestLog } from './quest-tools.js';
@@ -201,6 +201,27 @@ export function buildToolRegistry(): ToolRegistry {
         ['Dynamic terrain', 'On-the-fly map editing', 'Mid-combat terrain changes'], false, 'medium'),
       schema: CombatTools.UPDATE_TERRAIN.inputSchema,
       handler: handleUpdateTerrain
+    },
+    [CombatTools.PLACE_PROP.name]: {
+      metadata: meta(CombatTools.PLACE_PROP.name, CombatTools.PLACE_PROP.description, 'combat',
+        ['prop', 'object', 'terrain', 'tree', 'ladder', 'building', 'cover', 'improv', 'battlefield'],
+        ['Improvised props', 'Battlefield objects', 'Cover placement'], false, 'medium'),
+      schema: CombatTools.PLACE_PROP.inputSchema,
+      handler: handlePlaceProp
+    },
+    [CombatTools.MEASURE_DISTANCE.name]: {
+      metadata: meta(CombatTools.MEASURE_DISTANCE.name, CombatTools.MEASURE_DISTANCE.description, 'combat',
+        ['distance', 'measure', 'range', 'feet', 'squares', 'movement', 'spatial'],
+        ['Distance calculation', 'Range measurement', 'Movement planning'], true, 'low'),
+      schema: CombatTools.MEASURE_DISTANCE.inputSchema,
+      handler: handleMeasureDistance
+    },
+    [CombatTools.GENERATE_TERRAIN_PATCH.name]: {
+      metadata: meta(CombatTools.GENERATE_TERRAIN_PATCH.name, CombatTools.GENERATE_TERRAIN_PATCH.description, 'combat',
+        ['terrain', 'biome', 'generate', 'procedural', 'forest', 'cave', 'dungeon', 'village', 'swamp', 'battlefield'],
+        ['Procedural terrain generation', 'Biome presets', 'Mass terrain placement'], false, 'medium'),
+      schema: CombatTools.GENERATE_TERRAIN_PATCH.inputSchema,
+      handler: handleGenerateTerrainPatch
     },
 
     // === CHARACTER/CRUD TOOLS ===

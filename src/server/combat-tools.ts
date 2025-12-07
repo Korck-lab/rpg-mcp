@@ -71,6 +71,7 @@ function buildStateJson(state: CombatState, encounterId: string) {
         lairOwnerId: state.lairOwnerId,
         // Spatial visualization data
         terrain: state.terrain ?? { obstacles: [], difficultTerrain: [], water: [] },
+        props: state.props ?? [],
         gridBounds: state.gridBounds ?? null
     };
 }
@@ -709,6 +710,158 @@ Example - Remove obstacles:
             operation: z.enum(['add', 'remove']).describe('Add or remove terrain'),
             terrainType: z.enum(['obstacles', 'difficultTerrain', 'water']).describe('Type of terrain to modify'),
             tiles: z.array(z.string()).min(1).describe('Array of "x,y" coordinate strings')
+        })
+    },
+    PLACE_PROP: {
+        name: 'place_prop',
+        description: `Place an improvised prop/object on the battlefield during combat.
+
+Props are free-form terrain features with rich description that can be interacted with.
+Think: ladders, buggies, train tracks, trees, buildings, towers, cliffs, chandeliers, etc.
+
+Cover Types (D&D 5e):
+- half: +2 AC (waist-high wall, thick furniture)
+- three_quarter: +5 AC (arrow slit, portcullis)
+- full: Total cover (complete obstruction)
+
+Example - Place a climbable tree:
+{
+  "encounterId": "encounter-1",
+  "position": "15,20",
+  "label": "Large Oak Tree",
+  "propType": "structure",
+  "heightFeet": 30,
+  "cover": "half",
+  "climbable": true,
+  "climbDC": 10,
+  "description": "A gnarled oak with thick branches, perfect for climbing or hiding behind"
+}
+
+Example - Place a ladder:
+{
+  "encounterId": "encounter-1",
+  "position": "8,12",
+  "label": "Wooden Ladder",
+  "propType": "climbable",
+  "heightFeet": 15,
+  "climbable": true,
+  "description": "A rickety ladder leading to the upper platform"
+}
+
+Example - Place a wagon for cover:
+{
+  "encounterId": "encounter-1",
+  "position": "25,30",
+  "label": "Overturned Wagon",
+  "propType": "cover",
+  "cover": "three_quarter",
+  "description": "A merchant's wagon flipped on its side, goods scattered around"
+}`,
+        inputSchema: z.object({
+            encounterId: z.string().describe('The ID of the encounter'),
+            position: z.string().describe('Position as "x,y" coordinate string'),
+            label: z.string().describe('Free-text label (e.g., "Burning Cart", "Watch Tower", "Rope Bridge")'),
+            propType: z.enum(['structure', 'cover', 'climbable', 'hazard', 'interactive', 'decoration'])
+                .describe('General category of prop'),
+            heightFeet: z.number().int().min(0).optional().describe('Height in feet for elevated props'),
+            cover: z.enum(['none', 'half', 'three_quarter', 'full']).optional().default('none')
+                .describe('Cover provided by this prop'),
+            climbable: z.boolean().optional().default(false).describe('Can this be climbed?'),
+            climbDC: z.number().int().min(0).max(30).optional().describe('Athletics DC to climb (if climbable)'),
+            breakable: z.boolean().optional().default(false).describe('Can this be destroyed?'),
+            hp: z.number().int().min(1).optional().describe('Hit points (if breakable)'),
+            description: z.string().optional().describe('Rich narrative description of the prop')
+        })
+    },
+    MEASURE_DISTANCE: {
+        name: 'measure_distance',
+        description: `Calculate the distance between two points or entities on the battlefield.
+Returns distance in feet (5ft per square, diagonal = 5ft using D&D simplified rules).
+
+Example - Between two coordinates:
+{
+  "encounterId": "encounter-1",
+  "from": { "type": "position", "value": "10,10" },
+  "to": { "type": "position", "value": "15,18" }
+}
+
+Example - Between two entities:
+{
+  "encounterId": "encounter-1",
+  "from": { "type": "entity", "value": "hero-1" },
+  "to": { "type": "entity", "value": "goblin-3" }
+}
+
+Example - From entity to position:
+{
+  "encounterId": "encounter-1",
+  "from": { "type": "entity", "value": "wizard-1" },
+  "to": { "type": "position", "value": "25,30" }
+}`,
+        inputSchema: z.object({
+            encounterId: z.string().describe('The ID of the encounter'),
+            from: z.object({
+                type: z.enum(['position', 'entity']),
+                value: z.string().describe('Either "x,y" coordinate or entity ID')
+            }),
+            to: z.object({
+                type: z.enum(['position', 'entity']),
+                value: z.string().describe('Either "x,y" coordinate or entity ID')
+            })
+        })
+    },
+    GENERATE_TERRAIN_PATCH: {
+        name: 'generate_terrain_patch',
+        description: `Generate a terrain patch using procedural noise or preset patterns.
+Much easier than placing individual tiles - LLM describes the area and this tool generates it.
+
+Biome Presets:
+- forest: Trees (climbable props), undergrowth (difficult terrain), paths
+- cave: Rocky walls (obstacles), stalactites (props), pools (water)  
+- village: Buildings (obstacle clusters), roads (clear), market stalls (props)
+- dungeon: Walls (obstacles), rubble (difficult), traps (hazards)
+- swamp: Water, lily pads (props), dead trees, difficult terrain
+- battlefield: Barricades, craters (difficult), debris (props)
+
+Density: 0.1 (sparse) to 1.0 (dense)
+
+Example - Generate a forest clearing:
+{
+  "encounterId": "encounter-1",
+  "biome": "forest",
+  "origin": { "x": 10, "y": 10 },
+  "width": 20,
+  "height": 20,
+  "density": 0.4,
+  "seed": "goblin-ambush",
+  "clearCenter": true
+}
+
+Example - Dungeon room:
+{
+  "encounterId": "encounter-1",
+  "biome": "dungeon",
+  "origin": { "x": 0, "y": 0 },
+  "width": 15,
+  "height": 12,
+  "density": 0.6,
+  "seed": "throne-room"
+}`,
+        inputSchema: z.object({
+            encounterId: z.string().describe('The ID of the encounter'),
+            biome: z.enum(['forest', 'cave', 'village', 'dungeon', 'swamp', 'battlefield'])
+                .describe('Biome preset to use'),
+            origin: z.object({
+                x: z.number().int(),
+                y: z.number().int()
+            }).describe('Top-left corner of the patch'),
+            width: z.number().int().min(5).max(100).describe('Width of the patch in tiles'),
+            height: z.number().int().min(5).max(100).describe('Height of the patch in tiles'),
+            density: z.number().min(0.1).max(1.0).default(0.5)
+                .describe('How densely packed (0.1=sparse, 1.0=very dense)'),
+            seed: z.string().optional().describe('Seed for reproducible generation'),
+            clearCenter: z.boolean().optional().default(false)
+                .describe('Keep the center area clear (for player spawn)')
         })
     }
 } as const;
@@ -1791,6 +1944,415 @@ export async function handleUpdateTerrain(args: unknown, ctx: SessionContext) {
     output += `└─ Total ${parsed.terrainType}: ${(state.terrain[terrainKey] as string[]).length}\\n`;
 
     // Append JSON for frontend parsing
+    output += `\\n\\n<!-- STATE_JSON\\n${JSON.stringify(stateJson)}\\nSTATE_JSON -->`;
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+/**
+ * Handle placing an improvised prop on the battlefield
+ */
+export async function handlePlaceProp(args: unknown, ctx: SessionContext) {
+    const parsed = CombatTools.PLACE_PROP.inputSchema.parse(args);
+    let engine = getCombatManager().get(`${ctx.sessionId}:${parsed.encounterId}`);
+
+    // Auto-load from database if not in memory
+    if (!engine) {
+        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const repo = new EncounterRepository(db);
+        const state = repo.loadState(parsed.encounterId);
+
+        if (!state) {
+            throw new Error(`Encounter ${parsed.encounterId} not found.`);
+        }
+
+        engine = new CombatEngine(parsed.encounterId, pubsub || undefined);
+        engine.loadState(state);
+        getCombatManager().create(`${ctx.sessionId}:${parsed.encounterId}`, engine);
+    }
+
+    const state = engine.getState();
+    if (!state) {
+        throw new Error('No active encounter');
+    }
+
+    // Initialize props array if it doesn't exist
+    if (!state.props) {
+        state.props = [];
+    }
+
+    // Generate a unique ID for the prop
+    const propId = `prop-${parsed.label.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
+
+    // Create the prop object
+    const prop = {
+        id: propId,
+        position: parsed.position,
+        label: parsed.label,
+        propType: parsed.propType,
+        heightFeet: parsed.heightFeet,
+        cover: parsed.cover || 'none',
+        climbable: parsed.climbable || false,
+        climbDC: parsed.climbDC,
+        breakable: parsed.breakable || false,
+        hp: parsed.hp,
+        currentHp: parsed.hp,
+        description: parsed.description
+    };
+
+    state.props.push(prop);
+
+    // Save updated state to database
+    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const repo = new EncounterRepository(db);
+    repo.saveState(parsed.encounterId, state);
+
+    // Build response
+    const stateJson = buildStateJson(state, parsed.encounterId);
+    
+    const coverIcon = {
+        'none': '○',
+        'half': '◐',
+        'three_quarter': '◕',
+        'full': '●'
+    }[prop.cover || 'none'];
+
+    let output = `\\n🏗️ PROP PLACED\\n`;
+    output += `┌─────────────────────────────────────────┐\\n`;
+    output += `│ ${parsed.label}\\n`;
+    output += `└─────────────────────────────────────────┘\\n\\n`;
+    output += `📍 Position: (${parsed.position})\\n`;
+    output += `📦 Type: ${parsed.propType}\\n`;
+    if (parsed.heightFeet) output += `📏 Height: ${parsed.heightFeet} ft\\n`;
+    output += `🛡️ Cover: ${coverIcon} ${parsed.cover || 'none'}\\n`;
+    if (parsed.climbable) output += `🧗 Climbable: DC ${parsed.climbDC || 10}\\n`;
+    if (parsed.breakable && parsed.hp) output += `💔 Breakable: ${parsed.hp} HP\\n`;
+    if (parsed.description) output += `\\n📜 ${parsed.description}\\n`;
+
+    // Append JSON for frontend parsing
+    output += `\\n\\n<!-- STATE_JSON\\n${JSON.stringify(stateJson)}\\nSTATE_JSON -->`;
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+/**
+ * Handle measuring distance between two points or entities
+ */
+export async function handleMeasureDistance(args: unknown, ctx: SessionContext) {
+    const parsed = CombatTools.MEASURE_DISTANCE.inputSchema.parse(args);
+    let engine = getCombatManager().get(`${ctx.sessionId}:${parsed.encounterId}`);
+
+    // Auto-load from database if not in memory
+    if (!engine) {
+        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const repo = new EncounterRepository(db);
+        const state = repo.loadState(parsed.encounterId);
+
+        if (!state) {
+            throw new Error(`Encounter ${parsed.encounterId} not found.`);
+        }
+
+        engine = new CombatEngine(parsed.encounterId, pubsub || undefined);
+        engine.loadState(state);
+        getCombatManager().create(`${ctx.sessionId}:${parsed.encounterId}`, engine);
+    }
+
+    const state = engine.getState();
+    if (!state) {
+        throw new Error('No active encounter');
+    }
+
+    // Helper to parse position or get entity position
+    const getPosition = (ref: { type: 'position' | 'entity'; value: string }): { x: number; y: number; name: string } => {
+        if (ref.type === 'position') {
+            const [x, y] = ref.value.split(',').map(Number);
+            return { x, y, name: `(${ref.value})` };
+        } else {
+            const participant = state.participants.find(p => p.id === ref.value);
+            if (!participant) {
+                throw new Error(`Entity ${ref.value} not found in encounter`);
+            }
+            const pos = participant.position || { x: 0, y: 0 };
+            return { x: pos.x, y: pos.y, name: participant.name };
+        }
+    };
+
+    const fromPos = getPosition(parsed.from);
+    const toPos = getPosition(parsed.to);
+
+    // Calculate distance using D&D Chebyshev distance (diagonal = 5ft)
+    const dx = Math.abs(toPos.x - fromPos.x);
+    const dy = Math.abs(toPos.y - fromPos.y);
+    const distanceSquares = Math.max(dx, dy);
+    const distanceFeet = distanceSquares * 5;
+
+    // Also calculate Euclidean for reference
+    const euclideanSquares = Math.sqrt(dx * dx + dy * dy);
+    const euclideanFeet = Math.round(euclideanSquares * 5);
+
+    let output = `\\n📏 DISTANCE MEASURED\\n`;
+    output += `┌─────────────────────────────────────────┐\\n`;
+    output += `│ ${fromPos.name} → ${toPos.name}\\n`;
+    output += `└─────────────────────────────────────────┘\\n\\n`;
+    output += `🎯 Distance: ${distanceFeet} ft (${distanceSquares} squares)\\n`;
+    output += `   (Using D&D 5e diagonal = 5ft rule)\\n\\n`;
+    output += `📐 Euclidean: ~${euclideanFeet} ft\\n`;
+    output += `   (Δx: ${dx} squares, Δy: ${dy} squares)\\n`;
+
+    // Add range category for quick reference
+    let rangeCategory = '';
+    if (distanceFeet <= 5) rangeCategory = '⚔️ Melee range';
+    else if (distanceFeet <= 30) rangeCategory = '🏃 Normal movement';
+    else if (distanceFeet <= 60) rangeCategory = '🏹 Short bow range';
+    else if (distanceFeet <= 120) rangeCategory = '🎯 Longbow short range';
+    else if (distanceFeet <= 150) rangeCategory = '🔮 Most spell range';
+    else rangeCategory = '🌍 Long range';
+
+    output += `\\n${rangeCategory}\\n`;
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+/**
+ * Handle generating a terrain patch with procedural noise
+ */
+export async function handleGenerateTerrainPatch(args: unknown, ctx: SessionContext) {
+    const parsed = CombatTools.GENERATE_TERRAIN_PATCH.inputSchema.parse(args);
+    let engine = getCombatManager().get(`${ctx.sessionId}:${parsed.encounterId}`);
+
+    // Auto-load from database if not in memory
+    if (!engine) {
+        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const repo = new EncounterRepository(db);
+        const state = repo.loadState(parsed.encounterId);
+
+        if (!state) {
+            throw new Error(`Encounter ${parsed.encounterId} not found.`);
+        }
+
+        engine = new CombatEngine(parsed.encounterId, pubsub || undefined);
+        engine.loadState(state);
+        getCombatManager().create(`${ctx.sessionId}:${parsed.encounterId}`, engine);
+    }
+
+    const state = engine.getState();
+    if (!state) {
+        throw new Error('No active encounter');
+    }
+
+    // Initialize terrain and props if needed
+    if (!state.terrain) {
+        state.terrain = { obstacles: [], difficultTerrain: [], water: [] };
+    }
+    if (!state.props) {
+        state.props = [];
+    }
+
+    // Simple noise function (seeded)
+    const seedStr = parsed.seed || `${parsed.biome}-${Date.now()}`;
+    let seedNum = 0;
+    for (let i = 0; i < seedStr.length; i++) {
+        seedNum = ((seedNum << 5) - seedNum) + seedStr.charCodeAt(i);
+        seedNum = seedNum & seedNum;
+    }
+    const random = () => {
+        seedNum = (seedNum * 1103515245 + 12345) & 0x7fffffff;
+        return seedNum / 0x7fffffff;
+    };
+
+    // Calculate center for optional clearing
+    const centerX = parsed.origin.x + Math.floor(parsed.width / 2);
+    const centerY = parsed.origin.y + Math.floor(parsed.height / 2);
+    const clearRadius = Math.min(parsed.width, parsed.height) / 4;
+
+    const isClear = (x: number, y: number) => {
+        if (!parsed.clearCenter) return false;
+        const dx = x - centerX;
+        const dy = y - centerY;
+        return Math.sqrt(dx * dx + dy * dy) < clearRadius;
+    };
+
+    // Biome generation configurations
+    const biomeConfigs: Record<string, {
+        obstacles: { chance: number; pattern: 'scatter' | 'cluster' | 'edge' };
+        difficult: { chance: number; pattern: 'scatter' | 'cluster' };
+        water: { chance: number; pattern: 'pools' | 'river' | 'none' };
+        props: Array<{ label: string; propType: string; chance: number; heightFeet?: number; cover?: string; climbable?: boolean }>;
+    }> = {
+        forest: {
+            obstacles: { chance: 0.05, pattern: 'scatter' },
+            difficult: { chance: 0.2, pattern: 'scatter' },
+            water: { chance: 0.02, pattern: 'pools' },
+            props: [
+                { label: 'Oak Tree', propType: 'climbable', chance: 0.15, heightFeet: 25, cover: 'half', climbable: true },
+                { label: 'Pine Tree', propType: 'climbable', chance: 0.1, heightFeet: 30, cover: 'half', climbable: true },
+                { label: 'Fallen Log', propType: 'cover', chance: 0.03, heightFeet: 3, cover: 'half' },
+                { label: 'Boulder', propType: 'cover', chance: 0.02, heightFeet: 5, cover: 'three_quarter' }
+            ]
+        },
+        cave: {
+            obstacles: { chance: 0.2, pattern: 'edge' },
+            difficult: { chance: 0.15, pattern: 'scatter' },
+            water: { chance: 0.1, pattern: 'pools' },
+            props: [
+                { label: 'Stalactite', propType: 'hazard', chance: 0.05, heightFeet: 15 },
+                { label: 'Rock Pillar', propType: 'structure', chance: 0.04, heightFeet: 20, cover: 'full' },
+                { label: 'Glowing Mushroom', propType: 'decoration', chance: 0.08, heightFeet: 2 }
+            ]
+        },
+        village: {
+            obstacles: { chance: 0.25, pattern: 'cluster' },
+            difficult: { chance: 0.05, pattern: 'scatter' },
+            water: { chance: 0.01, pattern: 'pools' },
+            props: [
+                { label: 'Market Stall', propType: 'cover', chance: 0.04, heightFeet: 8, cover: 'half' },
+                { label: 'Wagon', propType: 'cover', chance: 0.02, heightFeet: 6, cover: 'three_quarter' },
+                { label: 'Barrel', propType: 'cover', chance: 0.06, heightFeet: 4, cover: 'half' },
+                { label: 'Well', propType: 'structure', chance: 0.01, heightFeet: 4, cover: 'half' }
+            ]
+        },
+        dungeon: {
+            obstacles: { chance: 0.15, pattern: 'edge' },
+            difficult: { chance: 0.1, pattern: 'scatter' },
+            water: { chance: 0.02, pattern: 'pools' },
+            props: [
+                { label: 'Stone Pillar', propType: 'structure', chance: 0.03, heightFeet: 15, cover: 'half' },
+                { label: 'Rubble Pile', propType: 'cover', chance: 0.05, heightFeet: 3, cover: 'half' },
+                { label: 'Brazier', propType: 'interactive', chance: 0.02, heightFeet: 5 },
+                { label: 'Spike Trap', propType: 'hazard', chance: 0.02, heightFeet: 0 }
+            ]
+        },
+        swamp: {
+            obstacles: { chance: 0.1, pattern: 'scatter' },
+            difficult: { chance: 0.4, pattern: 'cluster' },
+            water: { chance: 0.35, pattern: 'pools' },
+            props: [
+                { label: 'Dead Tree', propType: 'structure', chance: 0.08, heightFeet: 15, cover: 'half' },
+                { label: 'Lily Pad', propType: 'decoration', chance: 0.1, heightFeet: 0 },
+                { label: 'Hollow Log', propType: 'cover', chance: 0.02, heightFeet: 4, cover: 'three_quarter' }
+            ]
+        },
+        battlefield: {
+            obstacles: { chance: 0.1, pattern: 'scatter' },
+            difficult: { chance: 0.25, pattern: 'scatter' },
+            water: { chance: 0.0, pattern: 'none' },
+            props: [
+                { label: 'Barricade', propType: 'cover', chance: 0.08, heightFeet: 4, cover: 'three_quarter' },
+                { label: 'Overturned Cart', propType: 'cover', chance: 0.03, heightFeet: 5, cover: 'three_quarter' },
+                { label: 'Broken Siege Engine', propType: 'cover', chance: 0.01, heightFeet: 10, cover: 'full' },
+                { label: 'Debris Pile', propType: 'cover', chance: 0.05, heightFeet: 3, cover: 'half' }
+            ]
+        }
+    };
+
+    const config = biomeConfigs[parsed.biome];
+    let obstaclesAdded = 0;
+    let difficultAdded = 0;
+    let waterAdded = 0;
+    let propsAdded = 0;
+
+    // Generate terrain
+    for (let y = parsed.origin.y; y < parsed.origin.y + parsed.height; y++) {
+        for (let x = parsed.origin.x; x < parsed.origin.x + parsed.width; x++) {
+            if (isClear(x, y)) continue;
+
+            const adjustedDensity = parsed.density || 0.5;
+            const tileKey = `${x},${y}`;
+
+            // Edge pattern modifier
+            const edgeDist = Math.min(
+                x - parsed.origin.x,
+                parsed.origin.x + parsed.width - 1 - x,
+                y - parsed.origin.y,
+                parsed.origin.y + parsed.height - 1 - y
+            );
+            const isEdge = edgeDist < 2;
+
+            // Obstacles
+            let obstacleChance = config.obstacles.chance * adjustedDensity;
+            if (config.obstacles.pattern === 'edge' && isEdge) obstacleChance *= 3;
+            if (random() < obstacleChance) {
+                state.terrain.obstacles.push(tileKey);
+                obstaclesAdded++;
+                continue; // Don't place other things on obstacles
+            }
+
+            // Water
+            if (config.water.pattern !== 'none' && random() < config.water.chance * adjustedDensity) {
+                if (!state.terrain.water) state.terrain.water = [];
+                state.terrain.water.push(tileKey);
+                waterAdded++;
+                continue;
+            }
+
+            // Difficult terrain
+            if (random() < config.difficult.chance * adjustedDensity) {
+                if (!state.terrain.difficultTerrain) state.terrain.difficultTerrain = [];
+                state.terrain.difficultTerrain.push(tileKey);
+                difficultAdded++;
+            }
+
+            // Props
+            for (const propDef of config.props) {
+                if (random() < propDef.chance * adjustedDensity) {
+                    const propId = `prop-${parsed.biome}-${propsAdded}-${Date.now()}`;
+                    state.props.push({
+                        id: propId,
+                        position: tileKey,
+                        label: propDef.label,
+                        propType: propDef.propType as any,
+                        heightFeet: propDef.heightFeet,
+                        cover: (propDef.cover || 'none') as any,
+                        climbable: propDef.climbable,
+                        climbDC: propDef.climbable ? 10 : undefined
+                    });
+                    propsAdded++;
+                    break; // Only one prop per tile
+                }
+            }
+        }
+    }
+
+    // Save updated state
+    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const repo = new EncounterRepository(db);
+    repo.saveState(parsed.encounterId, state);
+
+    // Build response
+    const stateJson = buildStateJson(state, parsed.encounterId);
+    
+    let output = `\\n🌍 TERRAIN PATCH GENERATED\\n`;
+    output += `┌─────────────────────────────────────────┐\\n`;
+    output += `│ Biome: ${parsed.biome.toUpperCase()}\\n`;
+    output += `│ Area: ${parsed.width}×${parsed.height} (${parsed.origin.x},${parsed.origin.y})\\n`;
+    output += `│ Density: ${(parsed.density || 0.5) * 100}%\\n`;
+    output += `└─────────────────────────────────────────┘\\n\\n`;
+    output += `📊 Generated:\\n`;
+    output += `   🧱 Obstacles: ${obstaclesAdded}\\n`;
+    output += `   🌿 Difficult terrain: ${difficultAdded}\\n`;
+    output += `   💧 Water: ${waterAdded}\\n`;
+    output += `   🏗️ Props: ${propsAdded}\\n`;
+    
+    if (parsed.clearCenter) {
+        output += `\\n✨ Center area kept clear for party placement\\n`;
+    }
+
+    // Append JSON for frontend
     output += `\\n\\n<!-- STATE_JSON\\n${JSON.stringify(stateJson)}\\nSTATE_JSON -->`;
 
     return {

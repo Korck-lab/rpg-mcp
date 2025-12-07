@@ -75,6 +75,20 @@ export interface CombatState {
         difficultTerrain?: string[];
         water?: string[];  // Water terrain (streams, rivers)
     };
+    props?: Array<{  // Improvised props/objects (trees, ladders, buildings, etc.)
+        id: string;
+        position: string;  // "x,y" format
+        label: string;     // Free-text label
+        propType: 'structure' | 'cover' | 'climbable' | 'hazard' | 'interactive' | 'decoration';
+        heightFeet?: number;
+        cover?: 'none' | 'half' | 'three_quarter' | 'full';
+        climbable?: boolean;
+        climbDC?: number;
+        breakable?: boolean;
+        hp?: number;
+        currentHp?: number;
+        description?: string;
+    }>;
     gridBounds?: GridBounds;   // Phase 2: Spatial boundary validation (BUG-001 fix)
     hasLairActions?: boolean;  // Whether any participant has lair actions
     lairOwnerId?: string;      // ID of the creature that owns the lair
