@@ -461,18 +461,29 @@ export const CombatTools = {
 ✅ CORRECT: Goblin on rock at (15,3) → position: {x:15, y:3, z:0}
 ❌ WRONG: Goblin on rock → position: {x:15, y:3, z:25} (will fall!)
 
-🏔️ TERRAIN GENERATION:
+🏔️ TERRAIN GENERATION RULES:
 - Obstacles should CLUSTER to form hills/mountains/caverns
 - Include SLOPES: Adjacent tiles stepping down to ground level
 - Isolated cliffs only if intentionally inaccessible
 - Water must CONNECT (rivers/streams/pools), never isolated tiles
 
+📐 PATTERN TEMPLATES (USE THESE!):
+
+RIVER VALLEY (cliffs on sides, river in middle):
+obstacles: ["5,0","5,1","5,2",...,"5,19"] (west cliff),
+           ["13,0","13,1","13,2",...,"13,19"] (east cliff)
+water: ["8,0","9,0","10,0","8,1","9,1","10,1",...] (3-wide river at x=8,9,10)
+
+CANYON (two parallel walls):
+obstacles: ["0,5","1,5","2,5",...,"9,5"] (north wall),
+           ["0,15","1,15","2,15",...,"9,15"] (south wall)
+
 Example:
 {
   "seed": "battle-1",
   "terrain": {
-    "obstacles": ["10,5", "11,5", "10,6"],  // Clustered hill
-    "water": ["5,10", "5,11", "6,11"]       // Connected stream
+    "obstacles": ["10,5", "11,5", "10,6"],
+    "water": ["5,10", "5,11", "6,11"]
   },
   "participants": [
     {"id": "hero-1", "name": "Valeros", "hp": 20, "maxHp": 20, "initiativeBonus": 2, 
