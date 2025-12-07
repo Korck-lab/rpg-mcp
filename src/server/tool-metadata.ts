@@ -20,6 +20,8 @@ export interface ToolMetadata {
   contextAware: boolean;
   estimatedTokenCost: TokenCost;
   usageExample: string;
+  /** If true, tool is only loaded when discovered via search_tools (MCP spec) */
+  deferLoading: boolean;
 }
 
 export interface ToolRegistryEntry {

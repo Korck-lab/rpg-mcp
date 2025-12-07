@@ -80,15 +80,7 @@ function calculateRelevance(metadata: ToolMetadata, query: string): number {
 }
 
 export async function handleSearchTools(args: SearchToolsArgs): Promise<{
-  tools: ScoredTool[];
-  summary: {
-    total_found: number;
-    returned: number;
-    categories: string[];
-    query_used: string | null;
-  };
-  categories_available: { category: string; count: number }[];
-  suggestions: string[];
+  content: Array<{ type: 'tool_reference'; tool_name: string } | { type: 'text'; text: string }>;
 }> {
   const allMetadata = getAllToolMetadata();
   let results = allMetadata;
@@ -139,17 +131,35 @@ export async function handleSearchTools(args: SearchToolsArgs): Promise<{
   // Get unique categories in results
   const categoriesInResults = [...new Set(truncated.map(t => t.category))];
   
-  return {
-    tools: truncated,
-    summary: {
-      total_found: filtered.length,
-      returned: truncated.length,
-      categories: categoriesInResults,
-      query_used: args.query || null
-    },
+  // Build content array with tool_reference blocks for automatic expansion
+  // This allows Anthropic API to automatically load deferred tool definitions
+  const content: Array<{ type: 'tool_reference'; tool_name: string } | { type: 'text'; text: string }> = [];
+  
+  // Add tool_reference for each discovered tool (Anthropic will auto-expand)
+  for (const tool of truncated) {
+    content.push({ type: 'tool_reference', tool_name: tool.name });
+  }
+  
+  // Add summary text for human readability
+  const summary = {
+    total_found: filtered.length,
+    returned: truncated.length,
+    categories: categoriesInResults,
+    query_used: args.query || null,
+    tools: truncated.map(t => ({
+      name: t.name,
+      description: t.description,
+      category: t.category,
+      relevanceScore: t.relevanceScore,
+      deferLoading: t.deferLoading
+    })),
     categories_available: getToolCategories(),
     suggestions
   };
+  
+  content.push({ type: 'text', text: JSON.stringify(summary, null, 2) });
+  
+  return { content };
 }
 
 // === LOAD_TOOL_SCHEMA ===

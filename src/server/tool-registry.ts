@@ -30,6 +30,7 @@ import { ImprovisationTools, handleResolveImprovisedStunt, handleApplyCustomEffe
 import { SpatialTools, handleLookAtSurroundings, handleGenerateRoomNode, handleGetRoomExits, handleMoveCharacterToRoom } from './spatial-tools.js';
 
 // Helper to create metadata
+// deferLoading defaults to true (most tools should be deferred)
 function meta(
   name: string,
   description: string,
@@ -37,7 +38,8 @@ function meta(
   keywords: string[],
   capabilities: string[],
   contextAware: boolean = false,
-  estimatedTokenCost: 'low' | 'medium' | 'high' | 'variable' = 'medium'
+  estimatedTokenCost: 'low' | 'medium' | 'high' | 'variable' = 'medium',
+  deferLoading: boolean = true  // MCP spec: defer by default, only core tools are immediate
 ): ToolMetadata {
   return {
     name,
@@ -47,7 +49,8 @@ function meta(
     capabilities,
     contextAware,
     estimatedTokenCost,
-    usageExample: `${name}({ ... })`
+    usageExample: `${name}({ ... })`,
+    deferLoading
   };
 }
 
@@ -127,14 +130,14 @@ export function buildToolRegistry(): ToolRegistry {
     [CombatTools.CREATE_ENCOUNTER.name]: {
       metadata: meta(CombatTools.CREATE_ENCOUNTER.name, CombatTools.CREATE_ENCOUNTER.description, 'combat',
         ['encounter', 'combat', 'battle', 'initiative', 'fight'],
-        ['Initiative rolling', 'Participant setup', 'Combat state'], false, 'medium'),
+        ['Initiative rolling', 'Participant setup', 'Combat state'], false, 'medium', false),
       schema: CombatTools.CREATE_ENCOUNTER.inputSchema,
       handler: handleCreateEncounter
     },
     [CombatTools.GET_ENCOUNTER_STATE.name]: {
       metadata: meta(CombatTools.GET_ENCOUNTER_STATE.name, CombatTools.GET_ENCOUNTER_STATE.description, 'combat',
         ['encounter', 'state', 'turn', 'status', 'combat'],
-        ['Encounter status', 'Combatant info', 'Turn order'], true, 'high'),
+        ['Encounter status', 'Combatant info', 'Turn order'], true, 'high', false),
       schema: CombatTools.GET_ENCOUNTER_STATE.inputSchema,
       handler: handleGetEncounterState
     },
@@ -270,14 +273,14 @@ export function buildToolRegistry(): ToolRegistry {
     [CRUDTools.CREATE_CHARACTER.name]: {
       metadata: meta(CRUDTools.CREATE_CHARACTER.name, CRUDTools.CREATE_CHARACTER.description, 'character',
         ['character', 'create', 'new', 'player', 'npc', 'pc'],
-        ['Character creation', 'Class/race setup'], false, 'medium'),
+        ['Character creation', 'Class/race setup'], false, 'medium', false),
       schema: CRUDTools.CREATE_CHARACTER.inputSchema,
       handler: handleCreateCharacter
     },
     [CRUDTools.GET_CHARACTER.name]: {
       metadata: meta(CRUDTools.GET_CHARACTER.name, CRUDTools.GET_CHARACTER.description, 'character',
         ['character', 'get', 'retrieve', 'info', 'sheet'],
-        ['Character retrieval', 'Full character sheet'], false, 'medium'),
+        ['Character retrieval', 'Full character sheet'], false, 'medium', false),
       schema: CRUDTools.GET_CHARACTER.inputSchema,
       handler: handleGetCharacter
     },
@@ -579,7 +582,7 @@ export function buildToolRegistry(): ToolRegistry {
     [MathTools.DICE_ROLL.name]: {
       metadata: meta(MathTools.DICE_ROLL.name, MathTools.DICE_ROLL.description, 'math',
         ['dice', 'roll', 'random', 'd20', 'd6', 'probability'],
-        ['Dice rolling', 'Probability notation support'], false, 'low'),
+        ['Dice rolling', 'Probability notation support'], false, 'low', false),
       schema: MathTools.DICE_ROLL.inputSchema,
       handler: handleDiceRoll
     },
