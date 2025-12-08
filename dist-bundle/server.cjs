@@ -12165,6 +12165,7 @@ var init_character = __esm({
       // Spellcasting fields (CRIT-002/006)
       // Flexible character class - allows any string (standard D&D classes or custom like "Chronomancer")
       characterClass: external_exports.string().optional().default("fighter"),
+      race: external_exports.string().optional().default("Human").describe("Character race - any string allowed (Human, Elf, Dragonborn, Mousefolk...)"),
       subclass: SubclassSchema.optional(),
       spellSlots: SpellSlotsSchema.optional(),
       pactMagicSlots: PactMagicSlotsSchema.optional(),
@@ -12225,13 +12226,13 @@ var init_character_repo = __esm({
         const validChar = isNPC ? NPCSchema.parse(character) : CharacterSchema.parse(character);
         const stmt = this.db.prepare(`
       INSERT INTO characters (id, name, stats, hp, max_hp, ac, level, faction_id, behavior, character_type,
-                              character_class, spell_slots, pact_magic_slots, known_spells, prepared_spells,
+                              character_class, race, spell_slots, pact_magic_slots, known_spells, prepared_spells,
                               cantrips_known, max_spell_level, concentrating_on, conditions,
                               legendary_actions, legendary_actions_remaining, legendary_resistances,
                               legendary_resistances_remaining, has_lair_actions, resistances, vulnerabilities, immunities,
                               current_room_id, perception_bonus, stealth_bonus, created_at, updated_at)
       VALUES (@id, @name, @stats, @hp, @maxHp, @ac, @level, @factionId, @behavior, @characterType,
-              @characterClass, @spellSlots, @pactMagicSlots, @knownSpells, @preparedSpells,
+              @characterClass, @race, @spellSlots, @pactMagicSlots, @knownSpells, @preparedSpells,
               @cantripsKnown, @maxSpellLevel, @concentratingOn, @conditions,
               @legendaryActions, @legendaryActionsRemaining, @legendaryResistances,
               @legendaryResistancesRemaining, @hasLairActions, @resistances, @vulnerabilities, @immunities,
@@ -12250,6 +12251,7 @@ var init_character_repo = __esm({
           characterType: validChar.characterType || "pc",
           // CRIT-002/006: Spellcasting fields
           characterClass: validChar.characterClass || "fighter",
+          race: validChar.race || "Human",
           spellSlots: validChar.spellSlots ? JSON.stringify(validChar.spellSlots) : null,
           pactMagicSlots: validChar.pactMagicSlots ? JSON.stringify(validChar.pactMagicSlots) : null,
           knownSpells: JSON.stringify(validChar.knownSpells || []),
@@ -12314,7 +12316,7 @@ var init_character_repo = __esm({
             UPDATE characters
             SET name = ?, stats = ?, hp = ?, max_hp = ?, ac = ?, level = ?,
                 faction_id = ?, behavior = ?, character_type = ?,
-                character_class = ?, spell_slots = ?, pact_magic_slots = ?,
+                character_class = ?, race = ?, spell_slots = ?, pact_magic_slots = ?,
                 known_spells = ?, prepared_spells = ?, cantrips_known = ?,
                 max_spell_level = ?, concentrating_on = ?, conditions = ?,
                 legendary_actions = ?, legendary_actions_remaining = ?,
@@ -12335,6 +12337,7 @@ var init_character_repo = __esm({
           validChar.characterType || "pc",
           // CRIT-002/006: Spellcasting fields
           validChar.characterClass || "fighter",
+          validChar.race || "Human",
           validChar.spellSlots ? JSON.stringify(validChar.spellSlots) : null,
           validChar.pactMagicSlots ? JSON.stringify(validChar.pactMagicSlots) : null,
           JSON.stringify(validChar.knownSpells || []),
@@ -12379,6 +12382,7 @@ var init_character_repo = __esm({
           characterType: row.character_type || "pc",
           // CRIT-002/006: Spellcasting fields
           characterClass: row.character_class || "fighter",
+          race: row.race || "Human",
           spellSlots: row.spell_slots ? JSON.parse(row.spell_slots) : void 0,
           pactMagicSlots: row.pact_magic_slots ? JSON.parse(row.pact_magic_slots) : void 0,
           knownSpells: row.known_spells ? JSON.parse(row.known_spells) : [],

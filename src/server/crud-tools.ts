@@ -151,12 +151,25 @@ Example (custom class/race):
     },
     UPDATE_CHARACTER: {
         name: 'update_character',
-        description: 'Update character properties like HP, level, or type.',
+        description: 'Update character properties. All fields except id are optional.',
         inputSchema: z.object({
             id: z.string(),
+            name: z.string().min(1).optional(),
+            race: z.string().optional(),
+            class: z.string().optional(),
             hp: z.number().int().min(0).optional(),
+            maxHp: z.number().int().min(1).optional(),
+            ac: z.number().int().min(0).optional(),
             level: z.number().int().min(1).optional(),
             characterType: CharacterTypeSchema.optional(),
+            stats: z.object({
+                str: z.number().int().min(0).optional(),
+                dex: z.number().int().min(0).optional(),
+                con: z.number().int().min(0).optional(),
+                int: z.number().int().min(0).optional(),
+                wis: z.number().int().min(0).optional(),
+                cha: z.number().int().min(0).optional(),
+            }).optional(),
         })
     },
     LIST_CHARACTERS: {
@@ -322,12 +335,20 @@ export async function handleUpdateCharacter(args: unknown, _ctx: SessionContext)
     const { charRepo } = ensureDb();
     const parsed = CRUDTools.UPDATE_CHARACTER.inputSchema.parse(args);
 
-    // Update using repository
-    const updated = charRepo.update(parsed.id, {
-        ...(parsed.hp !== undefined && { hp: parsed.hp }),
-        ...(parsed.level !== undefined && { level: parsed.level }),
-        ...(parsed.characterType !== undefined && { characterType: parsed.characterType }),
-    });
+    // Build update object with all provided fields
+    const updateData: Record<string, unknown> = {};
+    
+    if (parsed.name !== undefined) updateData.name = parsed.name;
+    if (parsed.race !== undefined) updateData.race = parsed.race;
+    if (parsed.class !== undefined) updateData.characterClass = parsed.class; // Map to DB field
+    if (parsed.hp !== undefined) updateData.hp = parsed.hp;
+    if (parsed.maxHp !== undefined) updateData.maxHp = parsed.maxHp;
+    if (parsed.ac !== undefined) updateData.ac = parsed.ac;
+    if (parsed.level !== undefined) updateData.level = parsed.level;
+    if (parsed.characterType !== undefined) updateData.characterType = parsed.characterType;
+    if (parsed.stats !== undefined) updateData.stats = parsed.stats;
+
+    const updated = charRepo.update(parsed.id, updateData);
 
     if (!updated) {
         throw new Error(`Failed to update character: ${parsed.id}`);
