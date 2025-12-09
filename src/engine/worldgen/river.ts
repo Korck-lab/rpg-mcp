@@ -83,7 +83,7 @@ export function generateRivers(options: RiverGenerationOptions): RiverSystem {
     elevation,
     seaLevel = 20,
     precipitation,
-    minFlux = 150, // Increased threshold for fewer, more defined rivers
+    minFlux = 300, // Increased threshold - fewer river branches, reduces lake seed points
   } = options;
 
   const size = width * height;
@@ -148,7 +148,7 @@ export function generateRivers(options: RiverGenerationOptions): RiverSystem {
       height
     );
 
-    if (river && river.path.length > 5) {
+    if (river && river.path.length > 10) {  // Increased from 5 - skip short river fragments
       river.id = `river_${rivers.length + 1}`;
       rivers.push(river);
     }

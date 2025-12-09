@@ -12200,6 +12200,29 @@ var init_character = __esm({
       resistances: external_exports.array(external_exports.string()).optional().default([]).describe('Damage types that deal half damage (e.g., ["fire", "cold"])'),
       vulnerabilities: external_exports.array(external_exports.string()).optional().default([]).describe("Damage types that deal double damage"),
       immunities: external_exports.array(external_exports.string()).optional().default([]).describe("Damage types that deal no damage"),
+      // Skill and Save Proficiencies
+      skillProficiencies: external_exports.array(external_exports.enum([
+        "acrobatics",
+        "animal_handling",
+        "arcana",
+        "athletics",
+        "deception",
+        "history",
+        "insight",
+        "intimidation",
+        "investigation",
+        "medicine",
+        "nature",
+        "perception",
+        "performance",
+        "persuasion",
+        "religion",
+        "sleight_of_hand",
+        "stealth",
+        "survival"
+      ])).optional().default([]).describe("Skills the character is proficient in"),
+      saveProficiencies: external_exports.array(external_exports.enum(["str", "dex", "con", "int", "wis", "cha"])).optional().default([]).describe("Saving throws the character is proficient in"),
+      expertise: external_exports.array(external_exports.string()).optional().default([]).describe("Skills with double proficiency bonus (rogues, bards)"),
       createdAt: external_exports.string().datetime(),
       updatedAt: external_exports.string().datetime()
     });
@@ -50959,8 +50982,8 @@ function generateRivers(options) {
     elevation,
     seaLevel = 20,
     precipitation,
-    minFlux = 150
-    // Increased threshold for fewer, more defined rivers
+    minFlux = 300
+    // Increased threshold - fewer river branches, reduces lake seed points
   } = options;
   const size = width * height;
   const rng2 = (0, import_seedrandom3.default)(seed);
@@ -51001,7 +51024,7 @@ function generateRivers(options) {
       width,
       height
     );
-    if (river && river.path.length > 5) {
+    if (river && river.path.length > 10) {
       river.id = `river_${rivers.length + 1}`;
       rivers.push(river);
     }
@@ -51335,18 +51358,22 @@ function generateLakes(options) {
     elevation,
     rivers,
     seaLevel = 20,
-    minLakeSize = 4,
-    maxLakeSize = 100,
-    minDepth = 2,
-    // Depression must be at least 2 elevation units deep
-    maxFillDepth = 15
-    // Don't fill more than 15 units above sink
+    minLakeSize = 6,
+    // Increased from 4 - require larger depressions
+    maxLakeSize = 60,
+    // Reduced from 100 - fewer massive lakes
+    minDepth = 4,
+    // Increased from 2 - require deeper depressions
+    maxFillDepth = 12,
+    // Reduced from 15 - shallower lake fills
+    maxLakeElevation = 55
+    // Lakes only form below this elevation (0-100 scale)
   } = options;
   const size = width * height;
   const lakeMap = new Uint8Array(size);
   const spillways = [];
   const processed = new Uint8Array(size);
-  const depressionSeeds = findDepressionSeeds(elevation, rivers, seaLevel, width, height);
+  const depressionSeeds = findDepressionSeeds(elevation, rivers, seaLevel, maxLakeElevation, width, height);
   console.error(`Found ${depressionSeeds.length} potential depression seeds`);
   let lakeCount = 0;
   depressionSeeds.sort((a, b) => elevation[a] - elevation[b]);
@@ -51401,7 +51428,7 @@ function generateLakes(options) {
   }
   return { lakeMap, lakeCount, spillways };
 }
-function findDepressionSeeds(elevation, rivers, seaLevel, width, height) {
+function findDepressionSeeds(elevation, rivers, seaLevel, maxLakeElevation, width, height) {
   const seeds = [];
   for (let y = 1; y < height - 1; y++) {
     for (let x = 1; x < width - 1; x++) {
@@ -51409,6 +51436,8 @@ function findDepressionSeeds(elevation, rivers, seaLevel, width, height) {
       if (rivers[idx] === 0)
         continue;
       if (elevation[idx] < seaLevel)
+        continue;
+      if (elevation[idx] > maxLakeElevation)
         continue;
       const elev = elevation[idx];
       let isLocalMin = true;
@@ -51435,7 +51464,7 @@ function findDepressionSeeds(elevation, rivers, seaLevel, width, height) {
       }
       if (nearOcean)
         continue;
-      if (isLocalMin && higherNeighbors >= neighborCount * 0.5) {
+      if (isLocalMin && higherNeighbors >= neighborCount * 0.75) {
         seeds.push(idx);
       }
     }
@@ -74606,6 +74635,267 @@ ${s.content}`).join("\n\n");
   };
 }
 
+// dist/server/skill-check-tools.js
+init_zod();
+init_character_repo();
+var SkillEnum = external_exports.enum([
+  "acrobatics",
+  "animal_handling",
+  "arcana",
+  "athletics",
+  "deception",
+  "history",
+  "insight",
+  "intimidation",
+  "investigation",
+  "medicine",
+  "nature",
+  "perception",
+  "performance",
+  "persuasion",
+  "religion",
+  "sleight_of_hand",
+  "stealth",
+  "survival"
+]);
+var AbilityEnum = external_exports.enum(["str", "dex", "con", "int", "wis", "cha"]);
+var SKILL_ABILITY_MAP = {
+  athletics: "str",
+  acrobatics: "dex",
+  sleight_of_hand: "dex",
+  stealth: "dex",
+  arcana: "int",
+  history: "int",
+  investigation: "int",
+  nature: "int",
+  religion: "int",
+  animal_handling: "wis",
+  insight: "wis",
+  medicine: "wis",
+  perception: "wis",
+  survival: "wis",
+  deception: "cha",
+  intimidation: "cha",
+  performance: "cha",
+  persuasion: "cha"
+};
+function ensureDb12() {
+  const dbPath = process.env.NODE_ENV === "test" ? ":memory:" : process.env.RPG_DATA_DIR ? `${process.env.RPG_DATA_DIR}/rpg.db` : "rpg.db";
+  const db = getDb(dbPath);
+  const charRepo = new CharacterRepository(db);
+  return { charRepo };
+}
+function getProficiencyBonus(level) {
+  return Math.floor((level - 1) / 4) + 2;
+}
+function getAbilityModifier5(abilityScore) {
+  return Math.floor((abilityScore - 10) / 2);
+}
+var SkillCheckTools = {
+  ROLL_SKILL_CHECK: {
+    name: "roll_skill_check",
+    description: `Roll a skill check using character stats. Automatically applies ability modifier and proficiency bonus if proficient.
+Example: roll_skill_check with characterId and skill="perception" for active character's Perception check.`,
+    inputSchema: external_exports.object({
+      characterId: external_exports.string().describe("ID of the character making the check"),
+      skill: SkillEnum.describe("Skill to roll (e.g., perception, stealth, athletics)"),
+      advantage: external_exports.boolean().optional().default(false).describe("Roll with advantage"),
+      disadvantage: external_exports.boolean().optional().default(false).describe("Roll with disadvantage"),
+      dc: external_exports.number().int().min(1).optional().describe("Difficulty Class - if provided, returns pass/fail"),
+      bonusModifier: external_exports.number().int().optional().default(0).describe("Additional situational modifier")
+    })
+  },
+  ROLL_ABILITY_CHECK: {
+    name: "roll_ability_check",
+    description: "Roll a raw ability check (no skill proficiency). Uses only the ability modifier.",
+    inputSchema: external_exports.object({
+      characterId: external_exports.string().describe("ID of the character making the check"),
+      ability: AbilityEnum.describe("Ability score to use (str, dex, con, int, wis, cha)"),
+      advantage: external_exports.boolean().optional().default(false),
+      disadvantage: external_exports.boolean().optional().default(false),
+      dc: external_exports.number().int().min(1).optional(),
+      bonusModifier: external_exports.number().int().optional().default(0)
+    })
+  },
+  ROLL_SAVING_THROW: {
+    name: "roll_saving_throw",
+    description: "Roll a saving throw. Applies proficiency bonus if character has save proficiency.",
+    inputSchema: external_exports.object({
+      characterId: external_exports.string().describe("ID of the character making the save"),
+      ability: AbilityEnum.describe("Saving throw type (str, dex, con, int, wis, cha)"),
+      advantage: external_exports.boolean().optional().default(false),
+      disadvantage: external_exports.boolean().optional().default(false),
+      dc: external_exports.number().int().min(1).optional().describe("DC to beat"),
+      bonusModifier: external_exports.number().int().optional().default(0)
+    })
+  }
+};
+async function handleRollSkillCheck(args, _ctx) {
+  const { charRepo } = ensureDb12();
+  const parsed = SkillCheckTools.ROLL_SKILL_CHECK.inputSchema.parse(args);
+  const character = charRepo.findById(parsed.characterId);
+  if (!character) {
+    throw new Error(`Character not found: ${parsed.characterId}`);
+  }
+  const ability = SKILL_ABILITY_MAP[parsed.skill];
+  const abilityScore = character.stats[ability];
+  const abilityMod = getAbilityModifier5(abilityScore);
+  const skillProfs = character.skillProficiencies || [];
+  const expertise = character.expertise || [];
+  const isProficient = skillProfs.includes(parsed.skill);
+  const hasExpertise = expertise.includes(parsed.skill);
+  const profBonus = getProficiencyBonus(character.level);
+  let totalMod = abilityMod + parsed.bonusModifier;
+  if (hasExpertise) {
+    totalMod += profBonus * 2;
+  } else if (isProficient) {
+    totalMod += profBonus;
+  }
+  const dice = new DiceEngine();
+  const diceExpr = {
+    count: 1,
+    sides: 20,
+    modifier: totalMod,
+    explode: false,
+    advantage: parsed.advantage && !parsed.disadvantage,
+    disadvantage: parsed.disadvantage && !parsed.advantage
+  };
+  const result = dice.roll(diceExpr);
+  const skillName = parsed.skill.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const abilityName = ability.toUpperCase();
+  const rollTotal = typeof result.result === "number" ? result.result : parseInt(String(result.result), 10);
+  const rolls = result.metadata?.rolls;
+  const response = {
+    character: character.name,
+    skill: skillName,
+    ability: abilityName,
+    roll: rollTotal,
+    breakdown: {
+      d20: rolls?.[0] ?? rollTotal - totalMod,
+      abilityMod,
+      proficiencyBonus: hasExpertise ? profBonus * 2 : isProficient ? profBonus : 0,
+      bonusModifier: parsed.bonusModifier,
+      total: rollTotal
+    },
+    proficient: isProficient,
+    expertise: hasExpertise,
+    advantage: parsed.advantage,
+    disadvantage: parsed.disadvantage
+  };
+  if (parsed.dc !== void 0) {
+    response.dc = parsed.dc;
+    response.success = rollTotal >= parsed.dc;
+    response.margin = rollTotal - parsed.dc;
+  }
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(response, null, 2)
+    }]
+  };
+}
+async function handleRollAbilityCheck(args, _ctx) {
+  const { charRepo } = ensureDb12();
+  const parsed = SkillCheckTools.ROLL_ABILITY_CHECK.inputSchema.parse(args);
+  const character = charRepo.findById(parsed.characterId);
+  if (!character) {
+    throw new Error(`Character not found: ${parsed.characterId}`);
+  }
+  const abilityScore = character.stats[parsed.ability];
+  const abilityMod = getAbilityModifier5(abilityScore);
+  const totalMod = abilityMod + parsed.bonusModifier;
+  const dice = new DiceEngine();
+  const diceExpr = {
+    count: 1,
+    sides: 20,
+    modifier: totalMod,
+    explode: false,
+    advantage: parsed.advantage && !parsed.disadvantage,
+    disadvantage: parsed.disadvantage && !parsed.advantage
+  };
+  const result = dice.roll(diceExpr);
+  const rollTotal = typeof result.result === "number" ? result.result : parseInt(String(result.result), 10);
+  const rolls = result.metadata?.rolls;
+  const abilityName = parsed.ability.toUpperCase();
+  const response = {
+    character: character.name,
+    ability: abilityName,
+    roll: rollTotal,
+    breakdown: {
+      d20: rolls?.[0] ?? rollTotal - totalMod,
+      abilityMod,
+      bonusModifier: parsed.bonusModifier,
+      total: rollTotal
+    },
+    advantage: parsed.advantage,
+    disadvantage: parsed.disadvantage
+  };
+  if (parsed.dc !== void 0) {
+    response.dc = parsed.dc;
+    response.success = rollTotal >= parsed.dc;
+    response.margin = rollTotal - parsed.dc;
+  }
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(response, null, 2)
+    }]
+  };
+}
+async function handleRollSavingThrow(args, _ctx) {
+  const { charRepo } = ensureDb12();
+  const parsed = SkillCheckTools.ROLL_SAVING_THROW.inputSchema.parse(args);
+  const character = charRepo.findById(parsed.characterId);
+  if (!character) {
+    throw new Error(`Character not found: ${parsed.characterId}`);
+  }
+  const abilityScore = character.stats[parsed.ability];
+  const abilityMod = getAbilityModifier5(abilityScore);
+  const saveProfs = character.saveProficiencies || [];
+  const isProficient = saveProfs.includes(parsed.ability);
+  const profBonus = isProficient ? getProficiencyBonus(character.level) : 0;
+  const totalMod = abilityMod + profBonus + parsed.bonusModifier;
+  const dice = new DiceEngine();
+  const diceExpr = {
+    count: 1,
+    sides: 20,
+    modifier: totalMod,
+    explode: false,
+    advantage: parsed.advantage && !parsed.disadvantage,
+    disadvantage: parsed.disadvantage && !parsed.advantage
+  };
+  const result = dice.roll(diceExpr);
+  const rollTotal = typeof result.result === "number" ? result.result : parseInt(String(result.result), 10);
+  const rolls = result.metadata?.rolls;
+  const abilityName = parsed.ability.toUpperCase();
+  const response = {
+    character: character.name,
+    savingThrow: `${abilityName} Save`,
+    roll: rollTotal,
+    breakdown: {
+      d20: rolls?.[0] ?? rollTotal - totalMod,
+      abilityMod,
+      proficiencyBonus: profBonus,
+      bonusModifier: parsed.bonusModifier,
+      total: rollTotal
+    },
+    proficient: isProficient,
+    advantage: parsed.advantage,
+    disadvantage: parsed.disadvantage
+  };
+  if (parsed.dc !== void 0) {
+    response.dc = parsed.dc;
+    response.success = rollTotal >= parsed.dc;
+    response.margin = rollTotal - parsed.dc;
+  }
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(response, null, 2)
+    }]
+  };
+}
+
 // dist/server/tool-registry.js
 function meta(name, description, category, keywords, capabilities, contextAware = false, estimatedTokenCost = "medium", deferLoading = true) {
   return {
@@ -75503,6 +75793,22 @@ function buildToolRegistry() {
       metadata: meta(ContextTools.GET_NARRATIVE_CONTEXT.name, ContextTools.GET_NARRATIVE_CONTEXT.description, "context", ["context", "narrative", "story", "prompt", "llm"], ["Narrative context aggregation"], true, "high"),
       schema: ContextTools.GET_NARRATIVE_CONTEXT.inputSchema,
       handler: handleGetNarrativeContext
+    },
+    // === SKILL CHECK TOOLS ===
+    [SkillCheckTools.ROLL_SKILL_CHECK.name]: {
+      metadata: meta(SkillCheckTools.ROLL_SKILL_CHECK.name, SkillCheckTools.ROLL_SKILL_CHECK.description, "math", ["skill", "check", "roll", "d20", "perception", "stealth", "athletics", "proficiency"], ["Stat-based skill checks", "Proficiency/expertise handling", "Advantage/disadvantage"], false, "low", false),
+      schema: SkillCheckTools.ROLL_SKILL_CHECK.inputSchema,
+      handler: handleRollSkillCheck
+    },
+    [SkillCheckTools.ROLL_ABILITY_CHECK.name]: {
+      metadata: meta(SkillCheckTools.ROLL_ABILITY_CHECK.name, SkillCheckTools.ROLL_ABILITY_CHECK.description, "math", ["ability", "check", "roll", "d20", "str", "dex", "con", "int", "wis", "cha"], ["Raw ability checks", "No skill proficiency"], false, "low", false),
+      schema: SkillCheckTools.ROLL_ABILITY_CHECK.inputSchema,
+      handler: handleRollAbilityCheck
+    },
+    [SkillCheckTools.ROLL_SAVING_THROW.name]: {
+      metadata: meta(SkillCheckTools.ROLL_SAVING_THROW.name, SkillCheckTools.ROLL_SAVING_THROW.description, "math", ["save", "saving", "throw", "roll", "d20", "reflex", "fortitude", "will"], ["Saving throws", "Save proficiency handling", "DC comparison"], false, "low", false),
+      schema: SkillCheckTools.ROLL_SAVING_THROW.inputSchema,
+      handler: handleRollSavingThrow
     }
     // Note: search_tools and load_tool_schema are registered separately in index.ts with full handlers
   };

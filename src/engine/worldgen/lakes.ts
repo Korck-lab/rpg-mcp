@@ -25,6 +25,8 @@ export interface LakeGenerationOptions {
   minDepth?: number;
   /** Maximum lake fill level above sink (caps very deep lakes) */
   maxFillDepth?: number;
+  /** Maximum elevation for lake formation (lakes don't form on high terrain) */
+  maxLakeElevation?: number;
 }
 
 export interface LakeSpillway {
@@ -85,10 +87,11 @@ export function generateLakes(options: LakeGenerationOptions): LakeResult {
     elevation,
     rivers,
     seaLevel = 20,
-    minLakeSize = 4,
-    maxLakeSize = 100,
-    minDepth = 2,      // Depression must be at least 2 elevation units deep
-    maxFillDepth = 15, // Don't fill more than 15 units above sink
+    minLakeSize = 6,       // Increased from 4 - require larger depressions
+    maxLakeSize = 60,      // Reduced from 100 - fewer massive lakes
+    minDepth = 4,          // Increased from 2 - require deeper depressions
+    maxFillDepth = 12,     // Reduced from 15 - shallower lake fills
+    maxLakeElevation = 55, // Lakes only form below this elevation (0-100 scale)
   } = options;
 
   const size = width * height;
@@ -96,8 +99,8 @@ export function generateLakes(options: LakeGenerationOptions): LakeResult {
   const spillways: LakeSpillway[] = [];
   const processed = new Uint8Array(size); // Track which tiles have been considered for lakes
 
-  // Find depression seeds - river tiles that are local minima
-  const depressionSeeds = findDepressionSeeds(elevation, rivers, seaLevel, width, height);
+  // Find depression seeds - river tiles that are local minima at reasonable elevations
+  const depressionSeeds = findDepressionSeeds(elevation, rivers, seaLevel, maxLakeElevation, width, height);
   
   console.error(`Found ${depressionSeeds.length} potential depression seeds`);
 
@@ -197,12 +200,13 @@ export function generateLakes(options: LakeGenerationOptions): LakeResult {
 
 /**
  * Find depression seeds - river tiles that are local minima AND have significantly
- * lower elevation than their surroundings
+ * lower elevation than their surroundings AND below max lake elevation
  */
 function findDepressionSeeds(
   elevation: Uint8Array,
   rivers: Uint8Array,
   seaLevel: number,
+  maxLakeElevation: number,
   width: number,
   height: number
 ): number[] {
@@ -215,6 +219,9 @@ function findDepressionSeeds(
       // Must be a river tile and above sea level
       if (rivers[idx] === 0) continue;
       if (elevation[idx] < seaLevel) continue;
+      
+      // Lakes don't form at high elevations (mountains, high hills)
+      if (elevation[idx] > maxLakeElevation) continue;
 
       const elev = elevation[idx];
       let isLocalMin = true;
@@ -251,8 +258,9 @@ function findDepressionSeeds(
       if (nearOcean) continue;
 
       // Must be a true local minimum (no lower neighbors)
-      // AND surrounded by mostly higher terrain (suggests a depression)
-      if (isLocalMin && higherNeighbors >= neighborCount * 0.5) {
+      // AND surrounded by MOSTLY higher terrain (suggests a real depression)
+      // Increased threshold from 0.5 to 0.75 for more pronounced depressions
+      if (isLocalMin && higherNeighbors >= neighborCount * 0.75) {
         seeds.push(idx);
       }
     }
