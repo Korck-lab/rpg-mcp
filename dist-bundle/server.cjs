@@ -60290,6 +60290,7 @@ STATE_JSON -->`;
 var import_crypto2 = require("crypto");
 init_character_repo();
 init_party();
+init_spell();
 init_zod();
 function ensureDb() {
   const dbPath = process.env.NODE_ENV === "test" ? ":memory:" : process.env.RPG_DATA_DIR ? `${process.env.RPG_DATA_DIR}/rpg.db` : "rpg.db";
@@ -60424,7 +60425,9 @@ Example (custom class/race):
   },
   UPDATE_CHARACTER: {
     name: "update_character",
-    description: "Update character properties. All fields except id are optional.",
+    description: `Update character properties. All fields except id are optional.
+
+For conditions, you can pass an array to SET all conditions (replacing existing), or use addConditions/removeConditions for granular control.`,
     inputSchema: external_exports.object({
       id: external_exports.string(),
       name: external_exports.string().min(1).optional(),
@@ -60442,7 +60445,26 @@ Example (custom class/race):
         int: external_exports.number().int().min(0).optional(),
         wis: external_exports.number().int().min(0).optional(),
         cha: external_exports.number().int().min(0).optional()
-      }).optional()
+      }).optional(),
+      // Spellcasting updates
+      knownSpells: external_exports.array(external_exports.string()).optional(),
+      preparedSpells: external_exports.array(external_exports.string()).optional(),
+      cantripsKnown: external_exports.array(external_exports.string()).optional(),
+      spellSlots: SpellSlotsSchema.optional(),
+      pactMagicSlots: PactMagicSlotsSchema.optional(),
+      spellcastingAbility: SpellcastingAbilitySchema.optional(),
+      // Conditions/Status Effects
+      conditions: external_exports.array(external_exports.object({
+        name: external_exports.string(),
+        duration: external_exports.number().int().optional(),
+        source: external_exports.string().optional()
+      })).optional().describe("Replace all conditions with this array"),
+      addConditions: external_exports.array(external_exports.object({
+        name: external_exports.string(),
+        duration: external_exports.number().int().optional(),
+        source: external_exports.string().optional()
+      })).optional().describe("Add these conditions to existing ones"),
+      removeConditions: external_exports.array(external_exports.string()).optional().describe("Remove conditions by name")
     })
   },
   LIST_CHARACTERS: {
@@ -60596,6 +60618,42 @@ async function handleUpdateCharacter(args, _ctx) {
     updateData.characterType = parsed.characterType;
   if (parsed.stats !== void 0)
     updateData.stats = parsed.stats;
+  if (parsed.knownSpells !== void 0)
+    updateData.knownSpells = parsed.knownSpells;
+  if (parsed.preparedSpells !== void 0)
+    updateData.preparedSpells = parsed.preparedSpells;
+  if (parsed.cantripsKnown !== void 0)
+    updateData.cantripsKnown = parsed.cantripsKnown;
+  if (parsed.spellSlots !== void 0)
+    updateData.spellSlots = parsed.spellSlots;
+  if (parsed.pactMagicSlots !== void 0)
+    updateData.pactMagicSlots = parsed.pactMagicSlots;
+  if (parsed.spellcastingAbility !== void 0)
+    updateData.spellcastingAbility = parsed.spellcastingAbility;
+  if (parsed.conditions !== void 0) {
+    updateData.conditions = parsed.conditions;
+  } else if (parsed.addConditions !== void 0 || parsed.removeConditions !== void 0) {
+    const existing = charRepo.findById(parsed.id);
+    if (!existing) {
+      throw new Error(`Character not found: ${parsed.id}`);
+    }
+    let currentConditions = existing.conditions || [];
+    if (parsed.removeConditions && parsed.removeConditions.length > 0) {
+      const toRemove = new Set(parsed.removeConditions.map((n2) => n2.toLowerCase()));
+      currentConditions = currentConditions.filter((c) => !toRemove.has(c.name.toLowerCase()));
+    }
+    if (parsed.addConditions && parsed.addConditions.length > 0) {
+      for (const newCond of parsed.addConditions) {
+        const existingIdx = currentConditions.findIndex((c) => c.name.toLowerCase() === newCond.name.toLowerCase());
+        if (existingIdx >= 0) {
+          currentConditions[existingIdx] = { ...currentConditions[existingIdx], ...newCond };
+        } else {
+          currentConditions.push(newCond);
+        }
+      }
+    }
+    updateData.conditions = currentConditions;
+  }
   const updated = charRepo.update(parsed.id, updateData);
   if (!updated) {
     throw new Error(`Failed to update character: ${parsed.id}`);
@@ -71688,6 +71746,10 @@ async function handleGetCustomEffects(args, _ctx) {
       }
     }
   }
+  output += `
+<!-- EFFECT_DATA
+${JSON.stringify(effects, null, 2)}
+EFFECT_DATA -->`;
   return {
     content: [{
       type: "text",

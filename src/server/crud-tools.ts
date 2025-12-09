@@ -4,6 +4,7 @@ import { CharacterRepository } from '../storage/repos/character.repo.js';
 import { World, WorldSchema } from '../schema/world.js';
 import { Character, NPC } from '../schema/character.js';
 import { CharacterTypeSchema } from '../schema/party.js';
+import { SpellSlotsSchema, PactMagicSlotsSchema, SpellcastingAbilitySchema } from '../schema/spell.js';
 import { z } from 'zod';
 
 import { getDb, closeDb } from '../storage/index.js';
@@ -151,7 +152,9 @@ Example (custom class/race):
     },
     UPDATE_CHARACTER: {
         name: 'update_character',
-        description: 'Update character properties. All fields except id are optional.',
+        description: `Update character properties. All fields except id are optional.
+
+For conditions, you can pass an array to SET all conditions (replacing existing), or use addConditions/removeConditions for granular control.`,
         inputSchema: z.object({
             id: z.string(),
             name: z.string().min(1).optional(),
@@ -170,6 +173,25 @@ Example (custom class/race):
                 wis: z.number().int().min(0).optional(),
                 cha: z.number().int().min(0).optional(),
             }).optional(),
+            // Spellcasting updates
+            knownSpells: z.array(z.string()).optional(),
+            preparedSpells: z.array(z.string()).optional(),
+            cantripsKnown: z.array(z.string()).optional(),
+            spellSlots: SpellSlotsSchema.optional(),
+            pactMagicSlots: PactMagicSlotsSchema.optional(),
+            spellcastingAbility: SpellcastingAbilitySchema.optional(),
+            // Conditions/Status Effects
+            conditions: z.array(z.object({
+                name: z.string(),
+                duration: z.number().int().optional(),
+                source: z.string().optional()
+            })).optional().describe('Replace all conditions with this array'),
+            addConditions: z.array(z.object({
+                name: z.string(),
+                duration: z.number().int().optional(),
+                source: z.string().optional()
+            })).optional().describe('Add these conditions to existing ones'),
+            removeConditions: z.array(z.string()).optional().describe('Remove conditions by name'),
         })
     },
     LIST_CHARACTERS: {
@@ -347,6 +369,53 @@ export async function handleUpdateCharacter(args: unknown, _ctx: SessionContext)
     if (parsed.level !== undefined) updateData.level = parsed.level;
     if (parsed.characterType !== undefined) updateData.characterType = parsed.characterType;
     if (parsed.stats !== undefined) updateData.stats = parsed.stats;
+    
+    // Spellcasting updates
+    if (parsed.knownSpells !== undefined) updateData.knownSpells = parsed.knownSpells;
+    if (parsed.preparedSpells !== undefined) updateData.preparedSpells = parsed.preparedSpells;
+    if (parsed.cantripsKnown !== undefined) updateData.cantripsKnown = parsed.cantripsKnown;
+    if (parsed.spellSlots !== undefined) updateData.spellSlots = parsed.spellSlots;
+    if (parsed.pactMagicSlots !== undefined) updateData.pactMagicSlots = parsed.pactMagicSlots;
+    if (parsed.spellcastingAbility !== undefined) updateData.spellcastingAbility = parsed.spellcastingAbility;
+
+    // Conditions/Status Effects handling
+    if (parsed.conditions !== undefined) {
+        // Full replacement
+        updateData.conditions = parsed.conditions;
+    } else if (parsed.addConditions !== undefined || parsed.removeConditions !== undefined) {
+        // Granular add/remove - need to fetch current state first
+        const existing = charRepo.findById(parsed.id);
+        if (!existing) {
+            throw new Error(`Character not found: ${parsed.id}`);
+        }
+        
+        let currentConditions: Array<{ name: string; duration?: number; source?: string }> = 
+            (existing as any).conditions || [];
+        
+        // Remove conditions by name
+        if (parsed.removeConditions && parsed.removeConditions.length > 0) {
+            const toRemove = new Set(parsed.removeConditions.map(n => n.toLowerCase()));
+            currentConditions = currentConditions.filter(c => !toRemove.has(c.name.toLowerCase()));
+        }
+        
+        // Add new conditions
+        if (parsed.addConditions && parsed.addConditions.length > 0) {
+            for (const newCond of parsed.addConditions) {
+                // Check if already exists (by name)
+                const existingIdx = currentConditions.findIndex(
+                    c => c.name.toLowerCase() === newCond.name.toLowerCase()
+                );
+                if (existingIdx >= 0) {
+                    // Update existing (refresh duration/source)
+                    currentConditions[existingIdx] = { ...currentConditions[existingIdx], ...newCond };
+                } else {
+                    currentConditions.push(newCond);
+                }
+            }
+        }
+        
+        updateData.conditions = currentConditions;
+    }
 
     const updated = charRepo.update(parsed.id, updateData);
 

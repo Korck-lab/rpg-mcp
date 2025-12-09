@@ -610,6 +610,9 @@ export async function handleGetCustomEffects(args: unknown, _ctx: SessionContext
         }
     }
 
+    // Embed raw data for frontend parsing
+    output += `\n<!-- EFFECT_DATA\n${JSON.stringify(effects, null, 2)}\nEFFECT_DATA -->`;
+
     return {
         content: [{
             type: 'text' as const,
