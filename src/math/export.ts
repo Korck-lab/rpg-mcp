@@ -13,6 +13,8 @@ export class ExportEngine {
                 return this.toPlaintext(result);
             case 'steps':
                 return this.toSteps(result);
+            case 'json':
+                return JSON.stringify(result);
             default:
                 throw new Error(`Unsupported export format: ${format}`);
         }

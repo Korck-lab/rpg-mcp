@@ -53,6 +53,6 @@ export const ProbabilityQuerySchema = z.object({
 export type ProbabilityQuery = z.infer<typeof ProbabilityQuerySchema>;
 
 // Phase 1.4: ExportFormat enum
-export const ExportFormatSchema = z.enum(['latex', 'mathml', 'plaintext', 'steps']);
+export const ExportFormatSchema = z.enum(['latex', 'mathml', 'plaintext', 'steps', 'json']);
 
 export type ExportFormat = z.infer<typeof ExportFormatSchema>;

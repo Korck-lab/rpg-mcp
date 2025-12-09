@@ -62491,6 +62491,8 @@ var ExportEngine = class {
         return this.toPlaintext(result);
       case "steps":
         return this.toSteps(result);
+      case "json":
+        return JSON.stringify(result);
       default:
         throw new Error(`Unsupported export format: ${format}`);
     }
@@ -62555,7 +62557,7 @@ var ProbabilityQuerySchema = external_exports.object({
   comparison: external_exports.enum(["gte", "lte", "eq", "gt", "lt"]).default("gte"),
   modifiers: external_exports.array(external_exports.number()).default([])
 });
-var ExportFormatSchema = external_exports.enum(["latex", "mathml", "plaintext", "steps"]);
+var ExportFormatSchema = external_exports.enum(["latex", "mathml", "plaintext", "steps", "json"]);
 
 // dist/storage/repos/calculation.repo.js
 var CalculationRepository = class {
@@ -62641,7 +62643,7 @@ var MathTools = {
     inputSchema: external_exports.object({
       expression: external_exports.string(),
       seed: external_exports.string().optional(),
-      exportFormat: ExportFormatSchema.optional().default("plaintext")
+      exportFormat: ExportFormatSchema.optional().default("json")
     })
   },
   PROBABILITY_CALCULATE: {

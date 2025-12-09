@@ -33,7 +33,7 @@ export const MathTools = {
         inputSchema: z.object({
             expression: z.string(),
             seed: z.string().optional(),
-            exportFormat: ExportFormatSchema.optional().default('plaintext')
+            exportFormat: ExportFormatSchema.optional().default('json')
         })
     },
     PROBABILITY_CALCULATE: {
