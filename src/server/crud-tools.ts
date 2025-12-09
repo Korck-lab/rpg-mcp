@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import { getDb, closeDb } from '../storage/index.js';
 import { SessionContext } from './types.js';
+import { provisionStartingEquipment } from '../services/starting-equipment.service.js';
 
 function ensureDb() {
     const dbPath = process.env.NODE_ENV === 'test' 
@@ -141,6 +142,15 @@ Example (custom class/race):
             resistances: z.array(z.string()).optional().default([]),
             vulnerabilities: z.array(z.string()).optional().default([]),
             immunities: z.array(z.string()).optional().default([]),
+            // Starting equipment provisioning (default: true for PCs)
+            provisionEquipment: z.boolean().optional().default(true)
+                .describe('Auto-grant class-appropriate starting equipment and spells. Set to false for custom/improvised characters.'),
+            // Custom equipment override (when provisionEquipment is true but you want specific items)
+            customEquipment: z.array(z.string()).optional()
+                .describe('Override default starting equipment with these items (still requires provisionEquipment: true)'),
+            // Starting gold override
+            startingGold: z.number().int().min(0).optional()
+                .describe('Override default starting gold amount'),
         })
     },
     GET_CHARACTER: {
@@ -303,10 +313,11 @@ export async function handleDeleteWorld(args: unknown, _ctx: SessionContext) {
 
 // Character handlers
 export async function handleCreateCharacter(args: unknown, _ctx: SessionContext) {
-    const { charRepo } = ensureDb();
+    const { db, charRepo } = ensureDb();
     const parsed = CRUDTools.CREATE_CHARACTER.inputSchema.parse(args);
 
     const now = new Date().toISOString();
+    const className = parsed.characterClass || parsed.class || 'Adventurer';
 
     // Calculate HP from constitution if not provided
     // Base HP = 8 + con modifier (minimum 1)
@@ -315,23 +326,66 @@ export async function handleCreateCharacter(args: unknown, _ctx: SessionContext)
     const hp = parsed.hp ?? baseHp;
     const maxHp = parsed.maxHp ?? hp;
 
+    const characterId = randomUUID();
+
+    // Provision starting equipment and spells if enabled
+    let provisioningResult = null;
+    const shouldProvision = parsed.provisionEquipment !== false && 
+                           (parsed.characterType === 'pc' || parsed.characterType === undefined);
+    
+    if (shouldProvision) {
+        provisioningResult = provisionStartingEquipment(
+            db,
+            characterId,
+            className,
+            parsed.level ?? 1,
+            {
+                customEquipment: parsed.customEquipment,
+                customSpells: parsed.knownSpells?.length ? parsed.knownSpells : undefined,
+                startingGold: parsed.startingGold
+            }
+        );
+    }
+
+    // Build character with provisioned data
     const character = {
         ...parsed,
-        id: randomUUID(),
+        id: characterId,
         hp,
         maxHp,
         // Map 'class' to 'characterClass' for DB compatibility
-        characterClass: parsed.characterClass || parsed.class || 'Adventurer',
+        characterClass: className,
+        // Merge provisioned spells with any explicitly provided
+        knownSpells: provisioningResult?.spellsGranted.length 
+            ? [...new Set([...parsed.knownSpells || [], ...provisioningResult.spellsGranted])]
+            : parsed.knownSpells || [],
+        cantripsKnown: provisioningResult?.cantripsGranted.length
+            ? [...new Set([...(parsed as any).cantripsKnown || [], ...provisioningResult.cantripsGranted])]
+            : (parsed as any).cantripsKnown || [],
+        spellSlots: provisioningResult?.spellSlots || undefined,
+        pactMagicSlots: provisioningResult?.pactMagicSlots || undefined,
         createdAt: now,
         updatedAt: now
     } as unknown as Character | NPC;
 
     charRepo.create(character);
 
+    // Return character with provisioning summary
+    const response: Record<string, unknown> = { ...character };
+    if (provisioningResult) {
+        response._provisioning = {
+            equipmentGranted: provisioningResult.itemsGranted,
+            spellsGranted: provisioningResult.spellsGranted,
+            cantripsGranted: provisioningResult.cantripsGranted,
+            startingGold: provisioningResult.startingGold,
+            errors: provisioningResult.errors.length > 0 ? provisioningResult.errors : undefined
+        };
+    }
+
     return {
         content: [{
             type: 'text' as const,
-            text: JSON.stringify(character, null, 2)
+            text: JSON.stringify(response, null, 2)
         }]
     };
 }

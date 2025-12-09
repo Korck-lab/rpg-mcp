@@ -5,6 +5,11 @@
  * for each core class. Used by create_character to auto-provision new characters.
  */
 
+// Type for valid D&D 5e class names
+export type D5EClass = 'barbarian' | 'bard' | 'cleric' | 'druid' | 'fighter' | 
+                       'monk' | 'paladin' | 'ranger' | 'rogue' | 'sorcerer' | 
+                       'warlock' | 'wizard';
+
 export interface ClassStartingData {
     hitDice: string;
     startingHP: (conMod: number) => number;
@@ -13,6 +18,11 @@ export interface ClassStartingData {
     weaponProficiencies: string[];
     startingEquipment: StartingEquipmentChoice[];
     spellcasting?: SpellcastingInfo;
+    // Added for provisioning service
+    startingGold?: number;
+    spellcastingAbility?: 'int' | 'wis' | 'cha';
+    startingCantrips?: string[];
+    startingSpells?: string[];
 }
 
 export interface StartingEquipmentChoice {
@@ -97,6 +107,17 @@ const BURGLAR_PACK = [
     'Waterskin',
     'Hempen Rope (50 feet)'
 ];
+
+// Export pack contents for external use
+export const EquipmentPacks = {
+    explorersPack: EXPLORERS_PACK,
+    dungeoneersPack: DUNGEONEERS_PACK,
+    priestsPack: PRIESTS_PACK,
+    scholarsPack: SCHOLARS_PACK,
+    burglarsPack: BURGLAR_PACK,
+    diplomatsPack: ['Backpack', 'Fine Clothes', 'Perfume', 'Sealing Wax', 'Paper x5'],
+    entertainersPack: ['Backpack', 'Bedroll', 'Costume x2', 'Candles x5', 'Rations x5', 'Waterskin', 'Disguise Kit']
+};
 
 // Spell slot progression for full casters (Bard, Cleric, Druid, Sorcerer, Wizard)
 const FULL_CASTER_SLOTS: Record<number, number[]> = {
