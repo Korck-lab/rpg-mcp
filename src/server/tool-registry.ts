@@ -31,6 +31,7 @@ import { SpatialTools, handleLookAtSurroundings, handleGenerateRoomNode, handleG
 import { BatchTools, handleBatchCreateCharacters, handleBatchCreateNpcs, handleBatchDistributeItems } from './batch-tools.js';
 import { WorkflowTools, handleExecuteWorkflow, handleListTemplates, handleGetTemplate } from './workflow-tools.js';
 import { EventInboxTools, handlePollEvents, handlePushEvent, handleGetEventHistory, handleGetPendingCount } from './event-inbox-tools.js';
+import { ContextTools, handleGetNarrativeContext } from './context-tools.js';
 
 // Helper to create metadata
 // deferLoading defaults to true (most tools should be deferred)
@@ -1297,6 +1298,15 @@ export function buildToolRegistry(): ToolRegistry {
         ['Pending event count'], false, 'low'),
       schema: EventInboxTools.GET_PENDING_COUNT.inputSchema,
       handler: handleGetPendingCount
+    },
+
+    // === CONTEXT TOOLS ===
+    [ContextTools.GET_NARRATIVE_CONTEXT.name]: {
+      metadata: meta(ContextTools.GET_NARRATIVE_CONTEXT.name, ContextTools.GET_NARRATIVE_CONTEXT.description, 'context',
+        ['context', 'narrative', 'story', 'prompt', 'llm'],
+        ['Narrative context aggregation'], true, 'high'),
+      schema: ContextTools.GET_NARRATIVE_CONTEXT.inputSchema,
+      handler: handleGetNarrativeContext
     }
     // Note: search_tools and load_tool_schema are registered separately in index.ts with full handlers
   };

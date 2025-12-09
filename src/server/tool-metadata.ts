@@ -7,7 +7,7 @@ export type ToolCategory =
   | 'world' | 'combat' | 'character' | 'inventory' | 'quest' | 'party'
   | 'math' | 'strategy' | 'secret' | 'concentration' | 'rest' | 'scroll'
   | 'aura' | 'npc' | 'spatial' | 'theft' | 'corpse' | 'improvisation'
-  | 'turn-management' | 'meta' | 'batch';
+  | 'turn-management' | 'meta' | 'batch' | 'context';
 
 export type TokenCost = 'low' | 'medium' | 'high' | 'variable';
 
