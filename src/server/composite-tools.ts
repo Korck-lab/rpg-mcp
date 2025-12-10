@@ -20,6 +20,13 @@ import { SpatialRepository } from '../storage/repos/spatial.repo.js';
 import { POICategory, POIIcon } from '../schema/poi.js';
 import { BiomeType } from '../schema/spatial.js';
 import { expandCreatureTemplate } from '../data/creature-presets.js';
+import {
+    getEncounterPreset,
+    listEncounterPresets,
+    getEncountersForLevel,
+    scaleEncounter,
+    EncounterPreset
+} from '../data/encounter-presets.js';
 import { getItemPreset, getArmorPreset } from '../data/items/index.js';
 import { getCombatManager } from './state/combat-manager.js';
 import { CombatEngine, CombatParticipant } from '../engine/combat/engine.js';
@@ -452,6 +459,71 @@ Biomes: forest, mountain, urban, dungeon, coastal, cavern, divine, arcane`,
                 room: z.number().int().min(0).optional().describe('Room index to place in'),
                 count: z.number().int().min(1).max(99).optional().default(1)
             })).optional().default([]).describe('Items to place in the location')
+        })
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SPAWN_PRESET_ENCOUNTER
+    // ─────────────────────────────────────────────────────────────────────────
+    SPAWN_PRESET_ENCOUNTER: {
+        name: 'spawn_preset_encounter',
+        description: `Create a complete combat encounter from a preset with a single call.
+
+REPLACES: setup_tactical_encounter with manual participant/terrain specification
+TOKEN SAVINGS: ~95% (one ID vs full encounter specification)
+
+Example - Goblin Ambush:
+{ "preset": "goblin_ambush" }
+
+Example - Scaled for large party:
+{ "preset": "orc_warband", "partySize": 6, "partyLevel": 5 }
+
+Example - Random encounter:
+{ "random": true, "difficulty": "medium", "level": 3 }
+
+Example - Random by tag:
+{ "random": true, "tags": ["undead"], "level": 2 }
+
+Available presets:
+- Goblinoid: goblin_ambush, goblin_lair, hobgoblin_patrol, bugbear_ambush
+- Orc: orc_raiding_party, orc_warband
+- Undead: skeleton_patrol, zombie_horde, crypt_guardians
+- Beast: wolf_pack, spider_nest, owlbear_territory
+- Bandit: bandit_roadblock, bandit_camp
+- Urban: tavern_brawl, cult_ritual
+- Dungeon: animated_guardians, mimic_trap, troll_bridge, dragon_wyrmling_lair
+- Fiend: imp_swarm
+- Elemental: elemental_breach
+
+Difficulties: easy, medium, hard, deadly`,
+        inputSchema: z.object({
+            // Preset selection (one of these required)
+            preset: z.string().optional().describe('Encounter preset ID (e.g., "goblin_ambush")'),
+            random: z.boolean().optional().describe('If true, select random encounter matching criteria'),
+
+            // Random encounter filters
+            difficulty: z.enum(['easy', 'medium', 'hard', 'deadly']).optional()
+                .describe('Filter random encounters by difficulty'),
+            level: z.number().int().min(1).max(20).optional()
+                .describe('Party level for filtering/scaling'),
+            tags: z.array(z.string()).optional()
+                .describe('Tags to filter random encounters (e.g., ["undead", "dungeon"])'),
+
+            // Scaling options
+            partySize: z.number().int().min(1).max(10).optional().default(4)
+                .describe('Number of party members (affects encounter scaling)'),
+            partyLevel: z.number().int().min(1).max(20).optional()
+                .describe('Party level for scaling (defaults to "level" if set)'),
+
+            // Party setup
+            partyId: z.string().optional()
+                .describe('Party ID to auto-include members in the encounter'),
+            partyPositions: z.array(z.string()).optional()
+                .describe('Override party starting positions'),
+
+            // Combat seed
+            seed: z.string().optional()
+                .describe('Seed for deterministic combat (auto-generated if not provided)')
         })
     }
 } as const;
@@ -1267,4 +1339,246 @@ function generateEncounterMap(encounter: any, width: number, height: number): st
         output += grid[y].join('') + '\n';
     }
     return output;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SPAWN_PRESET_ENCOUNTER HANDLER
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Handle spawn_preset_encounter - create encounter from preset
+ */
+export async function handleSpawnPresetEncounter(args: unknown, _ctx: SessionContext) {
+    const parsed = CompositeTools.SPAWN_PRESET_ENCOUNTER.inputSchema.parse(args);
+    const { charRepo, partyRepo } = ensureDb();
+
+    // Determine which preset to use
+    let selectedPreset: EncounterPreset | null = null;
+
+    if (parsed.preset) {
+        selectedPreset = getEncounterPreset(parsed.preset);
+        if (!selectedPreset) {
+            const available = listEncounterPresets();
+            throw new Error(`Unknown encounter preset: "${parsed.preset}". Available: ${available.slice(0, 10).join(', ')}...`);
+        }
+    } else if (parsed.random) {
+        // Find matching encounters
+        let candidates = getEncountersForLevel(parsed.level || 3);
+
+        if (parsed.difficulty) {
+            candidates = candidates.filter(e => e.difficulty === parsed.difficulty);
+        }
+
+        if (parsed.tags && parsed.tags.length > 0) {
+            candidates = candidates.filter(e =>
+                parsed.tags!.some(tag =>
+                    e.tags.some(t => t.toLowerCase() === tag.toLowerCase())
+                )
+            );
+        }
+
+        if (candidates.length === 0) {
+            throw new Error('No encounters match the specified criteria');
+        }
+
+        selectedPreset = candidates[Math.floor(Math.random() * candidates.length)];
+    } else {
+        throw new Error('Must provide either "preset" or "random: true"');
+    }
+
+    // Scale encounter if needed
+    const partySize = parsed.partySize || 4;
+    const partyLevel = parsed.partyLevel || parsed.level || 3;
+    const scaledPreset = scaleEncounter(selectedPreset, partyLevel, partySize);
+
+    // Build encounter parameters
+    const seed = parsed.seed || `${scaledPreset.id}-${Date.now()}`;
+    const now = new Date().toISOString();
+
+    const combatManager = getCombatManager();
+    const participants: CombatParticipant[] = [];
+    const createdCharacterIds: string[] = [];
+
+    // Create enemy participants from preset
+    for (let i = 0; i < scaledPreset.participants.length; i++) {
+        const p = scaledPreset.participants[i];
+        const count = p.count || 1;
+
+        for (let c = 0; c < count; c++) {
+            const preset = expandCreatureTemplate(p.template, p.name);
+            if (!preset) {
+                console.warn(`Unknown creature template: ${p.template}, skipping`);
+                continue;
+            }
+
+            const characterId = randomUUID();
+            const displayName = count > 1 && !p.name
+                ? `${preset.name} ${c + 1}`
+                : (p.name || preset.name);
+
+            // Parse position (offset for duplicates)
+            const [baseX, baseY] = p.position.split(',').map(Number);
+            const pos = { x: baseX + c, y: baseY, z: 0 };
+
+            const character = buildCharacter({
+                id: characterId,
+                name: displayName,
+                stats: preset.stats,
+                hp: preset.hp,
+                maxHp: preset.maxHp,
+                ac: preset.ac,
+                level: preset.level,
+                characterType: preset.characterType,
+                race: preset.race || 'Unknown',
+                characterClass: preset.characterClass || 'monster',
+                resistances: preset.resistances || [],
+                vulnerabilities: preset.vulnerabilities || [],
+                immunities: preset.immunities || [],
+                position: { x: pos.x, y: pos.y },
+                createdAt: now,
+                updatedAt: now
+            });
+            charRepo.create(character);
+            createdCharacterIds.push(characterId);
+
+            // Calculate initiative bonus from DEX
+            const dexMod = Math.floor((preset.stats.dex - 10) / 2);
+
+            participants.push({
+                id: characterId,
+                name: displayName,
+                initiative: 0,
+                initiativeBonus: dexMod,
+                hp: preset.hp,
+                maxHp: preset.maxHp,
+                conditions: [],
+                position: pos,
+                isEnemy: true,
+                movementSpeed: preset.speed || 30,
+                movementRemaining: preset.speed || 30,
+                size: preset.size || 'medium',
+                resistances: preset.resistances || [],
+                vulnerabilities: preset.vulnerabilities || [],
+                immunities: preset.immunities || []
+            });
+        }
+    }
+
+    // Add party members if partyId specified
+    const partyMemberIds: string[] = [];
+    if (parsed.partyId) {
+        const party = partyRepo.getPartyWithMembers(parsed.partyId);
+        if (party && party.members) {
+            const positions = parsed.partyPositions || scaledPreset.partyPositions || [];
+
+            for (let i = 0; i < party.members.length; i++) {
+                const member = party.members[i];
+                const char = member.character;
+                partyMemberIds.push(char.id);
+
+                // Parse position
+                let pos = { x: 10 + i, y: 12, z: 0 };
+                if (positions[i]) {
+                    const [px, py] = positions[i].split(',').map(Number);
+                    pos = { x: px, y: py, z: 0 };
+                }
+
+                const dexMod = Math.floor((char.stats.dex - 10) / 2);
+
+                participants.push({
+                    id: char.id,
+                    name: char.name,
+                    initiative: 0,
+                    initiativeBonus: dexMod,
+                    hp: char.hp,
+                    maxHp: char.maxHp,
+                    conditions: [],
+                    position: pos,
+                    isEnemy: false,
+                    movementSpeed: 30,
+                    movementRemaining: 30,
+                    size: 'medium',
+                    resistances: (char as any).resistances || [],
+                    vulnerabilities: (char as any).vulnerabilities || [],
+                    immunities: (char as any).immunities || []
+                });
+            }
+        }
+    }
+
+    // Create terrain from preset
+    const terrain: { obstacles: string[]; difficultTerrain?: string[]; water?: string[] } = {
+        obstacles: [],
+        difficultTerrain: [],
+        water: []
+    };
+
+    if (scaledPreset.terrain) {
+        terrain.obstacles = scaledPreset.terrain.obstacles || [];
+        terrain.difficultTerrain = scaledPreset.terrain.difficultTerrain || [];
+        terrain.water = scaledPreset.terrain.water || [];
+    }
+
+    // Create encounter using CombatEngine
+    const encounterId = `encounter-${seed}`;
+    const engine = new CombatEngine(seed);
+    const encounterState = engine.startEncounter(participants);
+
+    // Add terrain to the state
+    (encounterState as any).terrain = terrain;
+
+    // Register with combat manager
+    combatManager.create(encounterId, engine);
+
+    // Generate ASCII map
+    const mapWidth = 20;
+    const mapHeight = 15;
+    const asciiMap = generateEncounterMap({ state: encounterState }, mapWidth, mapHeight);
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+                encounterId,
+                preset: {
+                    id: scaledPreset.id,
+                    name: scaledPreset.name,
+                    difficulty: scaledPreset.difficulty,
+                    recommendedLevel: scaledPreset.recommendedLevel,
+                    narrativeHook: scaledPreset.narrativeHook
+                },
+                scaling: {
+                    partySize,
+                    partyLevel,
+                    originalParticipants: selectedPreset.participants.length,
+                    scaledParticipants: participants.filter(p => p.isEnemy).length
+                },
+                encounter: {
+                    round: encounterState.round,
+                    turnOrder: encounterState.turnOrder.map((id: string, idx: number) => {
+                        const p = encounterState.participants.find((pp: CombatParticipant) => pp.id === id);
+                        return {
+                            order: idx + 1,
+                            id,
+                            name: p?.name,
+                            initiative: p?.initiative,
+                            hp: p ? `${p.hp}/${p.maxHp}` : undefined,
+                            position: p?.position,
+                            isEnemy: p?.isEnemy
+                        };
+                    }),
+                    currentTurn: encounterState.turnOrder[0]
+                },
+                terrain: {
+                    obstacles: terrain.obstacles.length,
+                    difficultTerrain: terrain.difficultTerrain?.length || 0,
+                    water: terrain.water?.length || 0
+                },
+                partyMembers: partyMemberIds.length > 0 ? partyMemberIds : undefined,
+                createdCharacterIds,
+                asciiMap,
+                message: `Created "${scaledPreset.name}" encounter with ${participants.length} combatants`
+            }, null, 2)
+        }]
+    };
 }

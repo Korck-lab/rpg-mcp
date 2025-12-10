@@ -35,7 +35,7 @@ import { ContextTools, handleGetNarrativeContext } from './context-tools.js';
 import { ProgressionTools, handleAddXp, handleGetLevelProgression, handleLevelUp } from './progression-tools.js';
 import { SkillCheckTools, handleRollSkillCheck, handleRollAbilityCheck, handleRollSavingThrow } from './skill-check-tools.js';
 import { NarrativeTools, handleAddNarrativeNote, handleSearchNarrativeNotes, handleUpdateNarrativeNote, handleGetNarrativeNote, handleDeleteNarrativeNote, handleGetNarrativeContextNotes } from './narrative-tools.js';
-import { CompositeTools, handleSetupTacticalEncounter, handleSpawnEquippedCharacter, handleInitializeSession, handleSpawnPopulatedLocation } from './composite-tools.js';
+import { CompositeTools, handleSetupTacticalEncounter, handleSpawnEquippedCharacter, handleInitializeSession, handleSpawnPopulatedLocation, handleSpawnPresetEncounter } from './composite-tools.js';
 
 // Helper to create metadata
 // deferLoading defaults to true (most tools should be deferred)
@@ -1431,6 +1431,13 @@ export function buildToolRegistry(): ToolRegistry {
         ['POI creation', 'Room network generation', 'NPC spawning', 'Loot placement', 'Location setup'], false, 'medium', false),
       schema: CompositeTools.SPAWN_POPULATED_LOCATION.inputSchema,
       handler: handleSpawnPopulatedLocation
+    },
+    [CompositeTools.SPAWN_PRESET_ENCOUNTER.name]: {
+      metadata: meta(CompositeTools.SPAWN_PRESET_ENCOUNTER.name, CompositeTools.SPAWN_PRESET_ENCOUNTER.description, 'composite',
+        ['encounter', 'preset', 'combat', 'goblin', 'orc', 'undead', 'bandit', 'ambush', 'random', 'scale', 'difficulty'],
+        ['Preset encounter spawning', 'Combat setup', 'Enemy scaling', 'Random encounters'], false, 'low', false),
+      schema: CompositeTools.SPAWN_PRESET_ENCOUNTER.inputSchema,
+      handler: handleSpawnPresetEncounter
     }
     // Note: search_tools and load_tool_schema are registered separately in index.ts with full handlers
   };

@@ -244,8 +244,9 @@ export const SkillProficiencyEnum = z.enum([
 
 /**
  * D&D 5e size categories
+ * Note: Named BaseSizeCategory to avoid conflict with encounter.ts SizeCategory
  */
-export const SizeCategory = z.enum([
+export const BaseSizeCategory = z.enum([
     'tiny',      // 2.5ft, shares space
     'small',     // 5ft, 1 square
     'medium',    // 5ft, 1 square
@@ -254,7 +255,7 @@ export const SizeCategory = z.enum([
     'gargantuan' // 20ft+, 4x4+ squares
 ]);
 
-export type SizeCategoryType = z.infer<typeof SizeCategory>;
+export type BaseSizeCategoryType = z.infer<typeof BaseSizeCategory>;
 
 // ============================================================================
 // DAMAGE & EFFECTS
@@ -262,20 +263,21 @@ export type SizeCategoryType = z.infer<typeof SizeCategory>;
 
 /**
  * Standard damage types in D&D 5e
+ * Note: Named BaseDamageType to avoid conflict with spell.ts DamageType
  */
-export const DamageTypeEnum = z.enum([
+export const BaseDamageTypeEnum = z.enum([
     'slashing', 'piercing', 'bludgeoning',
     'fire', 'cold', 'lightning', 'thunder',
     'acid', 'poison', 'necrotic', 'radiant',
     'psychic', 'force'
 ]);
 
-export type DamageType = z.infer<typeof DamageTypeEnum>;
+export type BaseDamageType = z.infer<typeof BaseDamageTypeEnum>;
 
 /**
  * Array of damage types (for resistances, immunities, vulnerabilities)
  */
-export const DamageTypeArray = z.array(DamageTypeEnum).default([]);
+export const BaseDamageTypeArray = z.array(BaseDamageTypeEnum).default([]);
 
 /**
  * Condition type enum

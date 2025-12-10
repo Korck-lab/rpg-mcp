@@ -24,9 +24,9 @@ import {
     PercentageInt,
     AbilityScoreField,
     AbilityScores,
-    SizeCategory,
-    DamageTypeEnum,
-    DamageTypeArray,
+    BaseSizeCategory,
+    BaseDamageTypeEnum,
+    BaseDamageTypeArray,
     ConditionTypeEnum,
     CurrencyFields,
     EncounterStatusEnum,
@@ -204,23 +204,23 @@ describe('base-schemas', () => {
     });
 
     describe('Enum Fields', () => {
-        it('SizeCategory validates D&D size categories', () => {
-            expect(SizeCategory.parse('medium')).toBe('medium');
-            expect(SizeCategory.parse('huge')).toBe('huge');
-            expect(() => SizeCategory.parse('invalid')).toThrow();
+        it('BaseSizeCategory validates D&D size categories', () => {
+            expect(BaseSizeCategory.parse('medium')).toBe('medium');
+            expect(BaseSizeCategory.parse('huge')).toBe('huge');
+            expect(() => BaseSizeCategory.parse('invalid')).toThrow();
         });
 
-        it('DamageTypeEnum validates damage types', () => {
-            expect(DamageTypeEnum.parse('fire')).toBe('fire');
-            expect(DamageTypeEnum.parse('necrotic')).toBe('necrotic');
-            expect(() => DamageTypeEnum.parse('invalid')).toThrow();
+        it('BaseDamageTypeEnum validates damage types', () => {
+            expect(BaseDamageTypeEnum.parse('fire')).toBe('fire');
+            expect(BaseDamageTypeEnum.parse('necrotic')).toBe('necrotic');
+            expect(() => BaseDamageTypeEnum.parse('invalid')).toThrow();
         });
 
-        it('DamageTypeArray defaults to empty array', () => {
-            const result = DamageTypeArray.parse(undefined);
+        it('BaseDamageTypeArray defaults to empty array', () => {
+            const result = BaseDamageTypeArray.parse(undefined);
             expect(result).toEqual([]);
 
-            const resistances = DamageTypeArray.parse(['fire', 'cold']);
+            const resistances = BaseDamageTypeArray.parse(['fire', 'cold']);
             expect(resistances).toEqual(['fire', 'cold']);
         });
 
