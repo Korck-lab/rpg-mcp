@@ -96,4 +96,117 @@ describe('StructureRepository', () => {
         expect(structures).toContainEqual(s1);
         expect(structures).toContainEqual(s2);
     });
+
+    describe('createBatch', () => {
+        it('should create multiple structures in a single transaction', () => {
+            const structures: Structure[] = [
+                { id: 'b1', worldId: 'world-1', name: 'City 1', type: StructureType.CITY, x: 10, y: 10, population: 10000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 'b2', worldId: 'world-1', name: 'Town 1', type: StructureType.TOWN, x: 20, y: 20, population: 2000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 'b3', worldId: 'world-1', name: 'Village 1', type: StructureType.VILLAGE, x: 30, y: 30, population: 100, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 'b4', worldId: 'world-1', name: 'Dungeon 1', type: StructureType.DUNGEON, x: 40, y: 40, population: 0, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+            ];
+
+            const count = repo.createBatch(structures);
+            expect(count).toBe(4);
+
+            const retrieved = repo.findByWorldId('world-1');
+            expect(retrieved).toHaveLength(4);
+        });
+
+        it('should return 0 for empty array', () => {
+            const count = repo.createBatch([]);
+            expect(count).toBe(0);
+        });
+    });
+
+    describe('findById', () => {
+        it('should find a structure by id', () => {
+            const structure: Structure = {
+                id: 'find-me',
+                worldId: 'world-1',
+                name: 'Findable Castle',
+                type: StructureType.CASTLE,
+                x: 50,
+                y: 50,
+                population: 500,
+                createdAt: FIXED_TIMESTAMP,
+                updatedAt: FIXED_TIMESTAMP,
+            };
+            repo.create(structure);
+
+            const found = repo.findById('find-me');
+            expect(found).not.toBeNull();
+            expect(found?.name).toBe('Findable Castle');
+        });
+
+        it('should return null for non-existent id', () => {
+            const found = repo.findById('nonexistent');
+            expect(found).toBeNull();
+        });
+    });
+
+    describe('findByCoordinates', () => {
+        it('should find structure at coordinates', () => {
+            const structure: Structure = {
+                id: 'coord-struct',
+                worldId: 'world-1',
+                name: 'Located Town',
+                type: StructureType.TOWN,
+                x: 75,
+                y: 25,
+                population: 1000,
+                createdAt: FIXED_TIMESTAMP,
+                updatedAt: FIXED_TIMESTAMP,
+            };
+            repo.create(structure);
+
+            const found = repo.findByCoordinates('world-1', 75, 25);
+            expect(found).not.toBeNull();
+            expect(found?.name).toBe('Located Town');
+        });
+
+        it('should return null for empty coordinates', () => {
+            const found = repo.findByCoordinates('world-1', 99, 99);
+            expect(found).toBeNull();
+        });
+    });
+
+    describe('findByType', () => {
+        it('should find structures by type', () => {
+            const structures: Structure[] = [
+                { id: 't1', worldId: 'world-1', name: 'Town A', type: StructureType.TOWN, x: 10, y: 10, population: 1000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 't2', worldId: 'world-1', name: 'Town B', type: StructureType.TOWN, x: 20, y: 20, population: 2000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 't3', worldId: 'world-1', name: 'City A', type: StructureType.CITY, x: 30, y: 30, population: 10000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+            ];
+            repo.createBatch(structures);
+
+            const towns = repo.findByType('world-1', StructureType.TOWN);
+            expect(towns).toHaveLength(2);
+            expect(towns.every(s => s.type === StructureType.TOWN)).toBe(true);
+
+            const cities = repo.findByType('world-1', StructureType.CITY);
+            expect(cities).toHaveLength(1);
+        });
+    });
+
+    describe('deleteByWorldId', () => {
+        it('should delete all structures for a world', () => {
+            const structures: Structure[] = [
+                { id: 'd1', worldId: 'world-1', name: 'Town A', type: StructureType.TOWN, x: 10, y: 10, population: 1000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 'd2', worldId: 'world-1', name: 'Town B', type: StructureType.TOWN, x: 20, y: 20, population: 2000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+            ];
+            repo.createBatch(structures);
+
+            expect(repo.findByWorldId('world-1')).toHaveLength(2);
+
+            const deleted = repo.deleteByWorldId('world-1');
+            expect(deleted).toBe(2);
+            expect(repo.findByWorldId('world-1')).toHaveLength(0);
+        });
+
+        it('should return 0 when no structures exist', () => {
+            const deleted = repo.deleteByWorldId('nonexistent-world');
+            expect(deleted).toBe(0);
+        });
+    });
 });

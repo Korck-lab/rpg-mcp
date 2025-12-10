@@ -112,6 +112,84 @@ export class POIRepository {
         });
     }
 
+    /**
+     * Create multiple POIs in a single transaction.
+     * Optimized for worldgen POI placement.
+     *
+     * @param pois - Array of POIs to create
+     * @returns Number of POIs created
+     *
+     * @example
+     * const pois = [
+     *   { id: 'poi-1', worldId: 'w1', name: 'Capital', category: 'settlement', icon: 'city', x: 50, y: 50, ... },
+     *   { id: 'poi-2', worldId: 'w1', name: 'Dark Cave', category: 'dungeon', icon: 'cave', x: 30, y: 70, ... },
+     * ];
+     * poiRepo.createBatch(pois);
+     */
+    createBatch(pois: POI[]): number {
+        if (pois.length === 0) return 0;
+
+        const stmt = this.db.prepare(`
+            INSERT INTO pois (
+                id, world_id, region_id, x, y, name, description,
+                category, icon, structure_id, network_id, entrance_room_id,
+                discovery_state, discovered_by, discovery_dc,
+                parent_poi_id, child_poi_ids, population, level, tags,
+                created_at, updated_at
+            ) VALUES (
+                @id, @worldId, @regionId, @x, @y, @name, @description,
+                @category, @icon, @structureId, @networkId, @entranceRoomId,
+                @discoveryState, @discoveredBy, @discoveryDC,
+                @parentPOIId, @childPOIIds, @population, @level, @tags,
+                @createdAt, @updatedAt
+            )
+        `);
+
+        const insertMany = this.db.transaction((toInsert: POI[]) => {
+            let count = 0;
+            for (const poi of toInsert) {
+                const validated = POISchema.parse(poi);
+                stmt.run({
+                    id: validated.id,
+                    worldId: validated.worldId,
+                    regionId: validated.regionId || null,
+                    x: validated.x,
+                    y: validated.y,
+                    name: validated.name,
+                    description: validated.description || null,
+                    category: validated.category,
+                    icon: validated.icon,
+                    structureId: validated.structureId || null,
+                    networkId: validated.networkId || null,
+                    entranceRoomId: validated.entranceRoomId || null,
+                    discoveryState: validated.discoveryState,
+                    discoveredBy: JSON.stringify(validated.discoveredBy),
+                    discoveryDC: validated.discoveryDC ?? null,
+                    parentPOIId: validated.parentPOIId || null,
+                    childPOIIds: JSON.stringify(validated.childPOIIds),
+                    population: validated.population,
+                    level: validated.level ?? null,
+                    tags: JSON.stringify(validated.tags),
+                    createdAt: validated.createdAt,
+                    updatedAt: validated.updatedAt
+                });
+                count++;
+            }
+            return count;
+        });
+
+        return insertMany(pois);
+    }
+
+    /**
+     * Delete all POIs for a world
+     */
+    deleteByWorldId(worldId: string): number {
+        const stmt = this.db.prepare('DELETE FROM pois WHERE world_id = ?');
+        const result = stmt.run(worldId);
+        return result.changes;
+    }
+
     findById(id: string): POI | null {
         const stmt = this.db.prepare('SELECT * FROM pois WHERE id = ?');
         const row = stmt.get(id) as POIRow | undefined;

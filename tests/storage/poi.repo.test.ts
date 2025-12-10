@@ -295,4 +295,59 @@ describe('POIRepository', () => {
             expect(dragons).toHaveLength(2);
         });
     });
+
+    describe('Batch Operations', () => {
+        it('creates multiple POIs in a single transaction', () => {
+            const pois = [
+                createTestPOI({ name: 'Capital City', category: 'settlement', icon: 'city', x: 50, y: 50, population: 50000 }),
+                createTestPOI({ name: 'Harbor Town', category: 'settlement', icon: 'town', x: 10, y: 80, population: 5000 }),
+                createTestPOI({ name: 'Dark Dungeon', category: 'dungeon', icon: 'dungeon', x: 70, y: 30, population: 0, level: 5 }),
+                createTestPOI({ name: 'Ancient Temple', category: 'religious', icon: 'temple', x: 30, y: 60 }),
+            ];
+
+            const count = repo.createBatch(pois);
+            expect(count).toBe(4);
+
+            const retrieved = repo.findByWorldId(testWorldId);
+            expect(retrieved).toHaveLength(4);
+        });
+
+        it('returns 0 for empty array', () => {
+            const count = repo.createBatch([]);
+            expect(count).toBe(0);
+        });
+
+        it('validates POIs during batch creation', () => {
+            const invalidPois = [
+                {
+                    ...createTestPOI({ name: 'Invalid' }),
+                    category: 'invalid_category' // Invalid category
+                }
+            ];
+
+            expect(() => repo.createBatch(invalidPois as POI[])).toThrow();
+        });
+    });
+
+    describe('deleteByWorldId', () => {
+        it('deletes all POIs for a world', () => {
+            const pois = [
+                createTestPOI({ name: 'POI 1', x: 10, y: 10 }),
+                createTestPOI({ name: 'POI 2', x: 20, y: 20 }),
+                createTestPOI({ name: 'POI 3', x: 30, y: 30 }),
+            ];
+            repo.createBatch(pois);
+
+            expect(repo.findByWorldId(testWorldId)).toHaveLength(3);
+
+            const deleted = repo.deleteByWorldId(testWorldId);
+            expect(deleted).toBe(3);
+            expect(repo.findByWorldId(testWorldId)).toHaveLength(0);
+        });
+
+        it('returns 0 when no POIs exist', () => {
+            const deleted = repo.deleteByWorldId('nonexistent-world');
+            expect(deleted).toBe(0);
+        });
+    });
 });
