@@ -35,7 +35,7 @@ import { ContextTools, handleGetNarrativeContext } from './context-tools.js';
 import { ProgressionTools, handleAddXp, handleGetLevelProgression, handleLevelUp } from './progression-tools.js';
 import { SkillCheckTools, handleRollSkillCheck, handleRollAbilityCheck, handleRollSavingThrow } from './skill-check-tools.js';
 import { NarrativeTools, handleAddNarrativeNote, handleSearchNarrativeNotes, handleUpdateNarrativeNote, handleGetNarrativeNote, handleDeleteNarrativeNote, handleGetNarrativeContextNotes } from './narrative-tools.js';
-import { CompositeTools, handleSetupTacticalEncounter, handleSpawnEquippedCharacter, handleInitializeSession, handleSpawnPopulatedLocation, handleSpawnPresetEncounter, handleRestParty, handleLootEncounter } from './composite-tools.js';
+import { CompositeTools, handleSetupTacticalEncounter, handleSpawnEquippedCharacter, handleInitializeSession, handleSpawnPopulatedLocation, handleSpawnPresetEncounter, handleRestParty, handleLootEncounter, handleTravelToLocation } from './composite-tools.js';
 
 // Helper to create metadata
 // deferLoading defaults to true (most tools should be deferred)
@@ -1452,6 +1452,13 @@ export function buildToolRegistry(): ToolRegistry {
         ['Encounter looting', 'Corpse management', 'Loot distribution', 'Currency collection'], false, 'low', false),
       schema: CompositeTools.LOOT_ENCOUNTER.inputSchema,
       handler: handleLootEncounter
+    },
+    [CompositeTools.TRAVEL_TO_LOCATION.name]: {
+      metadata: meta(CompositeTools.TRAVEL_TO_LOCATION.name, CompositeTools.TRAVEL_TO_LOCATION.description, 'composite',
+        ['travel', 'move', 'party', 'poi', 'location', 'discover', 'enter', 'room', 'world', 'map'],
+        ['Party travel', 'POI discovery', 'Location entry', 'World map navigation'], false, 'low', false),
+      schema: CompositeTools.TRAVEL_TO_LOCATION.inputSchema,
+      handler: handleTravelToLocation
     }
     // Note: search_tools and load_tool_schema are registered separately in index.ts with full handlers
   };

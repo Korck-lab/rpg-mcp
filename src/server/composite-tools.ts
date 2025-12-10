@@ -623,6 +623,40 @@ Example - Selective looting:
             includeHarvestable: z.boolean().optional().default(false)
                 .describe('Auto-harvest resources (may fail without skill check)')
         })
+    },
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // TRAVEL_TO_LOCATION
+    // ─────────────────────────────────────────────────────────────────────────
+    TRAVEL_TO_LOCATION: {
+        name: 'travel_to_location',
+        description: `Move a party to a POI on the world map. Combines move_party + discover_poi + enter_room.
+
+TOKEN SAVINGS: ~70% vs separate calls (3 tools → 1)
+
+WHAT THIS TOOL DOES:
+1. Moves party to POI coordinates on world map
+2. Auto-discovers the POI if not yet discovered (with perception check if DC set)
+3. Optionally enters the POI's entrance room if it has a network
+
+Example - Travel to known location:
+{ "partyId": "party-1", "poiId": "poi-tavern-1" }
+
+Example - Travel and auto-enter dungeon:
+{ "partyId": "party-1", "poiId": "poi-dungeon-1", "enterLocation": true }
+
+Example - Travel with discovery bypass:
+{ "partyId": "party-1", "poiId": "poi-hidden-temple", "autoDiscover": true }`,
+        inputSchema: z.object({
+            partyId: z.string().describe('Party ID to move'),
+            poiId: z.string().uuid().describe('POI ID destination'),
+            enterLocation: z.boolean().optional().default(false)
+                .describe('If true and POI has a room network, move party leader into entrance room'),
+            autoDiscover: z.boolean().optional().default(false)
+                .describe('If true, skip perception check for undiscovered POIs'),
+            discoveringCharacterId: z.string().uuid().optional()
+                .describe('Character making discovery check (defaults to party leader)')
+        })
     }
 } as const;
 
@@ -2066,6 +2100,171 @@ export async function handleLootEncounter(args: unknown, _ctx: SessionContext) {
                 harvestedResources: parsed.includeHarvestable ? harvestedResources : undefined,
                 message: `Looted ${corpses.length} corpses: ${totalItems} items, ${currencyCollected.gold}gp ${currencyCollected.silver}sp ${currencyCollected.copper}cp`
             }, null, 2)
+        }]
+    };
+}
+
+/**
+ * Handle travel_to_location
+ * Moves a party to a POI, auto-discovers if needed, optionally enters location
+ */
+export async function handleTravelToLocation(args: unknown, _ctx: SessionContext) {
+    const parsed = CompositeTools.TRAVEL_TO_LOCATION.inputSchema.parse(args);
+    const db = getDb();
+    const partyRepo = new PartyRepository(db);
+    const poiRepo = new POIRepository(db);
+    const charRepo = new CharacterRepository(db);
+    const spatialRepo = new SpatialRepository(db);
+
+    // Get the party
+    const party = partyRepo.findById(parsed.partyId);
+    if (!party) {
+        throw new Error(`Party not found: ${parsed.partyId}`);
+    }
+
+    // Get party members for discovery checks
+    const partyWithMembers = partyRepo.getPartyWithMembers(parsed.partyId);
+    if (!partyWithMembers || partyWithMembers.members.length === 0) {
+        throw new Error('Party has no members');
+    }
+
+    // Get the POI
+    const poi = poiRepo.findById(parsed.poiId);
+    if (!poi) {
+        throw new Error(`POI not found: ${parsed.poiId}`);
+    }
+
+    // Find party leader or use specified character for discovery
+    const leader = partyWithMembers.members.find(m => m.role === 'leader') || partyWithMembers.members[0];
+    const discovererId = parsed.discoveringCharacterId || leader.characterId;
+
+    // Result tracking
+    const result: {
+        partyId: string;
+        poiId: string;
+        poiName: string;
+        moved: boolean;
+        discovered: boolean;
+        discoveryCheck?: { roll: number; dc: number; success: boolean };
+        enteredRoom: boolean;
+        entranceRoomId?: string;
+        position: { x: number; y: number };
+        message: string;
+    } = {
+        partyId: parsed.partyId,
+        poiId: parsed.poiId,
+        poiName: poi.name,
+        moved: false,
+        discovered: poi.discoveryState !== 'unknown',
+        enteredRoom: false,
+        position: { x: poi.x, y: poi.y },
+        message: ''
+    };
+
+    // Handle discovery if POI is unknown
+    if (poi.discoveryState === 'unknown') {
+        const discoverer = charRepo.findById(discovererId);
+        if (!discoverer) {
+            throw new Error(`Discovering character not found: ${discovererId}`);
+        }
+
+        if (parsed.autoDiscover || !poi.discoveryDC) {
+            // Auto-discover without check
+            poiRepo.discoverPOI(parsed.poiId, discovererId);
+            result.discovered = true;
+        } else {
+            // Make perception check
+            const perceptionBonus = discoverer.perceptionBonus || 0;
+            const roll = Math.floor(Math.random() * 20) + 1;
+            const total = roll + perceptionBonus;
+            const success = total >= poi.discoveryDC;
+
+            result.discoveryCheck = {
+                roll: total,
+                dc: poi.discoveryDC,
+                success
+            };
+
+            if (success) {
+                poiRepo.discoverPOI(parsed.poiId, discovererId);
+                result.discovered = true;
+            } else {
+                // Failed discovery - can't proceed to this location
+                result.message = `${discoverer.name} rolled ${total} (DC ${poi.discoveryDC}) - failed to find the hidden location`;
+                return {
+                    content: [{
+                        type: 'text' as const,
+                        text: JSON.stringify(result, null, 2)
+                    }]
+                };
+            }
+        }
+    }
+
+    // Move party to POI coordinates
+    partyRepo.updatePartyPosition(
+        parsed.partyId,
+        poi.x,
+        poi.y,
+        poi.name,
+        poi.id
+    );
+    result.moved = true;
+
+    // Optionally enter the location's room network
+    if (parsed.enterLocation && poi.networkId) {
+        // Find entrance room
+        let entranceRoomId = poi.entranceRoomId;
+
+        if (!entranceRoomId) {
+            // Try to find an entrance room in the network
+            const allRooms = spatialRepo.findRoomsByNetwork(poi.networkId);
+            const entranceRoom = allRooms.find(room =>
+                room.name.toLowerCase().includes('entrance') ||
+                room.name.toLowerCase().includes('entry') ||
+                room.name.toLowerCase().includes('door') ||
+                room.name.toLowerCase().includes('gate')
+            ) || allRooms[0];
+
+            if (entranceRoom) {
+                entranceRoomId = entranceRoom.id;
+            }
+        }
+
+        if (entranceRoomId) {
+            // Move party leader into the room
+            const leaderChar = charRepo.findById(leader.characterId);
+            if (leaderChar) {
+                charRepo.update(leader.characterId, {
+                    ...leaderChar,
+                    currentRoomId: entranceRoomId,
+                    updatedAt: new Date().toISOString()
+                });
+                spatialRepo.incrementVisitCount(entranceRoomId);
+                result.enteredRoom = true;
+                result.entranceRoomId = entranceRoomId;
+            }
+        }
+    }
+
+    // Build success message
+    const messages: string[] = [];
+    messages.push(`Party "${party.name}" traveled to ${poi.name}`);
+
+    if (result.discoveryCheck) {
+        messages.push(`Discovery check: ${result.discoveryCheck.roll} vs DC ${result.discoveryCheck.dc} - SUCCESS`);
+    }
+
+    if (result.enteredRoom) {
+        messages.push(`Entered location`);
+    }
+
+    result.message = messages.join('. ');
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2)
         }]
     };
 }
