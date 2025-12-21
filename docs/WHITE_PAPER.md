@@ -154,10 +154,13 @@ The system exposes its capabilities via Model Context Protocol tools:
 
 ---
 
-## 7. Determinism & Reproducibility
+## 7. Reproducibility & Auditability
 
 For AI research, **reproducibility is paramount**.
-- **Seeded RNG:** Every random event (dice roll, world gen) is derived from a seed.
+
+> **Note:** In this project, "deterministic" means **reproducible** (same seed = same results), NOT "no randomness". Random operations (dice rolls, procedural generation) ARE used - they use seeded PRNGs so outcomes can be replayed and audited.
+
+- **Seeded RNG:** Every random event (dice roll, world gen) is derived from a seed. The same seed always produces identical results.
 - **Event Log:** Every state change is recorded in an append-only log.
 - **Replay:** The entire simulation can be replayed from the log to debug agent behavior or analyze emergent phenomena.
 

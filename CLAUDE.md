@@ -6,6 +6,15 @@ The backend game engine for Quest Keeper AI. **135 MCP tools** for complete RPG 
 **Philosophy:** "LLM describes, engine validates" - Database is source of truth.
 **Status:** Alpha (90% complete) - 746 tests passing, 85 test files, MCP Protocol fully integrated
 
+## Terminology: "Deterministic" in This Project
+
+**IMPORTANT**: "Deterministic" does NOT mean "no randomness". It means:
+- **Reproducible**: Same seed + same call sequence = identical results (even for dice rolls)
+- **Non-interpretive**: Rules enforced by code, not LLM improvisation
+- **Auditable**: Every outcome traceable to its inputs
+
+Random functions (dice_roll, procedural worldgen) ARE allowed and used. They use seeded PRNGs for reproducibility.
+
 ## Key Commands
 
 ```bash

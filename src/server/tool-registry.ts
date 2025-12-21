@@ -35,6 +35,7 @@ import { ContextTools, handleGetNarrativeContext } from './context-tools.js';
 import { ProgressionTools, handleAddXp, handleGetLevelProgression, handleLevelUp } from './progression-tools.js';
 import { SkillCheckTools, handleRollSkillCheck, handleRollAbilityCheck, handleRollSavingThrow } from './skill-check-tools.js';
 import { NarrativeTools, handleAddNarrativeNote, handleSearchNarrativeNotes, handleUpdateNarrativeNote, handleGetNarrativeNote, handleDeleteNarrativeNote, handleGetNarrativeContextNotes } from './narrative-tools.js';
+import { POITools, handleCreateNetwork, handleGetNetwork, handleListNetworks, handleExploreRoom, handleGetRoomGraph, handleLinkRooms } from './poi-tools.js';
 import { CompositeTools, handleSetupTacticalEncounter, handleSpawnEquippedCharacter, handleInitializeSession, handleSpawnPopulatedLocation, handleSpawnPresetEncounter, handleRestParty, handleLootEncounter, handleTravelToLocation, handleSpawnPresetLocation } from './composite-tools.js';
 import { TraceTools, handleTraceTools, handleTraceDependencies } from './trace-tools.js';
 
@@ -1064,6 +1065,50 @@ export function buildToolRegistry(): ToolRegistry {
         ['Character positioning', 'Location tracking'], false, 'low'),
       schema: SpatialTools.MOVE_CHARACTER_TO_ROOM.inputSchema,
       handler: handleMoveCharacterToRoom
+    },
+
+    // === POI / NETWORK TOOLS ===
+    [POITools.CREATE_NETWORK.name]: {
+      metadata: meta(POITools.CREATE_NETWORK.name, POITools.CREATE_NETWORK.description, 'spatial',
+        ['poi', 'network', 'town', 'dungeon', 'road', 'graph'],
+        ['Node network creation', 'Spatial organization'], false, 'medium'),
+      schema: POITools.CREATE_NETWORK.inputSchema,
+      handler: handleCreateNetwork
+    },
+    [POITools.GET_NETWORK.name]: {
+      metadata: meta(POITools.GET_NETWORK.name, POITools.GET_NETWORK.description, 'spatial',
+        ['poi', 'network', 'get', 'retrieve'],
+        ['Network retrieval'], false, 'medium'),
+      schema: POITools.GET_NETWORK.inputSchema,
+      handler: handleGetNetwork
+    },
+    [POITools.LIST_NETWORKS.name]: {
+      metadata: meta(POITools.LIST_NETWORKS.name, POITools.LIST_NETWORKS.description, 'spatial',
+        ['poi', 'network', 'list', 'world'],
+        ['Network discovery'], true, 'medium'),
+      schema: POITools.LIST_NETWORKS.inputSchema,
+      handler: handleListNetworks
+    },
+    [POITools.EXPLORE_ROOM.name]: {
+      metadata: meta(POITools.EXPLORE_ROOM.name, POITools.EXPLORE_ROOM.description, 'spatial',
+        ['explore', 'room', 'search', 'discovery', 'secret'],
+        ['Room exploration', 'Hidden exit discovery'], false, 'medium'),
+      schema: POITools.EXPLORE_ROOM.inputSchema,
+      handler: handleExploreRoom
+    },
+    [POITools.GET_ROOM_GRAPH.name]: {
+      metadata: meta(POITools.GET_ROOM_GRAPH.name, POITools.GET_ROOM_GRAPH.description, 'spatial',
+        ['graph', 'network', 'rooms', 'map', 'connectivity'],
+        ['Visualizing room connectivity'], true, 'high'),
+      schema: POITools.GET_ROOM_GRAPH.inputSchema,
+      handler: handleGetRoomGraph
+    },
+    [POITools.LINK_ROOMS.name]: {
+      metadata: meta(POITools.LINK_ROOMS.name, POITools.LINK_ROOMS.description, 'spatial',
+        ['link', 'rooms', 'exit', 'connection', 'bidirectional'],
+        ['Manual room linking'], false, 'medium'),
+      schema: POITools.LINK_ROOMS.inputSchema,
+      handler: handleLinkRooms
     },
 
     // === THEFT TOOLS ===

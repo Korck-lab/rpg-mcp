@@ -8,6 +8,8 @@
 
 **A rules-enforced RPG backend that turns any LLM into a game master who can't cheat.**
 
+> **Note on "Deterministic"**: In this project, "deterministic" means **reproducible** (same seed = same results), NOT "no randomness". Dice rolls and procedural generation ARE used - they just use seeded PRNGs so outcomes can be replayed and audited.
+
 ---
 
 ## What Is This? (Start Here)
@@ -109,7 +111,7 @@ This engine implements the **Event-Driven Agentic AI Architecture**:
 | **Reflex Arc**     | Constraint Validator  | Blocks impossible actions before execution             |
 | **Sensory Organs** | Observation Tools     | `getObservation`, `queryEntities`, `getWorldSnapshot`  |
 | **Muscles**        | Action Tools          | `proposeAction`, `moveEntity`, `attack`, `interact`    |
-| **Environment**    | World State + Physics | SQLite-persisted, deterministic, forkable reality      |
+| **Environment**    | World State + Physics | SQLite-persisted, reproducible, forkable reality       |
 
 **Key invariant**: LLMs propose intentions. The engine validates and executes. LLMs never directly mutate world state.
 
@@ -136,11 +138,12 @@ This engine implements the **Event-Driven Agentic AI Architecture**:
 - Engine validates against physics, rules, and constraints
 - Invalid actions rejected with structured feedback
 
-**Deterministic Physics**
+**Reproducible Physics**
 
 - Collision detection, projectile trajectories, movement costs
-- Reproducible world steps—same inputs always yield same outputs
+- Reproducible world steps—same inputs (including seed) always yield same outputs
 - Full audit trail: snapshots, event logs, action history
+- Random elements (dice, procedural generation) use seeded PRNGs for replay
 
 ### Combat & Encounters
 
@@ -549,7 +552,7 @@ Test agent coordination, emergent behavior, or adversarial scenarios in a contro
 Study how LLMs behave when constrained by physics, resources, and perception limits—not just text.
 
 **Game Development**
-Use as a headless game server with deterministic state, replay capability, and clean API boundaries.
+Use as a headless game server with reproducible state (seeded randomness), replay capability, and clean API boundaries.
 
 **Training Data Generation**
 Fork worlds, run thousands of parallel scenarios, collect structured action/outcome pairs.
@@ -570,8 +573,8 @@ Fork worlds, run thousands of parallel scenarios, collect structured action/outc
 4. **Events trigger tasks**
    JIT execution. No polling, no stale state.
 
-5. **Deterministic outcomes**
-   Same inputs → same outputs. Always reproducible.
+5. **Reproducible outcomes**
+   Same inputs (including seed) → same outputs. Random functions use seeded PRNGs.
 
 6. **Schema-driven everything**
    Zod validates all data at boundaries. Type safety end-to-end.
