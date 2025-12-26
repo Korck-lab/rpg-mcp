@@ -182,6 +182,13 @@ export class CombatEngine {
     }
 
     /**
+     * Get the seeded RNG for deterministic operations
+     */
+    get rng(): CombatRNG {
+        return this.rng;
+    }
+
+    /**
      * Start a new combat encounter
      * Rolls initiative for all participants and establishes turn order
      * 
@@ -758,7 +765,7 @@ export class CombatEngine {
         }
 
         // Roll the d20
-        const roll = Math.floor(Math.random() * 20) + 1;
+        const roll = this.rng.d20();
         const isNat20 = roll === 20;
         const isNat1 = roll === 1;
         const success = roll >= 10;
@@ -872,9 +879,10 @@ export class CombatEngine {
         if (!participant) throw new Error(`Participant ${participantId} not found`);
 
         // Generate unique ID for condition instance
+        const randomId = this.rng.rollDie(36).toString(36) + this.rng.rollDie(36).toString(36);
         const fullCondition: Condition = {
             ...condition,
-            id: `${participantId}-${condition.type}-${Date.now()}-${Math.random()}`
+            id: `${participantId}-${condition.type}-${Date.now()}-${randomId}`
         };
 
         participant.conditions.push(fullCondition);

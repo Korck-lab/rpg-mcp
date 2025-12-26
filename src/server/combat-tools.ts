@@ -1486,7 +1486,8 @@ export async function handleExecuteCombatAction(args: unknown, ctx: SessionConte
 
         // Resolve spell effects
         const resolution = resolveSpell(spell, casterChar, effectiveSlotLevel, {
-            targetAC: target ? (target as any).ac || 10 : 10
+            targetAC: target ? (target as any).ac || 10 : 10,
+            rng: engine.rng
         });
 
         // Apply damage/healing to target
@@ -1923,7 +1924,7 @@ export async function handleExecuteLairAction(args: unknown, ctx: SessionContext
             // Handle saving throw if specified
             if (parsed.savingThrow) {
                 // Roll saving throw
-                saveRoll = Math.floor(Math.random() * 20) + 1;
+                saveRoll = engine.rng.d20();
                 const abilityScore = target.abilityScores?.[parsed.savingThrow.ability] ?? 10;
                 const modifier = Math.floor((abilityScore - 10) / 2);
                 saveTotal = saveRoll + modifier;
@@ -2716,8 +2717,9 @@ export async function handleGenerateTerrainPatch(args: unknown, ctx: SessionCont
         
         // Add props
         for (const prop of result.props) {
+            const randomId = engine.rng.rollDie(36).toString(36) + engine.rng.rollDie(36).toString(36);
             state.props!.push({
-                id: `prop-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                id: `prop-${Date.now()}-${randomId}`,
                 label: prop.label,
                 position: prop.position,
                 heightFeet: prop.heightFeet,
@@ -3019,8 +3021,9 @@ export async function handleGenerateTerrainPattern(args: unknown, ctx: SessionCo
     
     // Add props
     for (const prop of result.props) {
+        const randomId = engine.rng.rollDie(36).toString(36) + engine.rng.rollDie(36).toString(36);
         state.props.push({
-            id: `prop-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            id: `prop-${Date.now()}-${randomId}`,
             label: prop.label,
             position: prop.position,
             heightFeet: prop.heightFeet,

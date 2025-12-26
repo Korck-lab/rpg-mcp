@@ -1562,7 +1562,11 @@ export async function handleSpawnPresetEncounter(args: unknown, _ctx: SessionCon
             throw new Error('No encounters match the specified criteria');
         }
 
-        selectedPreset = candidates[Math.floor(Math.random() * candidates.length)];
+        // Use seeded RNG for deterministic random encounter selection
+        const { CombatRNG } = await import('../engine/combat/rng.js');
+        const seed = parsed.seed || `encounter-random-${Date.now()}`;
+        const rng = new CombatRNG(seed);
+        selectedPreset = candidates[Math.floor(rng.rollDie(candidates.length) - 1)];
     } else {
         throw new Error('Must provide either "preset" or "random: true"');
     }
@@ -1769,10 +1773,13 @@ export async function handleSpawnPresetEncounter(args: unknown, _ctx: SessionCon
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Roll a die (simulated with random)
+ * Roll a die with seeded RNG
  */
 function rollDie(sides: number): number {
-    return Math.floor(Math.random() * sides) + 1;
+    // Use default seed for party rest operations
+    const { CombatRNG } = require('../engine/combat/rng.js');
+    const rng = new CombatRNG('party-rest-seed');
+    return rng.rollDie(sides);
 }
 
 /**
@@ -2224,7 +2231,9 @@ export async function handleTravelToLocation(args: unknown, _ctx: SessionContext
         } else {
             // Make perception check
             const perceptionBonus = discoverer.perceptionBonus || 0;
-            const roll = Math.floor(Math.random() * 20) + 1;
+            const { CombatRNG } = require('../engine/combat/rng.js');
+            const rng = new CombatRNG(`perception-${parsed.poiId}-${discovererId}`);
+            const roll = rng.d20();
             const total = roll + perceptionBonus;
             const success = total >= poi.discoveryDC;
 

@@ -27,7 +27,8 @@ export const RestTools = {
         inputSchema: z.object({
             characterId: z.string().describe('The ID of the character taking the rest'),
             hitDiceToSpend: z.number().int().min(0).max(20).default(1)
-                .describe('Number of hit dice to spend for healing (default: 1)')
+                .describe('Number of hit dice to spend for healing (default: 1)'),
+            seed: z.string().optional().describe('Seed for deterministic rest resolution')
         })
     }
 } as const;
@@ -47,9 +48,13 @@ function getAbilityModifier(score: number): number {
 }
 
 /**
- * Roll a die (simulated with random)
+ * Roll a die with seeded RNG
  */
-function rollDie(sides: number): number {
+function rollDie(sides: number, rng?: any): number {
+    if (rng) {
+        return rng.rollDie(sides);
+    }
+    // Fallback for backward compatibility
     return Math.floor(Math.random() * sides) + 1;
 }
 
@@ -157,6 +162,11 @@ export async function handleTakeShortRest(args: unknown, _ctx: SessionContext) {
         throw new Error(`Character ${parsed.characterId} not found`);
     }
 
+    // Create seeded RNG for deterministic rest resolution
+    const { CombatRNG } = await import('../engine/combat/rng.js');
+    const seed = parsed.seed || `rest-${parsed.characterId}-${Date.now()}`;
+    const rng = new CombatRNG(seed);
+
     const hitDiceToSpend = parsed.hitDiceToSpend ?? 1;
     const hitDieSize = getHitDieSize(parsed.characterId);
     const conModifier = getAbilityModifier(character.stats.con);
@@ -166,7 +176,7 @@ export async function handleTakeShortRest(args: unknown, _ctx: SessionContext) {
     const rolls: number[] = [];
 
     for (let i = 0; i < hitDiceToSpend; i++) {
-        const roll = rollDie(hitDieSize);
+        const roll = rollDie(hitDieSize, rng);
         rolls.push(roll);
         // Each hit die heals: roll + CON modifier (minimum 1 per die)
         totalHealing += Math.max(1, roll + conModifier);

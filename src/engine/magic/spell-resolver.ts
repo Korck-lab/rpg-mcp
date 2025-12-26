@@ -7,6 +7,7 @@ import type { Spell, DamageType, SpellCastResult } from '../../schema/spell.js';
 import type { Character } from '../../schema/character.js';
 import { calculateUpcastDice } from './spell-database.js';
 import { calculateSpellSaveDC, calculateSpellAttackBonus } from './spell-validator.js';
+import { CombatRNG } from '../combat/rng.js';
 
 /**
  * Roll dice and return total
@@ -33,7 +34,7 @@ export function rollDice(diceNotation: string): { total: number; rolls: number[]
     const modifier = match[3] ? parseInt(match[3]) : 0;
 
     for (let i = 0; i < count; i++) {
-        const roll = Math.floor(Math.random() * size) + 1;
+        const roll = rng.rollDie(size);
         rolls.push(roll);
         total += roll;
     }
@@ -72,6 +73,7 @@ export interface SpellResolutionOptions {
     targetSaveRoll?: number; // For testing - mock the save roll
     targetAC?: number; // For spell attack rolls
     casterAbilityMod?: number; // Override ability modifier
+    rng?: CombatRNG; // Seeded RNG for deterministic resolution
 }
 
 export interface SpellResolutionResult {
@@ -106,6 +108,8 @@ export function resolveSpell(
     slotLevel: number,
     options: SpellResolutionOptions = {}
 ): SpellResolutionResult {
+    // Use provided RNG or create unseeded fallback (will be replaced)
+    const rng = options.rng || new CombatRNG('fallback-seed');
     const result: SpellResolutionResult = {
         success: true,
         spellName: spell.name,
@@ -142,7 +146,7 @@ export function resolveSpell(
                     // Each dart does 1d4+1
                     let totalDamage = 0;
                     for (let i = 0; i < darts; i++) {
-                        totalDamage += Math.floor(Math.random() * 4) + 1 + 1;
+                        totalDamage += rng.rollDie(4) + 1;
                     }
                     result.damage = totalDamage;
                     result.damageRolled = totalDamage;
@@ -166,7 +170,7 @@ export function resolveSpell(
                     result.saveDC = spellSaveDC;
 
                     // Roll save (or use provided mock)
-                    const saveRoll = options.targetSaveRoll ?? (Math.floor(Math.random() * 20) + 1);
+                    const saveRoll = options.targetSaveRoll ?? rng.d20();
                     const saveTotal = saveRoll; // TODO: Add target's save modifier
 
                     if (saveTotal >= spellSaveDC) {
@@ -183,7 +187,7 @@ export function resolveSpell(
                     result.damage = result.damageApplied;
                 } else {
                     // Spell attack roll
-                    const attackRoll = Math.floor(Math.random() * 20) + 1;
+                    const attackRoll = rng.d20();
                     result.attackRoll = attackRoll;
                     result.attackTotal = attackRoll + spellAttackBonus;
 
@@ -254,7 +258,7 @@ export function resolveSpell(
                 // Saving throw for debuff
                 if (effect.saveType && effect.saveType !== 'none') {
                     result.saveDC = spellSaveDC;
-                    const saveRoll = options.targetSaveRoll ?? (Math.floor(Math.random() * 20) + 1);
+                    const saveRoll = options.targetSaveRoll ?? rng.d20();
 
                     if (saveRoll >= spellSaveDC) {
                         result.saveResult = 'passed';

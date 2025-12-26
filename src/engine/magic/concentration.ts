@@ -20,8 +20,8 @@ export function calculateConcentrationDC(damageAmount: number): number {
 /**
  * Roll a constitution saving throw for concentration
  */
-export function rollConcentrationSave(constitutionModifier: number): { roll: number; total: number } {
-    const roll = Math.floor(Math.random() * 20) + 1;
+export function rollConcentrationSave(constitutionModifier: number, rng?: any): { roll: number; total: number } {
+    const roll = rng ? rng.d20() : Math.floor(Math.random() * 20) + 1;
     const total = roll + constitutionModifier;
     return { roll, total };
 }
