@@ -36,10 +36,10 @@ export function getModifier(abilityScore: number): number {
 }
 
 /**
- * Roll a d20 (1-20)
+ * Roll a d20 (1-20) using seeded RNG
  */
-function rollD20(): number {
-    return Math.floor(Math.random() * 20) + 1;
+function rollD20(rng: { d20: () => number }): number {
+    return rng.d20();
 }
 
 /**
@@ -50,24 +50,26 @@ function rollD20(): number {
  *
  * @param speaker - Character attempting stealth
  * @param listener - Character attempting perception
+ * @param rng - Required seeded RNG instance for reproducibility
  * @param environmentModifier - Optional modifier from environment (e.g., -5 for noisy tavern)
  * @returns Detailed result of the opposed roll
  */
 export function rollStealthVsPerception(
     speaker: Character | NPC,
     listener: Character | NPC,
+    rng: { d20: () => number },
     environmentModifier: number = 0
 ): OpposedRollResult {
     // Speaker's Stealth check
-    const speakerRoll = rollD20();
+    const speakerRoll = rollD20(rng);
     const dexModifier = getModifier(speaker.stats.dex);
     const speakerStealthBonus = speaker.stealthBonus || 0;
     const speakerModifier = dexModifier + speakerStealthBonus;
     const speakerTotal = speakerRoll + speakerModifier;
 
     // Listener's Perception check
-    const listenerRoll = rollD20();
-    const wisModifier = getModifier(listener.stats.wis); // Fixed: should be listener's WIS, not speaker's
+    const listenerRoll = rollD20(rng);
+    const wisModifier = getModifier(listener.stats.wis);
     const listenerPerceptionBonus = listener.perceptionBonus || 0;
     const listenerModifier = wisModifier + listenerPerceptionBonus + environmentModifier;
     const listenerTotal = listenerRoll + listenerModifier;
@@ -126,12 +128,14 @@ export function isDeafened(character: Character | NPC): boolean {
  *
  * @param speaker - The character speaking
  * @param listeners - Array of characters trying to hear
+ * @param rng - Required seeded RNG instance for reproducibility
  * @param environmentModifier - Modifier from environment
  * @returns Map of listenerId -> OpposedRollResult
  */
 export function batchRollStealthVsPerception(
     speaker: Character | NPC,
     listeners: Array<Character | NPC>,
+    rng: { d20: () => number },
     environmentModifier: number = 0
 ): Map<string, OpposedRollResult> {
     const results = new Map<string, OpposedRollResult>();
@@ -142,7 +146,7 @@ export function batchRollStealthVsPerception(
             continue;
         }
 
-        const result = rollStealthVsPerception(speaker, listener, environmentModifier);
+        const result = rollStealthVsPerception(speaker, listener, rng, environmentModifier);
         results.set(listener.id, result);
     }
 

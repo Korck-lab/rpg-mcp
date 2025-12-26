@@ -87,8 +87,8 @@ export function validateScrollUse(
  * Roll an Arcana check for scroll use
  * Uses Intelligence modifier + proficiency bonus (if proficient in Arcana)
  */
-export function rollArcanaCheck(character: Character): { roll: number; total: number; modifier: number } {
-    const roll = Math.floor(Math.random() * 20) + 1;
+export function rollArcanaCheck(character: Character, rng: { d20: () => number }): { roll: number; total: number; modifier: number } {
+    const roll = rng.d20();
 
     // Calculate Intelligence modifier
     const intModifier = Math.floor((character.stats.int - 10) / 2);
@@ -110,7 +110,8 @@ export function rollArcanaCheck(character: Character): { roll: number; total: nu
 export function useSpellScroll(
     character: Character,
     scroll: Item,
-    inventoryRepo: InventoryRepository
+    inventoryRepo: InventoryRepository,
+    rng: { d20: () => number }
 ): ScrollUsageResult {
     // Validate scroll type
     if (scroll.type !== 'scroll') {
@@ -167,7 +168,7 @@ export function useSpellScroll(
 
     // Requires Arcana check
     const checkDC = validation.checkDC!;
-    const arcanaCheck = rollArcanaCheck(character);
+    const arcanaCheck = rollArcanaCheck(character, rng);
     const checkPassed = arcanaCheck.total >= checkDC;
 
     // Scroll is consumed regardless of check success

@@ -142,10 +142,11 @@ export function shouldAffectTarget(
 /**
  * Roll a saving throw
  * @param abilityModifier - The ability modifier for the save
+ * @param rng - Required seeded RNG instance for reproducibility
  * @returns Object with roll and total
  */
-export function rollSave(abilityModifier: number): { roll: number; total: number } {
-    const roll = Math.floor(Math.random() * 20) + 1;
+export function rollSave(abilityModifier: number, rng: { d20: () => number }): { roll: number; total: number } {
+    const roll = rng.d20();
     const total = roll + abilityModifier;
     return { roll, total };
 }
@@ -153,25 +154,11 @@ export function rollSave(abilityModifier: number): { roll: number; total: number
 /**
  * Roll damage or healing dice
  * @param dice - Dice notation (e.g., "3d8")
+ * @param rng - Required seeded RNG instance for reproducibility
  * @returns Total result
  */
-export function rollDice(dice: string): number {
-    const match = dice.match(/^(\d+)d(\d+)(?:\+(\d+))?$/);
-    if (!match) {
-        throw new Error(`Invalid dice notation: ${dice}`);
-    }
-
-    const [, numDiceStr, diceSizeStr, bonusStr] = match;
-    const numDice = parseInt(numDiceStr, 10);
-    const diceSize = parseInt(diceSizeStr, 10);
-    const bonus = bonusStr ? parseInt(bonusStr, 10) : 0;
-
-    let total = bonus;
-    for (let i = 0; i < numDice; i++) {
-        total += Math.floor(Math.random() * diceSize) + 1;
-    }
-
-    return total;
+export function rollDice(dice: string, rng: { roll: (notation: string) => number }): number {
+    return rng.roll(dice);
 }
 
 /**
@@ -179,13 +166,15 @@ export function rollDice(dice: string): number {
  * @param aura - The aura
  * @param effect - The specific effect to apply
  * @param target - The target token
+ * @param rng - Required seeded RNG instance for reproducibility
  * @returns Result of the effect application
  */
 export function applyAuraEffect(
     aura: AuraState,
     effect: AuraEffect,
     target: Token,
-    trigger: AuraTrigger
+    trigger: AuraTrigger,
+    rng: { d20: () => number; roll: (notation: string) => number }
 ): AuraEffectResult {
     const result: AuraEffectResult = {
         auraId: aura.id,
@@ -199,7 +188,7 @@ export function applyAuraEffect(
     // Handle effects that require saving throws
     if (effect.saveType && effect.saveDC) {
         const abilityModifier = getAbilityModifier(target, effect.saveType);
-        const saveResult = rollSave(abilityModifier);
+        const saveResult = rollSave(abilityModifier, rng);
 
         result.saveRoll = saveResult.roll;
         result.saveDC = effect.saveDC;
@@ -219,14 +208,14 @@ export function applyAuraEffect(
     switch (effect.type) {
         case 'damage':
             if (effect.dice) {
-                result.damageDealt = rollDice(effect.dice);
+                result.damageDealt = rollDice(effect.dice, rng);
                 result.damageType = effect.damageType;
             }
             break;
 
         case 'healing':
             if (effect.dice) {
-                result.healingDone = rollDice(effect.dice);
+                result.healingDone = rollDice(effect.dice, rng);
             }
             break;
 
@@ -278,13 +267,15 @@ function getAbilityModifier(token: Token, ability: string): number {
  * @param targetId - ID of the target to check
  * @param trigger - The trigger type (enter, exit, start_of_turn, etc.)
  * @param auraRepo - Aura repository
+ * @param rng - Required seeded RNG instance for reproducibility
  * @returns Array of effect results
  */
 export function checkAuraEffectsForTarget(
     tokens: Token[],
     targetId: string,
     trigger: AuraTrigger,
-    auraRepo: AuraRepository
+    auraRepo: AuraRepository,
+    rng: { d20: () => number; roll: (notation: string) => number }
 ): AuraEffectResult[] {
     const target = tokens.find(t => t.id === targetId);
     if (!target || !target.position) {
@@ -310,7 +301,7 @@ export function checkAuraEffectsForTarget(
         // Apply each effect that matches the trigger
         for (const effect of aura.effects) {
             if (effect.trigger === trigger) {
-                const result = applyAuraEffect(aura, effect, target, trigger);
+                const result = applyAuraEffect(aura, effect, target, trigger, rng);
                 results.push(result);
             }
         }

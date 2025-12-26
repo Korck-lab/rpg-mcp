@@ -75,10 +75,11 @@ function getCharacterRepo(): CharacterRepository {
 }
 
 /**
- * Simulate a d20 roll
+ * Simulate a d20 roll using seeded RNG
+ * @param rng - Seeded RNG instance for reproducibility
  */
-function rollD20(): number {
-    return Math.floor(Math.random() * 20) + 1;
+function rollD20(rng: { rollDie: (sides: number) => number }): number {
+    return rng.rollDie(20);
 }
 
 /**
@@ -155,15 +156,17 @@ export async function handleLookAtSurroundings(args: unknown, _ctx: SessionConte
         };
     }
 
+    const { CombatRNG } = await import('../engine/combat/rng.js');
+    const rng = new CombatRNG(`spatial-perception-${observer.id}-${currentRoomId}-${Date.now()}`);
+
     // Filter visible exits based on perception
     const perceptionModifier = getModifier(observer.stats.wis);
     const visibleExits = currentRoom.exits.filter(exit => {
         if (exit.type === 'OPEN') return true;
-        if (exit.type === 'LOCKED') return false; // Locked exits are not visible
+        if (exit.type === 'LOCKED') return false;
 
         if (exit.type === 'HIDDEN') {
-            // Perception check: 1d20 + WIS modifier vs DC
-            const perceptionRoll = rollD20() + perceptionModifier;
+            const perceptionRoll = rollD20(rng) + perceptionModifier;
             return perceptionRoll >= (exit.dc || 15);
         }
 

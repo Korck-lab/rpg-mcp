@@ -11,6 +11,8 @@
  * @module data/encounter-presets
  */
 
+import seedrandom from 'seedrandom';
+
 /**
  * Participant in an encounter preset
  */
@@ -639,6 +641,7 @@ export function getRandomEncounter(options?: {
     difficulty?: EncounterPreset['difficulty'];
     level?: number;
     tags?: string[];
+    seed?: string;
 }): EncounterPreset | null {
     let candidates = Object.values(ENCOUNTER_PRESETS);
 
@@ -663,5 +666,6 @@ export function getRandomEncounter(options?: {
 
     if (candidates.length === 0) return null;
 
-    return candidates[Math.floor(Math.random() * candidates.length)];
+    const rng = seedrandom(options?.seed || `encounter-${Date.now()}`);
+    return candidates[Math.floor(rng() * candidates.length)];
 }

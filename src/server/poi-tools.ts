@@ -217,8 +217,8 @@ function getRepos() {
     };
 }
 
-function rollD20(): number {
-    return Math.floor(Math.random() * 20) + 1;
+function rollD20(rng: { rollDie: (sides: number) => number }): number {
+    return rng.rollDie(20);
 }
 
 function getOppositeDirection(dir: string): string {

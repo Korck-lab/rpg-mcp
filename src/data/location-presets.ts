@@ -13,6 +13,7 @@
  */
 
 import { POICategory, POIIcon } from '../schema/poi.js';
+import seedrandom from 'seedrandom';
 
 /**
  * A room within a location preset
@@ -659,6 +660,7 @@ export function getRandomLocation(options?: {
     category?: POICategory;
     tags?: string[];
     level?: number;
+    seed?: string;
 }): LocationPreset | undefined {
     let candidates = Object.values(LOCATION_PRESETS);
 
@@ -680,5 +682,6 @@ export function getRandomLocation(options?: {
     }
 
     if (candidates.length === 0) return undefined;
-    return candidates[Math.floor(Math.random() * candidates.length)];
+    const rng = seedrandom(options?.seed || `location-${Date.now()}`);
+    return candidates[Math.floor(rng() * candidates.length)];
 }

@@ -19,20 +19,24 @@ export function calculateConcentrationDC(damageAmount: number): number {
 
 /**
  * Roll a constitution saving throw for concentration
+ * @param constitutionModifier - Constitution modifier to add to the roll
+ * @param rng - Required seeded RNG instance for reproducibility
  */
-export function rollConcentrationSave(constitutionModifier: number, rng?: any): { roll: number; total: number } {
-    const roll = rng ? rng.d20() : Math.floor(Math.random() * 20) + 1;
+export function rollConcentrationSave(constitutionModifier: number, rng: { d20: () => number }): { roll: number; total: number } {
+    const roll = rng.d20();
     const total = roll + constitutionModifier;
     return { roll, total };
 }
 
 /**
  * Check if concentration is maintained after taking damage
+ * @param rng - Required seeded RNG instance for reproducibility
  */
 export function checkConcentration(
     character: Character | NPC,
     damageAmount: number,
-    concentrationRepo: ConcentrationRepository
+    concentrationRepo: ConcentrationRepository,
+    rng: { d20: () => number }
 ): ConcentrationCheckResult {
     const concentration = concentrationRepo.findByCharacterId(character.id);
 
@@ -47,7 +51,7 @@ export function checkConcentration(
 
     const dc = calculateConcentrationDC(damageAmount);
     const constitutionModifier = Math.floor((character.stats.con - 10) / 2);
-    const { roll, total } = rollConcentrationSave(constitutionModifier);
+    const { roll, total } = rollConcentrationSave(constitutionModifier, rng);
 
     const success = total >= dc;
 

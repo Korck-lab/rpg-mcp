@@ -50,12 +50,8 @@ function getAbilityModifier(score: number): number {
 /**
  * Roll a die with seeded RNG
  */
-function rollDie(sides: number, rng?: any): number {
-    if (rng) {
-        return rng.rollDie(sides);
-    }
-    // Fallback for backward compatibility
-    return Math.floor(Math.random() * sides) + 1;
+function rollDie(sides: number, rng: { rollDie: (sides: number) => number }): number {
+    return rng.rollDie(sides);
 }
 
 /**

@@ -8,6 +8,7 @@ import {
     DEFAULT_LOOT_TABLES
 } from '../../schema/corpse.js';
 import { InventoryRepository } from './inventory.repo.js';
+import { CombatRNG } from '../../engine/combat/rng.js';
 
 /**
  * FAILED-004: Corpse Repository
@@ -63,9 +64,12 @@ interface LootTableRow {
 
 export class CorpseRepository {
     private inventoryRepo: InventoryRepository;
+    private rng: CombatRNG;
 
-    constructor(private db: Database.Database) {
+    constructor(private db: Database.Database, seed?: string) {
         this.inventoryRepo = new InventoryRepository(db);
+        // Use provided seed or fallback to timestamp (non-ideal but maintains backward compat)
+        this.rng = new CombatRNG(seed || `corpse-${Date.now()}`);
     }
 
     /**
@@ -385,7 +389,9 @@ export class CorpseRepository {
 
         // Process random drops
         for (const drop of lootTable.randomDrops) {
-            if (Math.random() <= drop.weight) {
+            // Use seeded RNG for weight check (0.0 to 1.0)
+            const roll = this.rng['rng'](); // Access internal PRNG
+            if (roll <= drop.weight) {
                 const qty = this.rollQuantity(drop.quantity.min, drop.quantity.max);
                 if (qty > 0 && drop.itemName) {
                     itemsAdded.push({ name: drop.itemName, quantity: qty });
@@ -701,7 +707,8 @@ export class CorpseRepository {
     // ============================================================
 
     private rollQuantity(min: number, max: number): number {
-        return Math.floor(Math.random() * (max - min + 1)) + min;
+        // Use seeded RNG for quantity rolls
+        return Math.floor(this.rng['rng']() * (max - min + 1)) + min;
     }
 
     private rowToCorpse(row: CorpseRow): Corpse {
