@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { SessionContext } from './types.js';
+import { generateDeterministicEncounterId } from '../utils/deterministic-id.js';
 import { getDb } from '../storage/index.js';
 import { CharacterRepository } from '../storage/repos/character.repo.js';
 import { ItemRepository } from '../storage/repos/item.repo.js';
@@ -839,7 +840,7 @@ export async function handleSetupTacticalEncounter(args: unknown, _ctx: SessionC
     }
 
     // Create encounter using CombatEngine and CombatManager
-    const encounterId = `encounter-${parsed.seed}-${Date.now()}`;
+    const encounterId = await generateDeterministicEncounterId(parsed.seed, 'composite-encounter');
     const engine = new CombatEngine(parsed.seed);
     const encounterState = engine.startEncounter(participants);
     // Add terrain to the state (CRIT-003 pattern from combat-tools.ts)

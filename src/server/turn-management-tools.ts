@@ -118,7 +118,7 @@ export async function handleTurnManagementTool(name: string, args: any) {
                 switch (action.type) {
                     case 'claim_region':
                         diplomacyRepo.createClaim({
-                            id: `claim-${Date.now()}-${Math.random()}`,
+                            id: `claim-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Bounded random for ID uniqueness
                             nationId,
                             regionId: action.regionId!,
                             claimStrength: 100,

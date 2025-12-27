@@ -17,6 +17,7 @@ import { ConcentrationRepository } from '../storage/repos/concentration.repo.js'
 import { startConcentration, checkConcentration, breakConcentration } from '../engine/magic/concentration.js';
 import type { Character } from '../schema/character.js';
 import { getPatternGenerator, PATTERN_DESCRIPTIONS } from './terrain-patterns.js';
+import { generateDeterministicEncounterId } from '../utils/deterministic-id.js';
 
 // Global combat state (in-memory for MVP)
 let pubsub: PubSub | null = null;
@@ -1026,7 +1027,7 @@ export async function handleCreateEncounter(args: unknown, ctx: SessionContext) 
     }
 
     // Generate encounter ID
-    const encounterId = `encounter-${parsed.seed}-${Date.now()}`;
+    const encounterId = await generateDeterministicEncounterId(parsed.seed, 'combat-encounter');
     // Store with session namespace
     getCombatManager().create(`${ctx.sessionId}:${encounterId}`, engine);
 

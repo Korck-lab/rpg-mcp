@@ -3,6 +3,7 @@ import { getDb } from '../storage/index.js';
 import { TheftRepository } from '../storage/repos/theft.repo.js';
 import { HeatLevelSchema, HEAT_VALUES, compareHeatLevels } from '../schema/theft.js';
 import { SessionContext } from './types.js';
+import { deterministicRandom } from '../utils/deterministic-id.js';
 
 /**
  * HIGH-008: Theft System Tools
@@ -300,7 +301,7 @@ export async function handleCheckItemRecognition(args: unknown, _ctx: SessionCon
     // TODO: Check if NPC is a guard based on faction/role
     const heatValue = HEAT_VALUES[record.heatLevel];
     const recognitionChance = Math.min(100, heatValue + record.bounty / 10);
-    const roll = Math.random() * 100;
+    const roll = await deterministicRandom(_ctx.sessionId, `theft-recognition:${parsed.itemId}:${parsed.npcId}`) * 100;
 
     if (roll < recognitionChance) {
         return {

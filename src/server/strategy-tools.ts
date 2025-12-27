@@ -123,7 +123,7 @@ export async function handleStrategyTool(name: string, args: any, _ctx?: Session
         case 'claim_region': {
             const { nationId, regionId, justification } = args;
             diplomacyRepo.createClaim({
-                id: `claim-${Date.now()}-${Math.random()}`, // Simple ID generation
+                id: `claim-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Bounded random for ID uniqueness
                 nationId,
                 regionId,
                 claimStrength: 100,
