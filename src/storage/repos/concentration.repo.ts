@@ -11,8 +11,8 @@ export class ConcentrationRepository {
         const valid = ConcentrationStateSchema.parse(concentration);
 
         const stmt = this.db.prepare(`
-            INSERT INTO concentration (
-                character_id, active_spell, spell_level, target_ids,
+            INSERT INTO concentration_tracking (
+                character_id, spell_name, spell_level, target_ids,
                 started_at, max_duration, save_dc_base
             )
             VALUES (@characterId, @activeSpell, @spellLevel, @targetIds,
@@ -35,20 +35,28 @@ export class ConcentrationRepository {
      */
     findByCharacterId(characterId: string): ConcentrationState | null {
         const stmt = this.db.prepare(`
-            SELECT * FROM concentration WHERE character_id = ?
+            SELECT 
+                character_id as characterId,
+                spell_name as activeSpell,
+                spell_level as spellLevel,
+                target_ids as targetIds,
+                started_at as startedAt,
+                max_duration as maxDuration,
+                save_dc_base as saveDCBase
+            FROM concentration_tracking WHERE character_id = ?
         `);
         const row = stmt.get(characterId) as ConcentrationRow | undefined;
 
         if (!row) return null;
 
         return ConcentrationStateSchema.parse({
-            characterId: row.character_id,
-            activeSpell: row.active_spell,
-            spellLevel: row.spell_level,
-            targetIds: row.target_ids ? JSON.parse(row.target_ids) : undefined,
-            startedAt: row.started_at,
-            maxDuration: row.max_duration ?? undefined,
-            saveDCBase: row.save_dc_base,
+            characterId: row.characterId,
+            activeSpell: row.activeSpell,
+            spellLevel: row.spellLevel,
+            targetIds: row.targetIds ? JSON.parse(row.targetIds) : undefined,
+            startedAt: row.startedAt,
+            maxDuration: row.maxDuration ?? undefined,
+            saveDCBase: row.saveDCBase,
         });
     }
 
@@ -57,7 +65,7 @@ export class ConcentrationRepository {
      */
     delete(characterId: string): boolean {
         const stmt = this.db.prepare(`
-            DELETE FROM concentration WHERE character_id = ?
+            DELETE FROM concentration_tracking WHERE character_id = ?
         `);
         const result = stmt.run(characterId);
         return result.changes > 0;
@@ -68,7 +76,7 @@ export class ConcentrationRepository {
      */
     isConcentrating(characterId: string): boolean {
         const stmt = this.db.prepare(`
-            SELECT COUNT(*) as count FROM concentration WHERE character_id = ?
+            SELECT COUNT(*) as count FROM concentration_tracking WHERE character_id = ?
         `);
         const row = stmt.get(characterId) as { count: number };
         return row.count > 0;
@@ -78,27 +86,37 @@ export class ConcentrationRepository {
      * Get all active concentrations (for debugging/admin)
      */
     findAll(): ConcentrationState[] {
-        const stmt = this.db.prepare(`SELECT * FROM concentration`);
+        const stmt = this.db.prepare(`
+            SELECT
+                character_id as characterId,
+                spell_name as activeSpell,
+                spell_level as spellLevel,
+                target_ids as targetIds,
+                started_at as startedAt,
+                max_duration as maxDuration,
+                save_dc_base as saveDCBase
+            FROM concentration_tracking
+        `);
         const rows = stmt.all() as ConcentrationRow[];
 
         return rows.map(row => ConcentrationStateSchema.parse({
-            characterId: row.character_id,
-            activeSpell: row.active_spell,
-            spellLevel: row.spell_level,
-            targetIds: row.target_ids ? JSON.parse(row.target_ids) : undefined,
-            startedAt: row.started_at,
-            maxDuration: row.max_duration ?? undefined,
-            saveDCBase: row.save_dc_base,
+            characterId: row.characterId,
+            activeSpell: row.activeSpell,
+            spellLevel: row.spellLevel,
+            targetIds: row.targetIds ? JSON.parse(row.targetIds) : undefined,
+            startedAt: row.startedAt,
+            maxDuration: row.maxDuration ?? undefined,
+            saveDCBase: row.saveDCBase,
         }));
     }
 }
 
 interface ConcentrationRow {
-    character_id: string;
-    active_spell: string;
-    spell_level: number;
-    target_ids: string | null;
-    started_at: number;
-    max_duration: number | null;
-    save_dc_base: number;
+    characterId: string;
+    activeSpell: string;
+    spellLevel: number;
+    targetIds: string | null;
+    startedAt: number;
+    maxDuration: number | null;
+    saveDCBase: number;
 }

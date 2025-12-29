@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 import { getDb } from '../storage/index.js';
 import { NpcMemoryRepository, Familiarity, Disposition, Importance } from '../storage/repos/npc-memory.repo.js';
 import { SessionContext } from './types.js';
@@ -7,6 +8,7 @@ import { SpatialRepository } from '../storage/repos/spatial.repo.js';
 import { calculateHearingRadius } from '../engine/social/hearing.js';
 import { rollStealthVsPerception, isDeafened, getEnvironmentModifier } from '../engine/social/stealth-perception.js';
 import { VolumeLevel } from '../engine/social/hearing.js';
+import { CombatRNG } from '../engine/combat/rng.js';
 
 /**
  * HIGH-004: NPC Memory Tools
@@ -280,6 +282,7 @@ export async function handleGetNpcContext(args: unknown, _ctx: SessionContext) {
 
 export async function handleInteractSocially(args: unknown, _ctx: SessionContext) {
     const parsed = NpcMemoryTools.INTERACT_SOCIALLY.inputSchema.parse(args);
+    const rng = new CombatRNG(randomUUID());
     const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
     const charRepo = new CharacterRepository(db);
     const spatialRepo = new SpatialRepository(db);
@@ -366,7 +369,7 @@ export async function handleInteractSocially(args: unknown, _ctx: SessionContext
 
     for (const listener of eavesdroppers) {
         // Perform opposed roll
-        const roll = rollStealthVsPerception(speaker, listener, envModifier);
+        const roll = rollStealthVsPerception(speaker, listener, rng, envModifier);
 
         if (roll.success) {
             // Listener overheard the conversation

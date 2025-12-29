@@ -14,7 +14,14 @@ export const ItemSchema = z.object({
         .min(1, 'Item name cannot be empty')
         .refine(s => s.trim().length > 0, 'Item name cannot be whitespace only'),
     description: z.string().optional(),
-    type: z.enum(['weapon', 'armor', 'consumable', 'quest', 'misc', 'scroll']),
+    type: z.enum([
+        'weapon', 'armor', 'shield', 'consumable', 'tool', 
+        'wondrous_item', 'magic_item', 'container', 'ammunition', 
+        'quest', 'misc', 'scroll'
+    ]),
+    rarity: z.enum(['common', 'uncommon', 'rare', 'very_rare', 'legendary', 'artifact']).default('common'),
+    requiresAttunement: z.boolean().default(false),
+    attunementRequirements: z.string().optional(),
     weight: z.number().min(0).default(0),
     value: z.number().min(0).max(INVENTORY_LIMITS.MAX_ITEM_VALUE,
         `Item value cannot exceed ${INVENTORY_LIMITS.MAX_ITEM_VALUE.toLocaleString()} gold`).default(0),
@@ -25,8 +32,11 @@ export const ItemSchema = z.object({
 
 export const InventoryItemSchema = z.object({
     itemId: z.string(),
+    // Optional embedded item details for clients that need it
+    item: z.lazy(() => ItemSchema).optional(),
     quantity: z.number().int().min(1),
     equipped: z.boolean().default(false),
+    attuned: z.boolean().default(false),
     slot: z.string().optional() // 'mainhand', 'offhand', 'armor', etc.
 });
 

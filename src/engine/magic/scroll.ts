@@ -237,6 +237,8 @@ export function createSpellScroll(
         name: scrollName,
         description,
         type: 'scroll',
+        rarity: 'common' as const,
+        requiresAttunement: false,
         weight: 0.1, // Scrolls are light
         value,
         properties: scrollProperties

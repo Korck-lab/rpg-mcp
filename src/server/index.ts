@@ -78,7 +78,10 @@ function setupShutdownHandlers(): void {
 
 async function main() {
   setupShutdownHandlers();
-  console.error(`[Server] Database path: ${getDbPath()}`);
+  console.error(`[Server] CWD: ${process.cwd()}`);
+console.error(`[Server] Database path: ${getDbPath()}`);
+// import { writeFileSync } from 'fs';
+// writeFileSync('/tmp/server.log', `CWD: ${process.cwd()}\nDB_PATH: ${getDbPath()}\n`);
 
   const server = new McpServer({
     name: 'rpg-mcp',
@@ -200,6 +203,8 @@ async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error('RPG MCP Server running on stdio');
+    // Keep the process alive for stdio transport
+    await new Promise(() => {}); // Never resolves
   }
 }
 

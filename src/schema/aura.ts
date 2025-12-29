@@ -36,6 +36,7 @@ export type AuraEffect = z.infer<typeof AuraEffectSchema>;
  */
 export const AuraStateSchema = z.object({
     id: z.string(),
+    encounterId: z.string().optional(), // Encounter this aura belongs to
     ownerId: z.string(), // Character who created the aura
     spellName: z.string(),
     spellLevel: z.number().int().min(0).max(9),
@@ -77,6 +78,7 @@ export type AuraEffectResult = z.infer<typeof AuraEffectResultSchema>;
  * Request to create a new aura
  */
 export const CreateAuraRequestSchema = z.object({
+    encounterId: z.string().optional(),
     ownerId: z.string(),
     spellName: z.string(),
     spellLevel: z.number().int().min(0).max(9),

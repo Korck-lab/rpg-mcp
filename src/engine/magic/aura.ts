@@ -5,7 +5,8 @@
 
 import { randomUUID } from 'crypto';
 import { AuraState, AuraEffect, AuraEffectResult, CreateAuraRequest, AuraTrigger } from '../../schema/aura.js';
-import { Position, Token } from '../../schema/encounter.js';
+import { Position } from '../../schema/encounter.js';
+import { CombatToken } from '../../schema/combat-token.js';
 import { AuraRepository } from '../../storage/repos/aura.repo.js';
 
 /**
@@ -43,6 +44,7 @@ export function createAura(
 ): AuraState {
     const aura: AuraState = {
         id: randomUUID(),
+        encounterId: request.encounterId,
         ownerId: request.ownerId,
         spellName: request.spellName,
         spellLevel: request.spellLevel,
@@ -88,7 +90,7 @@ export function getActiveAuras(auraRepo: AuraRepository): AuraState[] {
  * @param auraRepo - Aura repository
  */
 export function getAurasAtPosition(
-    tokens: Token[],
+    tokens: CombatToken[],
     targetPosition: Position,
     auraRepo: AuraRepository
 ): AuraState[] {
@@ -98,12 +100,14 @@ export function getAurasAtPosition(
     for (const aura of allAuras) {
         // Find the aura owner's position
         const owner = tokens.find(t => t.id === aura.ownerId);
-        if (!owner || !owner.position) {
+        if (!owner) {
             continue;
         }
 
+        const ownerPosition = { x: owner.positionX, y: owner.positionY, z: owner.positionZ };
+
         // Check if target position is within aura radius
-        if (isInAuraRange(owner.position, targetPosition, aura.radius)) {
+        if (isInAuraRange(ownerPosition, targetPosition, aura.radius)) {
             aurasAtPosition.push(aura);
         }
     }
@@ -119,7 +123,7 @@ export function getAurasAtPosition(
  */
 export function shouldAffectTarget(
     aura: AuraState,
-    target: Token,
+    target: CombatToken,
     ownerIsAlly: boolean
 ): boolean {
     // Check if target is the aura owner
@@ -172,7 +176,7 @@ export function rollDice(dice: string, rng: { roll: (notation: string) => number
 export function applyAuraEffect(
     aura: AuraState,
     effect: AuraEffect,
-    target: Token,
+    target: CombatToken,
     trigger: AuraTrigger,
     rng: { d20: () => number; roll: (notation: string) => number }
 ): AuraEffectResult {
@@ -238,7 +242,7 @@ export function applyAuraEffect(
 /**
  * Get ability modifier for a token
  */
-function getAbilityModifier(token: Token, ability: string): number {
+function getAbilityModifier(token: CombatToken, ability: string): number {
     if (!token.abilityScores) {
         return 0;
     }
@@ -271,18 +275,19 @@ function getAbilityModifier(token: Token, ability: string): number {
  * @returns Array of effect results
  */
 export function checkAuraEffectsForTarget(
-    tokens: Token[],
+    tokens: CombatToken[],
     targetId: string,
     trigger: AuraTrigger,
     auraRepo: AuraRepository,
     rng: { d20: () => number; roll: (notation: string) => number }
 ): AuraEffectResult[] {
     const target = tokens.find(t => t.id === targetId);
-    if (!target || !target.position) {
+    if (!target) {
         return [];
     }
 
-    const aurasAtPosition = getAurasAtPosition(tokens, target.position, auraRepo);
+    const targetPosition = { x: target.positionX, y: target.positionY, z: target.positionZ };
+    const aurasAtPosition = getAurasAtPosition(tokens, targetPosition, auraRepo);
     const results: AuraEffectResult[] = [];
 
     for (const aura of aurasAtPosition) {

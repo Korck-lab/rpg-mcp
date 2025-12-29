@@ -81,14 +81,26 @@ export function migrate(db: Database.Database) {
 
     CREATE TABLE IF NOT EXISTS encounters(
     id TEXT PRIMARY KEY,
+    world_id TEXT NOT NULL,
     region_id TEXT,
-    tokens TEXT NOT NULL, --JSON
+    room_id TEXT,
+    tokens TEXT, --JSON (nullable for new normalized storage)
       round INTEGER NOT NULL,
     active_token_id TEXT,
     status TEXT NOT NULL,
+    terrain TEXT, --JSON
+    props TEXT, --JSON
+    grid_min_x INTEGER DEFAULT 0,
+    grid_max_x INTEGER DEFAULT 20,
+    grid_min_y INTEGER DEFAULT 0,
+    grid_max_y INTEGER DEFAULT 20,
+    seed TEXT,
+    ended_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    FOREIGN KEY(region_id) REFERENCES regions(id) ON DELETE CASCADE
+    FOREIGN KEY(world_id) REFERENCES worlds(id) ON DELETE CASCADE,
+    FOREIGN KEY(region_id) REFERENCES regions(id) ON DELETE CASCADE,
+    FOREIGN KEY(room_id) REFERENCES room_nodes(id) ON DELETE CASCADE
   );
 
     CREATE TABLE IF NOT EXISTS patches(
@@ -131,6 +143,8 @@ export function migrate(db: Database.Database) {
     type TEXT NOT NULL,
     weight REAL NOT NULL DEFAULT 0,
     value INTEGER NOT NULL DEFAULT 0,
+    requires_attunement INTEGER NOT NULL DEFAULT 0, --boolean 0 / 1
+    attunement_requirements TEXT,
     properties TEXT, --JSON
       created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -141,6 +155,7 @@ export function migrate(db: Database.Database) {
     item_id TEXT NOT NULL,
     quantity INTEGER NOT NULL DEFAULT 1,
     equipped INTEGER NOT NULL DEFAULT 0, --boolean 0 / 1
+    attuned INTEGER NOT NULL DEFAULT 0, --boolean 0 / 1
       slot TEXT,
     PRIMARY KEY(character_id, item_id),
     FOREIGN KEY(character_id) REFERENCES characters(id) ON DELETE CASCADE,
@@ -164,9 +179,9 @@ export function migrate(db: Database.Database) {
 
     CREATE TABLE IF NOT EXISTS quest_logs(
     character_id TEXT PRIMARY KEY,
-    active_quests TEXT NOT NULL, --JSON array of IDs
-      completed_quests TEXT NOT NULL, --JSON array of IDs
-      failed_quests TEXT NOT NULL, --JSON array of IDs
+    active_quests_json TEXT NOT NULL DEFAULT '[]', --JSON array of IDs
+      completed_quests_json TEXT NOT NULL DEFAULT '[]', --JSON array of IDs
+      failed_quests_json TEXT NOT NULL DEFAULT '[]', --JSON array of IDs
       FOREIGN KEY(character_id) REFERENCES characters(id) ON DELETE CASCADE
   );
 
@@ -554,6 +569,7 @@ export function migrate(db: Database.Database) {
   -- Aura System - tracks active area-effect auras centered on characters
   CREATE TABLE IF NOT EXISTS auras(
     id TEXT PRIMARY KEY,
+    encounter_id TEXT,
     owner_id TEXT NOT NULL,
     spell_name TEXT NOT NULL,
     spell_level INTEGER NOT NULL CHECK (spell_level BETWEEN 0 AND 9),
@@ -565,6 +581,7 @@ export function migrate(db: Database.Database) {
     started_at INTEGER NOT NULL, -- Round number
     max_duration INTEGER, -- Maximum rounds (null = indefinite)
     requires_concentration INTEGER NOT NULL DEFAULT 0, -- boolean
+    FOREIGN KEY(encounter_id) REFERENCES encounters(id) ON DELETE CASCADE,
     FOREIGN KEY(owner_id) REFERENCES characters(id) ON DELETE CASCADE
   );
 
@@ -850,6 +867,37 @@ function runMigrations(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_room_nodes_local_coords ON room_nodes(local_x, local_y);
     CREATE INDEX IF NOT EXISTS idx_room_nodes_network ON room_nodes(network_id);
 
+    -- SNAPSHOTS: Periodic game state snapshots for fast replay recovery (T030)
+    -- Note: No FK constraint on world_id to allow flexibility in testing and migration scenarios
+    CREATE TABLE IF NOT EXISTS snapshots(
+      id TEXT PRIMARY KEY,
+      world_id TEXT NOT NULL,
+      event_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      description TEXT,
+      state_json TEXT NOT NULL, -- JSON serialized game state
+      checksum TEXT NOT NULL, -- SHA-256 hash of state_json for integrity verification
+      size_bytes INTEGER NOT NULL,
+      is_auto INTEGER NOT NULL DEFAULT 0, -- boolean: 1 = auto-created every N events, 0 = manual
+      UNIQUE(world_id, event_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_snapshots_world_event ON snapshots(world_id, event_id DESC);
+
+    -- RNG STATE: Track RNG state per world/context for deterministic reproducibility (T035)
+    CREATE TABLE IF NOT EXISTS rng_state(
+      id TEXT PRIMARY KEY,
+      world_id TEXT NOT NULL,
+      context TEXT NOT NULL, -- e.g., 'combat', 'loot', 'encounter'
+      seed TEXT NOT NULL,
+      call_index INTEGER NOT NULL DEFAULT 0,
+      last_value TEXT,
+      updated_at TEXT NOT NULL,
+      UNIQUE(world_id, context)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_rng_state_world ON rng_state(world_id);
+
     -- NARRATIVE MEMORY LAYER: Typed notes for plot threads, canonical moments, NPC voices
     CREATE TABLE IF NOT EXISTS narrative_notes(
       id TEXT PRIMARY KEY,
@@ -897,5 +945,57 @@ function createPostMigrationIndexes(db: Database.Database) {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_regions_owner_nation ON regions(owner_nation_id);`);
   } catch (e) {
     console.error('[Migration] Note: Could not create idx_regions_owner_nation:', (e as Error).message);
+  }
+
+  // HASH CHAIN: Migrate event_logs table for hash chain support
+  const eventLogColumns = db.prepare("PRAGMA table_info(event_logs)").all() as { name: string }[];
+  const hasWorldId = eventLogColumns.some(col => col.name === 'world_id');
+  const hasEventType = eventLogColumns.some(col => col.name === 'event_type');
+  const hasActorId = eventLogColumns.some(col => col.name === 'actor_id');
+  const hasTargetId = eventLogColumns.some(col => col.name === 'target_id');
+  const hasPrevHash = eventLogColumns.some(col => col.name === 'prev_hash');
+  const hasHash = eventLogColumns.some(col => col.name === 'hash');
+
+  if (!hasWorldId) {
+    console.error('[Migration] Adding world_id column to event_logs table');
+    db.exec(`ALTER TABLE event_logs ADD COLUMN world_id TEXT NOT NULL DEFAULT 'default';`);
+  }
+  if (!hasEventType) {
+    console.error('[Migration] Adding event_type column to event_logs table');
+    // Migrate 'type' column data to 'event_type' or add new column
+    db.exec(`ALTER TABLE event_logs ADD COLUMN event_type TEXT NOT NULL DEFAULT 'system';`);
+    // Copy data from 'type' column if it exists
+    const hasType = eventLogColumns.some(col => col.name === 'type');
+    if (hasType) {
+      db.exec(`UPDATE event_logs SET event_type = type WHERE type IS NOT NULL;`);
+    }
+  }
+  if (!hasActorId) {
+    console.error('[Migration] Adding actor_id column to event_logs table');
+    db.exec(`ALTER TABLE event_logs ADD COLUMN actor_id TEXT;`);
+  }
+  if (!hasTargetId) {
+    console.error('[Migration] Adding target_id column to event_logs table');
+    db.exec(`ALTER TABLE event_logs ADD COLUMN target_id TEXT;`);
+  }
+  if (!hasPrevHash) {
+    console.error('[Migration] Adding prev_hash column to event_logs table');
+    // Use GENESIS_HASH as default for existing events
+    db.exec(`ALTER TABLE event_logs ADD COLUMN prev_hash TEXT NOT NULL DEFAULT 'aeebad4a796fcc2e15dc4c6061b45ed9b373f26adfc798ca7d2d8cc58182718e';`);
+  }
+  if (!hasHash) {
+    console.error('[Migration] Adding hash column to event_logs table');
+    db.exec(`ALTER TABLE event_logs ADD COLUMN hash TEXT NOT NULL DEFAULT 'pending';`);
+  }
+
+  // Create indexes for event_logs hash chain queries
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_event_logs_world ON event_logs(world_id);`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_event_logs_world_id ON event_logs(world_id, id);`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_event_logs_type ON event_logs(event_type);`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_event_logs_actor ON event_logs(actor_id);`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_event_logs_timestamp ON event_logs(timestamp);`);
+  } catch (e) {
+    console.error('[Migration] Note: Could not create event_logs indexes:', (e as Error).message);
   }
 }

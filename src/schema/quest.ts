@@ -27,6 +27,7 @@ export const QuestSchema = z.object({
 });
 
 export const QuestLogSchema = z.object({
+    id: z.string(), // Same as characterId
     characterId: z.string(),
     activeQuests: z.array(z.string()), // Quest IDs
     completedQuests: z.array(z.string()),

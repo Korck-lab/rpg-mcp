@@ -12,17 +12,18 @@ export class AuraRepository {
 
         const stmt = this.db.prepare(`
             INSERT INTO auras (
-                id, owner_id, spell_name, spell_level, radius,
+                id, encounter_id, owner_id, spell_name, spell_level, radius,
                 affects_allies, affects_enemies, affects_self,
                 effects, started_at, max_duration, requires_concentration
             )
-            VALUES (@id, @ownerId, @spellName, @spellLevel, @radius,
+            VALUES (@id, @encounterId, @ownerId, @spellName, @spellLevel, @radius,
                     @affectsAllies, @affectsEnemies, @affectsSelf,
                     @effects, @startedAt, @maxDuration, @requiresConcentration)
         `);
 
         stmt.run({
             id: valid.id,
+            encounterId: valid.encounterId || null,
             ownerId: valid.ownerId,
             spellName: valid.spellName,
             spellLevel: valid.spellLevel,
@@ -64,7 +65,17 @@ export class AuraRepository {
     }
 
     /**
-     * Find all active auras (for an encounter or global check)
+     * Find all auras for a specific encounter
+     */
+    findByEncounterId(encounterId: string): AuraState[] {
+        const stmt = this.db.prepare(`SELECT * FROM auras WHERE encounter_id = ?`);
+        const rows = stmt.all(encounterId) as AuraRow[];
+
+        return rows.map(row => this.rowToAuraState(row));
+    }
+
+    /**
+     * Find all active auras (for global check)
      */
     findAll(): AuraState[] {
         const stmt = this.db.prepare(`SELECT * FROM auras`);
@@ -112,6 +123,7 @@ export class AuraRepository {
     private rowToAuraState(row: AuraRow): AuraState {
         return AuraStateSchema.parse({
             id: row.id,
+            encounterId: row.encounter_id || undefined,
             ownerId: row.owner_id,
             spellName: row.spell_name,
             spellLevel: row.spell_level,
@@ -129,6 +141,7 @@ export class AuraRepository {
 
 interface AuraRow {
     id: string;
+    encounter_id: string | null;
     owner_id: string;
     spell_name: string;
     spell_level: number;

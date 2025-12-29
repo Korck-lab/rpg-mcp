@@ -125,6 +125,8 @@ function buildItem(data: {
         name: data.name,
         description: data.description,
         type: data.type,
+        rarity: 'common' as const,
+        requiresAttunement: false,
         weight: data.weight ?? 0,
         value: data.value ?? 0,
         properties: data.properties,

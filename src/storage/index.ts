@@ -1,53 +1,18 @@
 import Database from 'better-sqlite3';
 import { join, isAbsolute } from 'path';
-import { existsSync, mkdirSync } from 'fs';
-import { homedir } from 'os';
 import { initDB } from './db.js';
-import { migrate } from './migrations.js';
 
 let dbInstance: Database.Database | null = null;
 let configuredDbPath: string | null = null;
 
 /**
- * Get the platform-specific app data directory for rpg-mcp.
- * - Windows: %APPDATA%/rpg-mcp
- * - macOS: ~/Library/Application Support/rpg-mcp
- * - Linux: ~/.local/share/rpg-mcp
- */
-function getAppDataDir(): string {
-    const platform = process.platform;
-    let appDataDir: string;
-
-    if (platform === 'win32') {
-        // Windows: %APPDATA% (typically C:\Users\<user>\AppData\Roaming)
-        appDataDir = process.env.APPDATA || join(homedir(), 'AppData', 'Roaming');
-    } else if (platform === 'darwin') {
-        // macOS: ~/Library/Application Support
-        appDataDir = join(homedir(), 'Library', 'Application Support');
-    } else {
-        // Linux/Unix: ~/.local/share (XDG Base Directory spec)
-        appDataDir = process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share');
-    }
-
-    const rpgMcpDir = join(appDataDir, 'rpg-mcp');
-    
-    // Ensure the directory exists
-    if (!existsSync(rpgMcpDir)) {
-        mkdirSync(rpgMcpDir, { recursive: true });
-        console.error(`[Database] Created app data directory: ${rpgMcpDir}`);
-    }
-
-    return rpgMcpDir;
-}
-
-/**
  * Get the default database path.
- * Uses environment variable, CLI argument, or falls back to app data directory.
+ * Uses environment variable, CLI argument, or falls back to in-memory database.
  *
  * Priority:
  * 1. RPG_MCP_DB_PATH environment variable
  * 2. --db-path CLI argument
- * 3. Platform-specific app data directory (%APPDATA%/rpg-mcp on Windows)
+ * 3. In-memory database
  */
 function getDefaultDbPath(): string {
     // Check for environment variable first
@@ -62,8 +27,8 @@ function getDefaultDbPath(): string {
         return args[dbPathIndex + 1];
     }
 
-    // Use platform-specific app data directory
-    return join(getAppDataDir(), 'rpg.db');
+    // Use in-memory database for tests
+    return ':memory:';
 }
 
 /**
@@ -108,7 +73,6 @@ export function getDb(path?: string): Database.Database {
         const resolvedPath = resolveDbPath(path);
         console.error(`[Database] Initializing database at: ${resolvedPath}`);
         dbInstance = initDB(resolvedPath);
-        migrate(dbInstance);
     }
     return dbInstance;
 }
@@ -138,4 +102,19 @@ export function closeDb() {
 
 export * from './db.js';
 export * from './migrations.js';
+export * from './base.repo.js';
 export * from './audit.repo.js';
+export * from './audit-log.repo.js';
+export * from './event-log.repo.js';
+export * from './event-inbox.repo.js';
+export * from './snapshot.repo.js';
+export * from './rng-state.repo.js';
+export * from './utils/canonical-json.js';
+export * from './world.repo.js';
+export * from './region.repo.js';
+export * from './tile.repo.js';
+export * from './room.repo.js';
+export * from './repos/monster.repo.js';
+export * from './repos/quest.repo.js';
+export * from './repos/quest-log.repo.js';
+export * from './repos/narrative-notes.repo.js';

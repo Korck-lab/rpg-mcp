@@ -13,10 +13,13 @@ import { CombatRNG } from '../combat/rng.js';
  * Roll dice and return total
  * @param diceNotation - e.g., "8d6", "3d4+3", "1d8+4"
  */
-export function rollDice(diceNotation: string): { total: number; rolls: number[]; notation: string } {
+export function rollDice(diceNotation: string, rng?: CombatRNG): { total: number; rolls: number[]; notation: string } {
     const notation = diceNotation.trim();
     const rolls: number[] = [];
     let total = 0;
+
+    // Use provided RNG or create unseeded fallback
+    const diceRng = rng || new CombatRNG('fallback-seed');
 
     // Parse dice notation: XdY+Z or XdY-Z
     const match = notation.match(/^(\d+)d(\d+)([+-]\d+)?$/);
@@ -34,7 +37,7 @@ export function rollDice(diceNotation: string): { total: number; rolls: number[]
     const modifier = match[3] ? parseInt(match[3]) : 0;
 
     for (let i = 0; i < count; i++) {
-        const roll = rng.rollDie(size);
+        const roll = diceRng.rollDie(size);
         rolls.push(roll);
         total += roll;
     }
@@ -157,7 +160,7 @@ export function resolveSpell(
                 }
 
                 // Roll damage
-                const damageRoll = rollDice(diceNotation);
+                const damageRoll = rollDice(diceNotation, rng);
                 result.damageRolled = damageRoll.total;
 
                 // Check if spell requires attack roll or saving throw
@@ -229,7 +232,7 @@ export function resolveSpell(
                 result.diceRolled = healingDice;
 
                 // Roll healing
-                const healingRoll = rollDice(healingDice);
+                const healingRoll = rollDice(healingDice, rng);
 
                 // Add spellcasting modifier
                 const abilityMod = options.casterAbilityMod ?? Math.floor((caster.stats.wis - 10) / 2);

@@ -1,6 +1,8 @@
 import { z } from 'zod';
-import { CombatEngine, CombatParticipant, CombatState, CombatActionResult } from '../engine/combat/engine.js';
+import { randomUUID } from 'crypto';
+import { CombatEngine, CombatState, CombatActionResult } from '../engine/combat/engine.js';
 import { SpatialEngine } from '../engine/spatial/engine.js';
+import { CombatRNG } from '../engine/combat/rng.js';
 
 import { PubSub } from '../engine/pubsub.js';
 
@@ -473,85 +475,117 @@ function calculateAoE(
 
 // Tool definitions
 export const CombatTools = {
-    CREATE_ENCOUNTER: {
-        name: 'create_encounter',
-        description: `Create a combat encounter with positioned combatants and terrain.
-
-📋 WORKFLOW:
-1. Generate terrain (obstacles, water, difficult)
-2. Add props (buildings, trees, cover)
-3. Place party (safe starting positions)
-4. Place enemies (tactical positions)
-
-⚠️ CRITICAL VERTICALITY RULES:
-- z=0 means "standing on surface at (x,y)" - EVEN ON TOP OF OBSTACLES
-- If obstacles exist at (15,3), placing a unit at {x:15,y:3,z:0} = STANDING ON the obstacle
-- z>0 = FLYING/LEVITATING only. Creatures without flight condition WILL FALL!
-- Do NOT use z values to represent "standing on high ground"
-
-✅ CORRECT: Goblin on rock at (15,3) → position: {x:15, y:3, z:0}
-❌ WRONG: Goblin on rock → position: {x:15, y:3, z:25} (will fall!)
-
-🏔️ TERRAIN GENERATION RULES:
-- Obstacles should CLUSTER to form hills/mountains/caverns
-- Include SLOPES: Adjacent tiles stepping down to ground level
-- Isolated cliffs only if intentionally inaccessible
-- Water must CONNECT (rivers/streams/pools), never isolated tiles
-
-📐 PATTERN TEMPLATES (USE THESE!):
-
-RIVER VALLEY (cliffs on sides, river in middle):
-obstacles: ["5,0","5,1","5,2",...,"5,19"] (west cliff),
-           ["13,0","13,1","13,2",...,"13,19"] (east cliff)
-water: ["8,0","9,0","10,0","8,1","9,1","10,1",...] (3-wide river at x=8,9,10)
-
-CANYON (two parallel walls):
-obstacles: ["0,5","1,5","2,5",...,"9,5"] (north wall),
-           ["0,15","1,15","2,15",...,"9,15"] (south wall)
-
-Example:
-{
-  "seed": "battle-1",
-  "terrain": {
-    "obstacles": ["10,5", "11,5", "10,6"],
-    "water": ["5,10", "5,11", "6,11"]
-  },
-  "participants": [
-    {"id": "hero-1", "name": "Valeros", "hp": 20, "maxHp": 20, "initiativeBonus": 2, 
-     "position": {"x": 15, "y": 15, "z": 0}},
-    {"id": "goblin-1", "name": "Goblin Archer", "hp": 7, "maxHp": 7, "initiativeBonus": 1,
-     "position": {"x": 10, "y": 5, "z": 0}, "isEnemy": true}
-  ]
-}`,
+    // Encounter management
+    LIST_ENCOUNTERS: {
+        name: 'listEncounters',
+        description: 'List all encounters for a world.',
         inputSchema: z.object({
-            seed: z.string().describe('Seed for deterministic combat resolution'),
-            participants: z.array(z.object({
-                id: z.string(),
-                name: z.string(),
-                initiativeBonus: z.number().int(),
-                hp: z.number().int().positive(),
-                maxHp: z.number().int().positive(),
-                isEnemy: z.boolean().optional().describe('Whether this is an enemy (auto-detected if not set)'),
-                conditions: z.array(z.string()).default([]),
-                position: z.object({ x: z.number(), y: z.number(), z: z.number().optional() }).optional()
-                    .describe('CRIT-003: Spatial position for movement (x, y coordinates)'),
-                // HIGH-002: Damage modifiers
-                resistances: z.array(z.string()).optional()
-                    .describe('Damage types that deal half damage (e.g., ["fire", "cold"])'),
-                vulnerabilities: z.array(z.string()).optional()
-                    .describe('Damage types that deal double damage'),
-                immunities: z.array(z.string()).optional()
-                    .describe('Damage types that deal no damage')
-            })).min(1),
-            terrain: z.object({
-                obstacles: z.array(z.string()).default([]).describe('Array of "x,y" strings for blocking tiles'),
-                difficultTerrain: z.array(z.string()).optional().describe('Array of "x,y" strings for difficult terrain'),
-                water: z.array(z.string()).optional().describe('Array of "x,y" strings for water terrain (streams, rivers)')
-            }).optional().describe('CRIT-003: Terrain configuration for collision')
+            worldId: z.string().describe('World ID to list encounters for'),
+            status: z.enum(['active', 'completed', 'paused']).optional().describe('Filter by status'),
+            activeOnly: z.boolean().default(false).describe('Only show active encounters')
+        })
+    },
+    UPDATE_ENCOUNTER: {
+        name: 'updateEncounter',
+        description: 'Update encounter state.',
+        inputSchema: z.object({
+            encounterId: z.string().describe('Encounter ID'),
+            round: z.number().int().optional(),
+            activeTokenId: z.string().optional(),
+            status: z.enum(['active', 'completed', 'paused']).optional(),
+            terrain: z.any().optional(),
+            props: z.array(z.any()).optional()
+        })
+    },
+    DELETE_ENCOUNTER: {
+        name: 'deleteEncounter',
+        description: 'Delete an encounter.',
+        inputSchema: z.object({
+            encounterId: z.string().describe('Encounter ID to delete')
+        })
+    },
+    // Token management
+    ADD_TOKEN: {
+        name: 'addToken',
+        description: 'Add a token to an encounter.',
+        inputSchema: z.object({
+            encounterId: z.string().describe('Encounter ID'),
+            characterId: z.string().describe('Character ID'),
+            name: z.string().describe('Token name'),
+            initiativeBonus: z.number().int().describe('Initiative bonus'),
+            isEnemy: z.boolean().describe('Whether this is an enemy'),
+            hp: z.number().int().describe('Current HP'),
+            maxHp: z.number().int().describe('Maximum HP'),
+            positionX: z.number().int().describe('X position'),
+            positionY: z.number().int().describe('Y position'),
+            movementSpeed: z.number().int().default(30).describe('Movement speed'),
+            size: z.enum(['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan']).default('medium').describe('Size category')
+        })
+    },
+    UPDATE_TOKEN: {
+        name: 'updateToken',
+        description: 'Update token state.',
+        inputSchema: z.object({
+            encounterId: z.string().describe('Encounter ID'),
+            tokenId: z.string().describe('Token ID'),
+            initiative: z.number().int().optional(),
+            hp: z.number().int().optional(),
+            positionX: z.number().int().optional(),
+            positionY: z.number().int().optional(),
+            positionZ: z.number().int().optional(),
+            movementRemaining: z.number().int().optional(),
+            hasReaction: z.boolean().optional(),
+            hasAction: z.boolean().optional(),
+            hasBonusAction: z.boolean().optional(),
+            conditions: z.array(z.string()).optional()
+        })
+    },
+    REMOVE_TOKEN: {
+        name: 'removeToken',
+        description: 'Remove a token from an encounter.',
+        inputSchema: z.object({
+            encounterId: z.string().describe('Encounter ID'),
+            tokenId: z.string().describe('Token ID to remove')
+        })
+    },
+    LIST_TOKENS: {
+        name: 'listTokens',
+        description: 'List tokens in an encounter.',
+        inputSchema: z.object({
+            encounterId: z.string().describe('Encounter ID'),
+            isEnemy: z.boolean().optional().describe('Filter by enemy status')
+        })
+    },
+    GET_TOKEN: {
+        name: 'getToken',
+        description: 'Get a single token by ID.',
+        inputSchema: z.object({
+            encounterId: z.string().describe('Encounter ID'),
+            tokenId: z.string().describe('Token ID')
+        })
+    },
+    // Initiative
+    ROLL_INITIATIVE: {
+        name: 'rollInitiative',
+        description: 'Roll initiative for all tokens in an encounter.',
+        inputSchema: z.object({
+            encounterId: z.string().describe('Encounter ID')
+        })
+    },
+    CREATE_ENCOUNTER: {
+        name: 'createEncounter',
+        description: 'Create a new combat encounter.',
+        inputSchema: z.object({
+            worldId: z.string().describe('World ID where the encounter takes place'),
+            regionId: z.string().optional().describe('Region ID (optional)'),
+            roomId: z.string().optional().describe('Room ID (optional)'),
+            terrain: z.any().optional().describe('Terrain configuration'),
+            gridBounds: z.any().optional().describe('Grid boundaries'),
+            seed: z.string().optional().describe('Seed for deterministic combat resolution')
         })
     },
     GET_ENCOUNTER_STATE: {
-        name: 'get_encounter_state',
+        name: 'getEncounter',
         description: 'Get the current state of the active combat encounter.',
         inputSchema: z.object({
             encounterId: z.string().describe('The ID of the encounter')
@@ -617,7 +651,7 @@ Examples:
         })
     },
     ADVANCE_TURN: {
-        name: 'advance_turn',
+        name: 'advanceTurn',
         description: 'Advance to the next combatant\'s turn.',
         inputSchema: z.object({
             encounterId: z.string().describe('The ID of the encounter')
@@ -659,6 +693,34 @@ Examples:
                 dc: z.number().int().min(1).max(30)
             }).optional().describe('Saving throw required to avoid/reduce effect'),
             halfDamageOnSave: z.boolean().default(true).describe('Whether successful save halves damage')
+        })
+    },
+    // Concentration management
+    SET_CONCENTRATION: {
+        name: 'setConcentration',
+        description: 'Set concentration on a spell.',
+        inputSchema: z.object({
+            character_id: z.string().describe('Character ID'),
+            spell_name: z.string().describe('Spell name'),
+            spell_level: z.number().int().describe('Spell level'),
+            target_ids: z.array(z.string()).describe('Target IDs'),
+            started_at: z.number().int().describe('Round when concentration started'),
+            max_duration: z.number().int().optional().describe('Maximum duration in rounds'),
+            save_dc_base: z.number().int().default(10).describe('Base save DC')
+        })
+    },
+    BREAK_CONCENTRATION: {
+        name: 'breakConcentration',
+        description: 'Break concentration.',
+        inputSchema: z.object({
+            character_id: z.string().describe('Character ID')
+        })
+    },
+    GET_CONCENTRATION: {
+        name: 'getConcentration',
+        description: 'Get concentration state for a character.',
+        inputSchema: z.object({
+            character_id: z.string().describe('Character ID')
         })
     },
     // ============================================================
@@ -996,88 +1058,66 @@ MAZE WITH ROOMS:
 } as const;
 
 // Tool handlers
-export async function handleCreateEncounter(args: unknown, ctx: SessionContext) {
+export async function handleCreateEncounter(args: unknown, _ctx: SessionContext) {
     const parsed = CombatTools.CREATE_ENCOUNTER.inputSchema.parse(args);
 
-    // Create combat engine
-    const engine = new CombatEngine(parsed.seed, pubsub || undefined);
-
-    // Convert participants to proper format (preserve isEnemy, position, and resistances)
-    const participants: CombatParticipant[] = parsed.participants.map(p => ({
-        id: p.id,
-        name: p.name,
-        initiativeBonus: p.initiativeBonus,
-        hp: p.hp,
-        maxHp: p.maxHp,
-        isEnemy: p.isEnemy,  // Will be auto-detected in startEncounter if undefined
-        conditions: [],
-        position: p.position,  // CRIT-003: Preserve spatial position
-        // HIGH-002: Preserve damage modifiers
-        resistances: p.resistances,
-        vulnerabilities: p.vulnerabilities,
-        immunities: p.immunities
-    } as CombatParticipant));
-
-    // Start encounter
-    const state = engine.startEncounter(participants);
-
-    // CRIT-003: Add terrain to state if provided
-    if (parsed.terrain && state) {
-        (state as any).terrain = parsed.terrain;
-    }
-
     // Generate encounter ID
-    const encounterId = await generateDeterministicEncounterId(parsed.seed, 'combat-encounter');
-    // Store with session namespace
-    getCombatManager().create(`${ctx.sessionId}:${encounterId}`, engine);
+    const encounterId = await generateDeterministicEncounterId(parsed.seed || randomUUID(), 'combat-encounter');
 
     // Persist initial state
-    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const db = getDb();
     const repo = new EncounterRepository(db);
 
-    // Create the encounter record first (with initiative and isEnemy)
+    // Create the encounter record
     repo.create({
         id: encounterId,
-        tokens: state.participants.map(p => ({
-            id: p.id,
-            name: p.name,
-            initiativeBonus: p.initiativeBonus,
-            initiative: p.initiative,    // Store rolled initiative
-            isEnemy: p.isEnemy,          // Store enemy flag
-            hp: p.hp,
-            maxHp: p.maxHp,
-            conditions: p.conditions,
-            abilityScores: p.abilityScores,
-            // Spatial visualization data
-            position: p.position,
-            movementSpeed: p.movementSpeed ?? 30,
-            size: p.size ?? 'medium'
-        })),
-        round: state.round,
-        activeTokenId: state.turnOrder[state.currentTurnIndex],
+        worldId: parsed.worldId,
+        regionId: parsed.regionId,
+        roomId: parsed.roomId,
+        tokens: [], // Empty encounter
+        round: 1,
+        activeTokenId: undefined,
         status: 'active',
+        terrain: parsed.terrain,
+        props: [],
+        gridMinX: parsed.gridBounds?.minX ?? 0,
+        gridMaxX: parsed.gridBounds?.maxX ?? 20,
+        gridMinY: parsed.gridBounds?.minY ?? 0,
+        gridMaxY: parsed.gridBounds?.maxY ?? 20,
+        seed: parsed.seed,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     });
 
-    // Build response with BOTH text and JSON
-    const stateJson = buildStateJson(state, encounterId);
-    const formattedText = formatCombatStateText(state);
-    
-    let output = `⚔️ COMBAT STARTED\n`;
-    output += `Encounter ID: ${encounterId}\n`;
-    output += formattedText;
-    
-    // Append JSON for frontend parsing (marked clearly)
-    output += `\n\n<!-- STATE_JSON\n${JSON.stringify(stateJson)}\nSTATE_JSON -->`;
+    const encounterData = {
+        id: encounterId,
+        world_id: parsed.worldId,
+        region_id: parsed.regionId,
+        room_id: parsed.roomId,
+        round: 1,
+        status: 'active',
+        terrain: parsed.terrain,
+        grid_min_x: parsed.gridBounds?.minX ?? 0,
+        grid_max_x: parsed.gridBounds?.maxX ?? 20,
+        grid_min_y: parsed.gridBounds?.minY ?? 0,
+        grid_max_y: parsed.gridBounds?.maxY ?? 20,
+        seed: parsed.seed,
+        created_at: new Date().toISOString()
+    };
+
+    let output = 'Encounter created successfully!\n';
+    output += `ID: ${encounterId}\n`;
+    output += `World: ${parsed.worldId}\n`;
+    output += `Status: active\n`;
+    output += '\n<!-- STATE_JSON\n';
+    output += JSON.stringify({ encounter: encounterData }, null, 2);
+    output += '\nSTATE_JSON -->';
 
     return {
-        content: [
-            {
-                type: 'text' as const,
-                text: output
-            }
-        ]
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
     };
 }
 
@@ -1085,10 +1125,11 @@ export async function handleGetEncounterState(args: unknown, ctx: SessionContext
     const parsed = CombatTools.GET_ENCOUNTER_STATE.inputSchema.parse(args);
     let engine = getCombatManager().get(`${ctx.sessionId}:${parsed.encounterId}`);
 
+    const db = getDb();
+    const repo = new EncounterRepository(db);
+
     // Auto-load from database if not in memory
     if (!engine) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
-        const repo = new EncounterRepository(db);
         const state = repo.loadState(parsed.encounterId);
 
         if (!state) {
@@ -1106,21 +1147,83 @@ export async function handleGetEncounterState(args: unknown, ctx: SessionContext
         throw new Error('No active encounter');
     }
 
-    // CRITICAL FIX: Return JSON for frontend sync, wrapped in content
-    // The frontend expects to parse this as JSON
-    const stateJson = buildStateJson(state, parsed.encounterId);
+    // Fetch static metadata for the encounter (world_id, etc.)
+    const encounterRow = repo.findById(parsed.encounterId);
+    if (!encounterRow) {
+        throw new Error(`Encounter ${parsed.encounterId} not found in database.`);
+    }
+
+    // Build the full encounter object matching the Python client's expectation
+    const encounterData = {
+        id: encounterRow.id,
+        world_id: encounterRow.world_id,
+        region_id: encounterRow.region_id,
+        room_id: encounterRow.room_id,
+        round: state.round,
+        status: encounterRow.status,
+        terrain: state.terrain,
+        props: state.props,
+        grid_min_x: encounterRow.grid_min_x,
+        grid_max_x: encounterRow.grid_max_x,
+        grid_min_y: encounterRow.grid_min_y,
+        grid_max_y: encounterRow.grid_max_y,
+        seed: encounterRow.seed,
+        created_at: encounterRow.created_at,
+        updated_at: encounterRow.updated_at
+    };
+
+    // Build tokens list
+    const tokens = state.participants.map(p => ({
+        id: p.id,
+        encounter_id: parsed.encounterId,
+        character_id: p.characterId || p.id,
+        name: p.name,
+        initiative_bonus: p.initiativeBonus || 0,
+        initiative: p.initiative,
+        is_enemy: p.isEnemy,
+        hp: p.hp,
+        max_hp: p.maxHp,
+        position_x: p.position?.x ?? 0,
+        position_y: p.position?.y ?? 0,
+        position_z: p.position?.z ?? 0,
+        movement_speed: p.movementSpeed ?? 30,
+        movement_remaining: p.movementRemaining ?? 30,
+        size: p.size || 'medium',
+        has_reaction: true, // Defaulting as these might not be in CombatState explicitly unless tracked
+        has_action: true,
+        has_bonus_action: true,
+        conditions: p.conditions.map(c => c.type),
+        metadata: p.metadata || {}
+    }));
+
+    const responseData = {
+        encounter: encounterData,
+        tokens: tokens,
+        // Include visual state for frontend if needed, but the Python client mainly needs the above
+        visualState: buildStateJson(state, parsed.encounterId) 
+    };
     
-    // Return the JSON directly - the server will stringify it
-    return stateJson;
+    let output = `Encounter state retrieved.\n`;
+    output += `\n<!-- STATE_JSON\n`;
+    output += JSON.stringify(responseData, null, 2);
+    output += '\nSTATE_JSON -->';
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
 }
 
 export async function handleExecuteCombatAction(args: unknown, ctx: SessionContext) {
     const parsed = CombatTools.EXECUTE_COMBAT_ACTION.inputSchema.parse(args);
+    const rng = new CombatRNG(randomUUID());
     let engine = getCombatManager().get(`${ctx.sessionId}:${parsed.encounterId}`);
 
     // Auto-load from database if not in memory
     if (!engine) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const repo = new EncounterRepository(db);
         const state = repo.loadState(parsed.encounterId);
 
@@ -1170,13 +1273,13 @@ export async function handleExecuteCombatAction(args: unknown, ctx: SessionConte
 
         // Check concentration if target took damage and is concentrating
         if (result.success && result.damage && result.damage > 0) {
-            const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+            const db = getDb();
             const concentrationRepo = new ConcentrationRepository(db);
             const charRepo = new CharacterRepository(db);
             const targetChar = charRepo.findById(parsed.targetId);
 
             if (targetChar && concentrationRepo.isConcentrating(parsed.targetId)) {
-                const concentrationCheck = checkConcentration(targetChar, result.damage, concentrationRepo);
+                const concentrationCheck = checkConcentration(targetChar, result.damage, concentrationRepo, rng);
                 if (concentrationCheck.broken) {
                     // Break concentration
                     breakConcentration(
@@ -1421,7 +1524,7 @@ export async function handleExecuteCombatAction(args: unknown, ctx: SessionConte
         }
 
         // Load character data for spellcasting validation
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const charRepo = new CharacterRepository(db);
         let casterChar: Character | null = null;
 
@@ -1509,12 +1612,12 @@ export async function handleExecuteCombatAction(args: unknown, ctx: SessionConte
 
             // Check concentration if target is concentrating
             if (target) {
-                const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+                const db = getDb();
                 const concentrationRepo = new ConcentrationRepository(db);
                 const targetChar = charRepo.findById(parsed.targetId!);
 
                 if (targetChar && concentrationRepo.isConcentrating(parsed.targetId!)) {
-                    const concentrationCheck = checkConcentration(targetChar, resolution.damage, concentrationRepo);
+                    const concentrationCheck = checkConcentration(targetChar, resolution.damage, concentrationRepo, rng);
                     if (concentrationCheck.broken) {
                         // Break concentration
                         breakConcentration(
@@ -1549,7 +1652,7 @@ export async function handleExecuteCombatAction(args: unknown, ctx: SessionConte
 
         // Handle concentration
         if (spell.concentration) {
-            const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+            const db = getDb();
             const concentrationRepo = new ConcentrationRepository(db);
             const currentState = engine.getState();
 
@@ -1613,7 +1716,7 @@ export async function handleExecuteCombatAction(args: unknown, ctx: SessionConte
     // Save state
     const state = engine.getState();
     if (state) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const repo = new EncounterRepository(db);
         repo.saveState(parsed.encounterId, state);
         
@@ -1638,7 +1741,7 @@ export async function handleAdvanceTurn(args: unknown, ctx: SessionContext) {
 
     // Auto-load from database if not in memory
     if (!engine) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const repo = new EncounterRepository(db);
         const state = repo.loadState(parsed.encounterId);
 
@@ -1657,7 +1760,7 @@ export async function handleAdvanceTurn(args: unknown, ctx: SessionContext) {
 
     // Save state
     if (state) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const repo = new EncounterRepository(db);
         repo.saveState(parsed.encounterId, state);
     }
@@ -1698,7 +1801,7 @@ export async function handleEndEncounter(args: unknown, ctx: SessionContext) {
     const syncResults: { id: string; name: string; hp: number; synced: boolean }[] = [];
 
     if (finalState) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const { CharacterRepository } = await import('../storage/repos/character.repo.js');
         const charRepo = new CharacterRepository(db);
 
@@ -1755,7 +1858,7 @@ export async function handleEndEncounter(args: unknown, ctx: SessionContext) {
 
 export async function handleLoadEncounter(args: unknown, ctx: SessionContext) {
     const parsed = CombatTools.LOAD_ENCOUNTER.inputSchema.parse(args);
-    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const db = getDb();
     const repo = new EncounterRepository(db);
 
     const state = repo.loadState(parsed.encounterId);
@@ -1861,7 +1964,7 @@ export async function handleRollDeathSave(args: unknown, ctx: SessionContext) {
     }
 
     // Save state
-    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const db = getDb();
     const repo = new EncounterRepository(db);
     repo.saveState(parsed.encounterId, engine.getState()!);
 
@@ -1876,6 +1979,418 @@ export async function handleRollDeathSave(args: unknown, ctx: SessionContext) {
 /**
  * HIGH-006: Execute a lair action on initiative 20
  */
+// Encounter management handlers
+export async function handleListEncounters(args: unknown, _ctx: SessionContext) {
+    const parsed = CombatTools.LIST_ENCOUNTERS.inputSchema.parse(args);
+    const db = getDb();
+    const repo = new EncounterRepository(db);
+
+    const encounters = repo.listByWorld(parsed.worldId, parsed.status, parsed.activeOnly);
+
+    // Convert to snake_case format for Python client
+    const encountersData = encounters.map(encounter => ({
+        id: encounter.id,
+        world_id: encounter.worldId,
+        region_id: encounter.regionId,
+        room_id: encounter.roomId,
+        round: encounter.round,
+        active_token_id: encounter.activeTokenId,
+        status: encounter.status,
+        terrain: encounter.terrain,
+        props: encounter.props,
+        grid_min_x: encounter.gridMinX,
+        grid_max_x: encounter.gridMaxX,
+        grid_min_y: encounter.gridMinY,
+        grid_max_y: encounter.gridMaxY,
+        seed: encounter.seed,
+        created_at: encounter.createdAt,
+        ended_at: encounter.endedAt
+    }));
+
+    let output = `Found ${encounters.length} encounters\n`;
+    output += '\n<!-- STATE_JSON\n';
+    output += JSON.stringify({ encounters: encountersData }, null, 2);
+    output += '\nSTATE_JSON -->';
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+export async function handleUpdateEncounter(args: unknown, _ctx: SessionContext) {
+    const parsed = CombatTools.UPDATE_ENCOUNTER.inputSchema.parse(args);
+    const db = getDb();
+    const repo = new EncounterRepository(db);
+
+    const updated = repo.update(parsed.encounterId, {
+        round: parsed.round,
+        activeTokenId: parsed.activeTokenId,
+        status: parsed.status,
+        terrain: parsed.terrain,
+        props: parsed.props
+    });
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: updated ? 'Encounter updated' : 'Encounter not found'
+        }]
+    };
+}
+
+export async function handleDeleteEncounter(args: unknown, _ctx: SessionContext) {
+    const parsed = CombatTools.DELETE_ENCOUNTER.inputSchema.parse(args);
+    const db = getDb();
+    const repo = new EncounterRepository(db);
+
+    const deleted = repo.delete(parsed.encounterId);
+    return {
+        content: [{
+            type: 'text' as const,
+            text: deleted ? 'Encounter deleted' : 'Encounter not found'
+        }]
+    };
+}
+
+// Token management handlers
+export async function handleAddToken(args: unknown, _ctx: SessionContext) {
+    const parsed = CombatTools.ADD_TOKEN.inputSchema.parse(args);
+    const db = getDb();
+    const repo = new EncounterRepository(db);
+
+    const newToken = {
+        id: randomUUID(),
+        encounterId: parsed.encounterId,
+        characterId: parsed.characterId,
+        name: parsed.name,
+        initiativeBonus: parsed.initiativeBonus,
+        initiative: null,
+        isEnemy: parsed.isEnemy,
+        hp: parsed.hp,
+        maxHp: parsed.maxHp,
+        positionX: parsed.positionX,
+        positionY: parsed.positionY,
+        positionZ: 0,
+        movementSpeed: parsed.movementSpeed,
+        movementRemaining: parsed.movementSpeed,
+        size: parsed.size,
+        hasReaction: true,
+        hasAction: true,
+        hasBonusAction: true,
+        conditions: [],
+        metadata: {}
+    };
+
+    repo.addToken(parsed.encounterId, newToken);
+
+    const snakeToken = {
+        id: newToken.id,
+        encounter_id: newToken.encounterId,
+        character_id: newToken.characterId,
+        name: newToken.name,
+        initiative_bonus: newToken.initiativeBonus,
+        initiative: newToken.initiative,
+        is_enemy: newToken.isEnemy,
+        hp: newToken.hp,
+        max_hp: newToken.maxHp,
+        position_x: newToken.positionX,
+        position_y: newToken.positionY,
+        position_z: newToken.positionZ,
+        movement_speed: newToken.movementSpeed,
+        movement_remaining: newToken.movementRemaining,
+        size: newToken.size,
+        has_reaction: newToken.hasReaction,
+        has_action: newToken.hasAction,
+        has_bonus_action: newToken.hasBonusAction,
+        conditions: newToken.conditions,
+        metadata: newToken.metadata
+    };
+
+    let output = JSON.stringify(snakeToken, null, 2);
+    output += '\n<!-- STATE_JSON\n';
+    output += JSON.stringify({ token: snakeToken }, null, 2);
+    output += '\nSTATE_JSON -->';
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+export async function handleUpdateToken(args: unknown, _ctx: SessionContext) {
+    const parsed = CombatTools.UPDATE_TOKEN.inputSchema.parse(args);
+    const db = getDb();
+    const repo = new EncounterRepository(db);
+
+    const updated = repo.updateToken(parsed.encounterId, parsed.tokenId, {
+        initiative: parsed.initiative,
+        hp: parsed.hp,
+        positionX: parsed.positionX,
+        positionY: parsed.positionY,
+        positionZ: parsed.positionZ,
+        movementRemaining: parsed.movementRemaining,
+        hasReaction: parsed.hasReaction,
+        hasAction: parsed.hasAction,
+        hasBonusAction: parsed.hasBonusAction,
+        conditions: parsed.conditions
+    });
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: updated ? 'Token updated' : 'Token not found'
+        }]
+    };
+}
+
+export async function handleRemoveToken(args: unknown, _ctx: SessionContext) {
+    const parsed = CombatTools.REMOVE_TOKEN.inputSchema.parse(args);
+    const db = getDb();
+    const repo = new EncounterRepository(db);
+
+    const removed = repo.removeToken(parsed.encounterId, parsed.tokenId);
+    return {
+        content: [{
+            type: 'text' as const,
+            text: removed ? 'Token removed' : 'Token not found'
+        }]
+    };
+}
+
+export async function handleRollInitiative(args: unknown, _ctx: SessionContext) {
+    const parsed = CombatTools.ROLL_INITIATIVE.inputSchema.parse(args);
+    let engine = getCombatManager().get(`${_ctx.sessionId}:${parsed.encounterId}`);
+
+    if (!engine) {
+        const db = getDb();
+        const repo = new EncounterRepository(db);
+        const state = repo.loadState(parsed.encounterId);
+
+        if (!state) {
+            throw new Error(`Encounter ${parsed.encounterId} not found.`);
+        }
+
+        engine = new CombatEngine(parsed.encounterId, pubsub || undefined);
+        engine.loadState(state);
+        getCombatManager().create(`${_ctx.sessionId}:${parsed.encounterId}`, engine);
+    }
+
+    const results = engine.rollInitiativeForAll();
+
+    // Save state
+    const state = engine.getState();
+    if (state) {
+        const db = getDb();
+        const repo = new EncounterRepository(db);
+        repo.saveState(parsed.encounterId, state);
+    }
+
+    let output = JSON.stringify(results, null, 2);
+    output += '\n<!-- STATE_JSON\n';
+    output += JSON.stringify({ initiativeOrder: results }, null, 2);
+    output += '\nSTATE_JSON -->';
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+export async function handleListTokens(args: unknown, _ctx: SessionContext) {
+    const parsed = CombatTools.LIST_TOKENS.inputSchema.parse(args);
+    const db = getDb();
+    const repo = new EncounterRepository(db);
+
+    const encounter = repo.findById(parsed.encounterId);
+    if (!encounter) {
+        throw new Error(`Encounter ${parsed.encounterId} not found`);
+    }
+
+    // EncounterRow.tokens is a string in the DB row, but we need to parse it or load from combat_tokens table
+    // The repository's findById returns EncounterRow, not the Encounter object with parsed tokens
+    // We should use loadState to get the full state including tokens from the combat_tokens table
+    
+    // Actually repo.loadState returns the State object for the engine.
+    // Let's use a new method on repo or just query directly? 
+    // The repo has `loadState` which loads tokens.
+    
+    const state = repo.loadState(parsed.encounterId);
+    if (!state) {
+        throw new Error(`Encounter ${parsed.encounterId} not found`);
+    }
+
+    // Filter tokens if requested
+    let tokens = state.participants;
+    if (parsed.isEnemy !== undefined) {
+        tokens = tokens.filter((t: any) => t.isEnemy === parsed.isEnemy);
+    }
+
+    // Format for response - match Python CombatToken model
+    const formattedTokens = tokens.map((t: any) => ({
+        id: t.id,
+        encounter_id: parsed.encounterId,
+        character_id: t.characterId || t.id,
+        name: t.name,
+        initiative_bonus: t.initiativeBonus || 0,
+        initiative: t.initiative,
+        is_enemy: t.isEnemy,
+        hp: t.hp,
+        max_hp: t.maxHp,
+        position_x: t.position?.x ?? 0,
+        position_y: t.position?.y ?? 0,
+        position_z: t.position?.z ?? 0,
+        movement_speed: t.movementSpeed ?? 30,
+        movement_remaining: t.movementRemaining ?? 30,
+        size: t.size || 'medium',
+        has_reaction: t.hasReaction ?? true,
+        has_action: t.hasAction ?? true,
+        has_bonus_action: t.hasBonusAction ?? true,
+        conditions: Array.isArray(t.conditions) ? t.conditions.map((c: any) => typeof c === 'string' ? c : c.type) : [],
+        metadata: t.metadata || {}
+    }));
+
+    let output = `Found ${formattedTokens.length} tokens\n`;
+    output += '\n<!-- STATE_JSON\n';
+    output += JSON.stringify({ tokens: formattedTokens }, null, 2);
+    output += '\nSTATE_JSON -->';
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+export async function handleGetToken(args: unknown, _ctx: SessionContext) {
+    const parsed = CombatTools.GET_TOKEN.inputSchema.parse(args);
+    const db = getDb();
+    const repo = new EncounterRepository(db);
+
+    const state = repo.loadState(parsed.encounterId);
+    if (!state) {
+        throw new Error(`Encounter ${parsed.encounterId} not found`);
+    }
+
+    const token = state.participants.find((p: any) => p.id === parsed.tokenId);
+    if (!token) {
+        throw new Error(`Token ${parsed.tokenId} not found in encounter`);
+    }
+
+    const formattedToken = {
+        id: token.id,
+        encounter_id: parsed.encounterId,
+        character_id: token.characterId || token.id,
+        name: token.name,
+        initiative_bonus: token.initiativeBonus || 0,
+        initiative: token.initiative,
+        is_enemy: token.isEnemy,
+        hp: token.hp,
+        max_hp: token.maxHp,
+        position_x: token.position?.x ?? 0,
+        position_y: token.position?.y ?? 0,
+        position_z: token.position?.z ?? 0,
+        movement_speed: token.movementSpeed ?? 30,
+        movement_remaining: token.movementRemaining ?? 30,
+        size: token.size || 'medium',
+        has_reaction: token.hasReaction ?? true,
+        has_action: token.hasAction ?? true,
+        has_bonus_action: token.hasBonusAction ?? true,
+        conditions: Array.isArray(token.conditions) ? token.conditions.map((c: any) => typeof c === 'string' ? c : c.type) : [],
+        metadata: token.metadata || {}
+    };
+
+    let output = `Token retrieved: ${token.name}\n`;
+    output += '\n<!-- STATE_JSON\n';
+    output += JSON.stringify({ token: formattedToken }, null, 2);
+    output += '\nSTATE_JSON -->';
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+// Concentration handlers
+export async function handleSetConcentration(args: unknown, _ctx: SessionContext) {
+    const parsed = CombatTools.SET_CONCENTRATION.inputSchema.parse(args);
+    const db = getDb();
+    const concentrationRepo = new ConcentrationRepository(db);
+    const charRepo = new CharacterRepository(db);
+
+    startConcentration(
+        parsed.character_id,
+        parsed.spell_name,
+        parsed.spell_level,
+        parsed.started_at,
+        parsed.max_duration,
+        parsed.target_ids,
+        concentrationRepo,
+        charRepo
+    );
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: 'Concentration set'
+        }]
+    };
+}
+
+export async function handleBreakConcentration(args: unknown, _ctx: SessionContext) {
+    const parsed = CombatTools.BREAK_CONCENTRATION.inputSchema.parse(args);
+    const db = getDb();
+    const concentrationRepo = new ConcentrationRepository(db);
+    const charRepo = new CharacterRepository(db);
+
+    breakConcentration(
+        { characterId: parsed.character_id, reason: 'voluntary' },
+        concentrationRepo,
+        charRepo
+    );
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: 'Concentration broken'
+        }]
+    };
+}
+
+export async function handleGetConcentration(args: unknown, _ctx: SessionContext) {
+    const parsed = CombatTools.GET_CONCENTRATION.inputSchema.parse(args);
+    const db = getDb();
+    const concentrationRepo = new ConcentrationRepository(db);
+
+    const concentration = concentrationRepo.findByCharacterId(parsed.character_id);
+    
+    let output = concentration 
+        ? `Concentrating on ${concentration.activeSpell} (Level ${concentration.spellLevel})`
+        : 'Not concentrating';
+        
+    output += '\n\n<!-- STATE_JSON\n';
+    output += JSON.stringify({ concentration }, null, 2);
+    output += '\nSTATE_JSON -->';
+    
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+
+
 export async function handleExecuteLairAction(args: unknown, ctx: SessionContext) {
     const parsed = CombatTools.EXECUTE_LAIR_ACTION.inputSchema.parse(args);
     const engine = getCombatManager().get(`${ctx.sessionId}:${parsed.encounterId}`);
@@ -1988,7 +2503,7 @@ export async function handleExecuteLairAction(args: unknown, ctx: SessionContext
     output += `\n→ Call advance_turn to proceed to the next combatant`;
 
     // Save state
-    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const db = getDb();
     const repo = new EncounterRepository(db);
     repo.saveState(parsed.encounterId, engine.getState()!);
 
@@ -2015,7 +2530,7 @@ export async function handleRenderMap(args: unknown, ctx: SessionContext) {
 
     // Auto-load from database if not in memory
     if (!engine) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const repo = new EncounterRepository(db);
         const state = repo.loadState(parsed.encounterId);
 
@@ -2053,7 +2568,7 @@ export async function handleCalculateAoe(args: unknown, ctx: SessionContext) {
 
     // Auto-load from database if not in memory
     if (!engine) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const repo = new EncounterRepository(db);
         const state = repo.loadState(parsed.encounterId);
 
@@ -2410,7 +2925,7 @@ export async function handleUpdateTerrain(args: unknown, ctx: SessionContext) {
 
     // Auto-load from database if not in memory
     if (!engine) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const repo = new EncounterRepository(db);
         const state = repo.loadState(parsed.encounterId);
 
@@ -2473,7 +2988,7 @@ export async function handleUpdateTerrain(args: unknown, ctx: SessionContext) {
     }
 
     // Save updated state to database
-    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const db = getDb();
     const repo = new EncounterRepository(db);
     repo.saveState(parsed.encounterId, state);
 
@@ -2505,7 +3020,7 @@ export async function handlePlaceProp(args: unknown, ctx: SessionContext) {
 
     // Auto-load from database if not in memory
     if (!engine) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const repo = new EncounterRepository(db);
         const state = repo.loadState(parsed.encounterId);
 
@@ -2550,7 +3065,7 @@ export async function handlePlaceProp(args: unknown, ctx: SessionContext) {
     state.props.push(prop);
 
     // Save updated state to database
-    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const db = getDb();
     const repo = new EncounterRepository(db);
     repo.saveState(parsed.encounterId, state);
 
@@ -2596,7 +3111,7 @@ export async function handleMeasureDistance(args: unknown, ctx: SessionContext) 
 
     // Auto-load from database if not in memory
     if (!engine) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const repo = new EncounterRepository(db);
         const state = repo.loadState(parsed.encounterId);
 
@@ -2620,7 +3135,8 @@ export async function handleMeasureDistance(args: unknown, ctx: SessionContext) 
             const [x, y] = ref.value.split(',').map(Number);
             return { x, y, name: `(${ref.value})` };
         } else {
-            const participant = state.participants.find(p => p.id === ref.value);
+            // Look up by token id OR characterId (for compatibility)
+            const participant = state.participants.find(p => p.id === ref.value || p.characterId === ref.value);
             if (!participant) {
                 throw new Error(`Entity ${ref.value} not found in encounter`);
             }
@@ -2679,7 +3195,7 @@ export async function handleGenerateTerrainPatch(args: unknown, ctx: SessionCont
 
     // Auto-load from database if not in memory
     if (!engine) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const repo = new EncounterRepository(db);
         const state = repo.loadState(parsed.encounterId);
 
@@ -2731,7 +3247,7 @@ export async function handleGenerateTerrainPatch(args: unknown, ctx: SessionCont
         }
         
         // Persist state
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const repo = new EncounterRepository(db);
         repo.saveState(parsed.encounterId, state);
         
@@ -2915,7 +3431,7 @@ export async function handleGenerateTerrainPatch(args: unknown, ctx: SessionCont
     }
 
     // Save updated state
-    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const db = getDb();
     const repo = new EncounterRepository(db);
     repo.saveState(parsed.encounterId, state);
 
@@ -2958,7 +3474,7 @@ export async function handleGenerateTerrainPattern(args: unknown, ctx: SessionCo
 
     // Auto-load from database if not in memory
     if (!engine) {
-        const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+        const db = getDb();
         const repo = new EncounterRepository(db);
         const state = repo.loadState(parsed.encounterId);
 
@@ -3035,7 +3551,7 @@ export async function handleGenerateTerrainPattern(args: unknown, ctx: SessionCo
     }
     
     // Persist state
-    const db = getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db');
+    const db = getDb();
     const repo = new EncounterRepository(db);
     repo.saveState(parsed.encounterId, state);
     
@@ -3053,3 +3569,5 @@ export async function handleGenerateTerrainPattern(args: unknown, ctx: SessionCo
         content: [{ type: 'text' as const, text: output }]
     };
 }
+
+

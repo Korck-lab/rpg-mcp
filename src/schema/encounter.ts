@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CombatTokenSchema } from './combat-token.js';
 
 export const ConditionSchema = z.object({
     id: z.string(),
@@ -82,31 +83,7 @@ export function getSizeFootprint(size: SizeCategory): number {
     }
 }
 
-export const TokenSchema = z.object({
-    id: z.string(),
-    name: z.string(),
-    initiativeBonus: z.number(),
-    initiative: z.number().optional(),  // Rolled initiative value
-    isEnemy: z.boolean().optional(),    // Whether this is an enemy
-    hp: z.number(),
-    maxHp: z.number(),
-    conditions: z.array(ConditionSchema),
-    position: PositionSchema.optional(), // CRIT-003: Spatial position for movement
-    // Phase 4: Movement economy
-    movementSpeed: z.number().default(30), // Base speed in feet (6 squares at 5ft/square)
-    movementRemaining: z.number().optional(), // Remaining movement this turn
-    size: SizeCategorySchema.default('medium'), // Creature size for footprint
-    abilityScores: z.object({
-        strength: z.number(),
-        dexterity: z.number(),
-        constitution: z.number(),
-        intelligence: z.number(),
-        wisdom: z.number(),
-        charisma: z.number()
-    }).optional()
-});
 
-export type Token = z.infer<typeof TokenSchema>;
 
 // CRIT-003: Terrain schema for blocking obstacles
 export const TerrainSchema = z.object({
@@ -135,14 +112,21 @@ export type Prop = z.infer<typeof PropSchema>;
 
 export const EncounterSchema = z.object({
     id: z.string(),
-    regionId: z.string().optional(), // Made optional as it might not always be linked to a region
-    tokens: z.array(TokenSchema),
-    round: z.number().int().min(0),
+    worldId: z.string(),
+    regionId: z.string().optional(),
+    roomId: z.string().optional(),
+    tokens: z.array(CombatTokenSchema).optional(),
+    round: z.number().int().min(1).default(1),
     activeTokenId: z.string().optional(),
     status: z.enum(['active', 'completed', 'paused']),
-    terrain: TerrainSchema.optional(), // CRIT-003: Terrain obstacles
-    props: z.array(PropSchema).optional(), // PHASE 1: Improvised props
-    gridBounds: GridBoundsSchema.optional(), // BUG-001: Spatial boundary validation
+    terrain: TerrainSchema.optional(),
+    props: z.array(PropSchema).optional(),
+    gridMinX: z.number().int().default(0),
+    gridMaxX: z.number().int().default(20),
+    gridMinY: z.number().int().default(0),
+    gridMaxY: z.number().int().default(20),
+    seed: z.string().optional(),
+    endedAt: z.string().datetime().optional(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
 });

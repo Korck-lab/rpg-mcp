@@ -24,15 +24,23 @@ import {
     D5EClass
 } from '../data/class-starting-data.js';
 
+import { SpellSlots } from '../schema/spell.js';
+
+// ... imports ...
+
 export interface ProvisioningResult {
     itemsGranted: string[];
     spellsGranted: string[];
     cantripsGranted: string[];
-    spellSlots: number[] | null;
-    pactMagicSlots: { slots: number; level: number } | null;
+    spellSlots: SpellSlots | null;
+    pactMagicSlots: { current: number; max: number; slotLevel: number } | null;
     startingGold: number;
     errors: string[];
 }
+
+// ... existing code ...
+
+
 
 export interface ProvisioningOptions {
     /** Skip equipment provisioning entirely */
@@ -118,9 +126,19 @@ export function provisionStartingEquipment(
                 // Find the non-zero slot count and its spell level (1-indexed)
                 const slotCount = slots.find(s => s > 0) || 1;
                 const slotLevel = slots.findIndex(s => s > 0) + 1;
-                result.pactMagicSlots = { slots: slotCount, level: slotLevel || 1 };
+                result.pactMagicSlots = { 
+                    current: slotCount, 
+                    max: slotCount, 
+                    slotLevel: slotLevel || 1 
+                };
             } else {
-                result.spellSlots = slots as number[];
+                // Convert array [0, 2, 0...] to SpellSlots object
+                const spellSlotsObj: any = {};
+                for (let i = 0; i < 9; i++) {
+                    const count = slots[i] || 0;
+                    spellSlotsObj[`level${i + 1}`] = { current: count, max: count };
+                }
+                result.spellSlots = spellSlotsObj as SpellSlots;
             }
         }
 
@@ -215,8 +233,8 @@ function getGenericStartingEquipment(): string[] {
 function ensureItemExists(itemRepo: ItemRepository, itemName: string): string {
     // Check if item already exists
     const existing = itemRepo.findByName(itemName);
-    if (existing.length > 0) {
-        return existing[0].id;
+    if (existing.success && existing.data && existing.data.length > 0) {
+        return existing.data[0].id;
     }
 
     // Create new item with sensible defaults
@@ -228,6 +246,8 @@ function ensureItemExists(itemRepo: ItemRepository, itemName: string): string {
         name: itemName,
         description: itemData.description,
         type: itemData.type,
+        rarity: 'common' as const,
+        requiresAttunement: false,
         weight: itemData.weight,
         value: itemData.value,
         properties: itemData.properties,

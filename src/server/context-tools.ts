@@ -7,6 +7,8 @@ import { PartyRepository } from '../storage/repos/party.repo.js';
 import { InventoryRepository } from '../storage/repos/inventory.repo.js';
 import { ItemRepository } from '../storage/repos/item.repo.js';
 import { QuestRepository } from '../storage/repos/quest.repo.js';
+import { QuestLogRepository } from '../storage/repos/quest-log.repo.js';
+import { NarrativeNotesRepository } from '../storage/repos/narrative-notes.repo.js';
 import { EventInboxRepository } from '../storage/repos/event-inbox.repo.js';
 import { SpatialRepository } from '../storage/repos/spatial.repo.js';
 import { NpcMemoryRepository } from '../storage/repos/npc-memory.repo.js';
@@ -104,12 +106,14 @@ export async function handleGetNarrativeContext(args: unknown, _ctx: SessionCont
   const inventoryRepo = new InventoryRepository(db);
   const itemRepo = new ItemRepository(db);
   const questRepo = new QuestRepository(db);
+  const questLogRepo = new QuestLogRepository(db, questRepo);
   const eventRepo = new EventInboxRepository(db);
   const spatialRepo = new SpatialRepository(db);
   const secretRepo = new SecretRepository(db);
   const npcMemoryRepo = new NpcMemoryRepository(db);
   const auraRepo = new AuraRepository(db);
   const poiRepo = new POIRepository(db);
+  const narrativeRepo = new NarrativeNotesRepository(db);
   
   const sections: NarrativeSection[] = [];
   const isDetailed = parsed.verbosity === 'detailed';
@@ -214,16 +218,17 @@ export async function handleGetNarrativeContext(args: unknown, _ctx: SessionCont
         const carriedItems: string[] = [];
         
         for (const invItem of inventory.items) {
-          const item = itemRepo.findById(invItem.itemId);
-          if (item) {
-            const itemName = invItem.quantity > 1 ? `${item.name} (×${invItem.quantity})` : item.name;
-            if (invItem.equipped && invItem.slot) {
-              equippedItems.push(`**${invItem.slot}:** ${itemName}`);
-            } else if (isDetailed) {
-              carriedItems.push(itemName);
-            }
-          }
-        }
+           const itemResult = itemRepo.findById(invItem.itemId);
+           if (itemResult.success && itemResult.data) {
+             const item = itemResult.data;
+             const itemName = invItem.quantity > 1 ? `${item.name} (×${invItem.quantity})` : item.name;
+             if (invItem.equipped && invItem.slot) {
+               equippedItems.push(`**${invItem.slot}:** ${itemName}`);
+             } else if (isDetailed) {
+               carriedItems.push(itemName);
+             }
+           }
+         }
         
         let invContent = '';
         if (equippedItems.length > 0) {
@@ -400,34 +405,37 @@ export async function handleGetNarrativeContext(args: unknown, _ctx: SessionCont
   // ═══════════════════════════════════════════════════════════════════════════
   if (parsed.characterId && !isMinimal) {
     try {
-      const questLog = questRepo.getFullQuestLog(parsed.characterId);
-      const activeQuests = questLog.quests.filter(q => q.logStatus === 'active');
-      
-      if (activeQuests.length > 0) {
-        let questContent = '';
-        for (const quest of activeQuests.slice(0, isDetailed ? 5 : 3)) {
-          questContent += `**${quest.name}**`;
-          if (quest.objectives && quest.objectives.length > 0) {
-            const incomplete = quest.objectives.filter((o: any) => !o.completed);
-            if (incomplete.length > 0) {
-              questContent += `: ${incomplete[0].description}`;
-              if (incomplete.length > 1) {
-                questContent += ` (+${incomplete.length - 1} more)`;
+      const logResult = questLogRepo.getFullQuestLog(parsed.characterId);
+      if (logResult.success && logResult.data) {
+        const questLog = logResult.data;
+        const activeQuests = questLog.quests.filter(q => q.logStatus === 'active');
+        
+        if (activeQuests.length > 0) {
+          let questContent = '';
+          for (const quest of activeQuests.slice(0, isDetailed ? 5 : 3)) {
+            questContent += `**${quest.name}**`;
+            if (quest.objectives && quest.objectives.length > 0) {
+              const incomplete = quest.objectives.filter((o: any) => !o.completed);
+              if (incomplete.length > 0) {
+                questContent += `: ${incomplete[0].description}`;
+                if (incomplete.length > 1) {
+                  questContent += ` (+${incomplete.length - 1} more)`;
+                }
               }
             }
+            questContent += '\n';
           }
-          questContent += '\n';
+          
+          if (activeQuests.length > (isDetailed ? 5 : 3)) {
+            questContent += `*...and ${activeQuests.length - (isDetailed ? 5 : 3)} more quests*`;
+          }
+          
+          sections.push({
+            title: '📜 ACTIVE QUESTS',
+            content: questContent.trim(),
+            priority: 25
+          });
         }
-        
-        if (activeQuests.length > (isDetailed ? 5 : 3)) {
-          questContent += `*...and ${activeQuests.length - (isDetailed ? 5 : 3)} more quests*`;
-        }
-        
-        sections.push({
-          title: '📜 ACTIVE QUESTS',
-          content: questContent.trim(),
-          priority: 25
-        });
       }
     } catch (e) {
       console.warn('Failed to load quest context', e);
@@ -683,15 +691,13 @@ export async function handleGetNarrativeContext(args: unknown, _ctx: SessionCont
   // ═══════════════════════════════════════════════════════════════════════════
   if (!parsed.forPlayer && !isMinimal) {
     try {
-      const notes = db.prepare(`
-        SELECT * FROM narrative_notes 
-        WHERE world_id = ? AND status = 'active' 
-        ORDER BY created_at DESC LIMIT 5
-      `).all(parsed.worldId) as any[];
+      const notes = narrativeRepo.findByWorld(parsed.worldId);
+      // Filter for active manually since repository doesn't filter by status in findByWorld yet
+      const activeNotes = notes.filter(n => n.status === 'active').slice(0, 5);
       
-      if (notes.length > 0) {
+      if (activeNotes.length > 0) {
         let noteContent = '';
-        for (const note of notes) {
+        for (const note of activeNotes) {
           const typeEmoji: Record<string, string> = {
             'plot_thread': '🧵',
             'foreshadowing': '🔮',

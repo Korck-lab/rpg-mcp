@@ -11,6 +11,7 @@
  */
 
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 import { getDb } from '../storage/index.js';
 import { POIRepository } from '../storage/repos/poi.repo.js';
 import { SpatialRepository } from '../storage/repos/spatial.repo.js';
@@ -18,6 +19,7 @@ import { StructureRepository } from '../storage/repos/structure.repo.js';
 import { CharacterRepository } from '../storage/repos/character.repo.js';
 import { WorldRepository } from '../storage/repos/world.repo.js';
 import { RegionRepository } from '../storage/repos/region.repo.js';
+import { CombatRNG } from '../engine/combat/rng.js';
 import {
     POI,
     POICategory,
@@ -217,8 +219,8 @@ function getRepos() {
     };
 }
 
-function rollD20(rng: { rollDie: (sides: number) => number }): number {
-    return rng.rollDie(20);
+function rollD20(rng: CombatRNG): number {
+    return rng.d20();
 }
 
 function getOppositeDirection(dir: string): string {
@@ -338,6 +340,7 @@ export async function handleGetPOI(args: unknown, _ctx: SessionContext) {
 
 export async function handleDiscoverPOI(args: unknown, _ctx: SessionContext) {
     const parsed = POITools.DISCOVER_POI.inputSchema.parse(args);
+    const rng = new CombatRNG(randomUUID());
     const { poi: poiRepo, character: charRepo } = getRepos();
 
     const poi = poiRepo.findById(parsed.poiId);
@@ -378,7 +381,7 @@ export async function handleDiscoverPOI(args: unknown, _ctx: SessionContext) {
     if (!parsed.autoSuccess && poi.discoveryDC) {
         const wisModifier = Math.floor((character.stats.wis - 10) / 2);
         const perceptionBonus = (character as any).perceptionBonus || 0;
-        const roll = rollD20();
+        const roll = rollD20(rng);
         const total = roll + wisModifier + perceptionBonus;
 
         if (total < poi.discoveryDC) {
@@ -806,6 +809,7 @@ export async function handleListNetworks(args: unknown, _ctx: SessionContext) {
 
 export async function handleExploreRoom(args: unknown, _ctx: SessionContext) {
     const parsed = POITools.EXPLORE_ROOM.inputSchema.parse(args);
+    const rng = new CombatRNG(randomUUID());
     const { spatial: spatialRepo, character: charRepo } = getRepos();
 
     const character = charRepo.findById(parsed.characterId);
@@ -838,8 +842,8 @@ export async function handleExploreRoom(args: unknown, _ctx: SessionContext) {
         ? Math.floor((character.stats.int - 10) / 2)
         : 0;
 
-    const roll1 = rollD20();
-    const roll2 = parsed.searchType === 'thorough' ? rollD20() : roll1;
+    const roll1 = rollD20(rng);
+    const roll2 = parsed.searchType === 'thorough' ? rollD20(rng) : roll1;
     const bestRoll = Math.max(roll1, roll2);
     const total = bestRoll + totalPerception + investigationBonus;
 

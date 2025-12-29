@@ -5,6 +5,7 @@ import { getDb } from '../storage/index.js';
 import { CharacterRepository } from '../storage/repos/character.repo.js';
 import { ItemRepository } from '../storage/repos/item.repo.js';
 import { InventoryRepository } from '../storage/repos/inventory.repo.js';
+import { CombatRNG } from '../engine/combat/rng.js';
 import {
     useSpellScroll,
     createSpellScroll,
@@ -87,18 +88,20 @@ function ensureDb() {
 export async function handleUseSpellScroll(args: unknown, _ctx: SessionContext) {
     const { characterRepo, itemRepo, inventoryRepo } = ensureDb();
     const parsed = ScrollTools.USE_SPELL_SCROLL.inputSchema.parse(args);
+    const rng = new CombatRNG(randomUUID());
 
     const character = characterRepo.findById(parsed.characterId);
     if (!character) {
         throw new Error(`Character ${parsed.characterId} not found`);
     }
 
-    const scroll = itemRepo.findById(parsed.scrollItemId);
-    if (!scroll) {
+    const scrollResult = itemRepo.findById(parsed.scrollItemId);
+    if (!scrollResult.success || !scrollResult.data) {
         throw new Error(`Scroll item ${parsed.scrollItemId} not found`);
     }
+    const scroll = scrollResult.data;
 
-    const result = useSpellScroll(character, scroll, inventoryRepo);
+    const result = useSpellScroll(character, scroll, inventoryRepo, rng);
 
     return {
         content: [
@@ -153,16 +156,18 @@ export async function handleCreateSpellScroll(args: unknown, _ctx: SessionContex
 export async function handleIdentifyScroll(args: unknown, _ctx: SessionContext) {
     const { characterRepo, itemRepo } = ensureDb();
     const parsed = ScrollTools.IDENTIFY_SCROLL.inputSchema.parse(args);
+    const rng = new CombatRNG(randomUUID());
 
     const character = characterRepo.findById(parsed.characterId);
     if (!character) {
         throw new Error(`Character ${parsed.characterId} not found`);
     }
 
-    const scroll = itemRepo.findById(parsed.scrollItemId);
-    if (!scroll) {
+    const scrollResult = itemRepo.findById(parsed.scrollItemId);
+    if (!scrollResult.success || !scrollResult.data) {
         throw new Error(`Scroll item ${parsed.scrollItemId} not found`);
     }
+    const scroll = scrollResult.data;
 
     if (scroll.type !== 'scroll') {
         throw new Error(`Item "${scroll.name}" is not a scroll`);
@@ -187,7 +192,7 @@ export async function handleIdentifyScroll(args: unknown, _ctx: SessionContext) 
 
     // Otherwise, roll Arcana check
     const checkDC = 10 + scrollDetails.spellLevel!;
-    const arcanaCheck = rollArcanaCheck(character);
+    const arcanaCheck = rollArcanaCheck(character, rng);
     const success = arcanaCheck.total >= checkDC;
 
     return {
@@ -221,10 +226,11 @@ export async function handleGetScrollUseDC(args: unknown, _ctx: SessionContext) 
         throw new Error(`Character ${parsed.characterId} not found`);
     }
 
-    const scroll = itemRepo.findById(parsed.scrollItemId);
-    if (!scroll) {
+    const scrollResult = itemRepo.findById(parsed.scrollItemId);
+    if (!scrollResult.success || !scrollResult.data) {
         throw new Error(`Scroll item ${parsed.scrollItemId} not found`);
     }
+    const scroll = scrollResult.data;
 
     const usability = checkScrollUsability(character, scroll);
 
@@ -245,10 +251,11 @@ export async function handleGetScrollDetails(args: unknown, _ctx: SessionContext
     const { itemRepo } = ensureDb();
     const parsed = ScrollTools.GET_SCROLL_DETAILS.inputSchema.parse(args);
 
-    const scroll = itemRepo.findById(parsed.scrollItemId);
-    if (!scroll) {
+    const scrollResult = itemRepo.findById(parsed.scrollItemId);
+    if (!scrollResult.success || !scrollResult.data) {
         throw new Error(`Scroll item ${parsed.scrollItemId} not found`);
     }
+    const scroll = scrollResult.data;
 
     const details = getScrollDetails(scroll);
     if (!details.valid) {
@@ -277,10 +284,11 @@ export async function handleCheckScrollUsability(args: unknown, _ctx: SessionCon
         throw new Error(`Character ${parsed.characterId} not found`);
     }
 
-    const scroll = itemRepo.findById(parsed.scrollItemId);
-    if (!scroll) {
+    const scrollResult = itemRepo.findById(parsed.scrollItemId);
+    if (!scrollResult.success || !scrollResult.data) {
         throw new Error(`Scroll item ${parsed.scrollItemId} not found`);
     }
+    const scroll = scrollResult.data;
 
     const usability = checkScrollUsability(character, scroll);
 

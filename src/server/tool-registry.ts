@@ -10,9 +10,9 @@ import { ToolRegistry, ToolMetadata, ToolCategory } from './tool-metadata.js';
 
 // Import all tool definitions (minimal schemas for token efficiency)
 import { Tools, handleGenerateWorld, handleGetWorldState, handleApplyMapPatch, handleGetWorldMapOverview, handleGetRegionMap, handleGetWorldTiles, handlePreviewMapPatch, handleFindValidPoiLocation, handleSuggestPoiLocations } from './tools.js';
-import { CombatTools, handleCreateEncounter, handleGetEncounterState, handleExecuteCombatAction, handleAdvanceTurn, handleEndEncounter, handleLoadEncounter, handleRollDeathSave, handleExecuteLairAction, handleRenderMap, handleCalculateAoe, handleUpdateTerrain, handlePlaceProp, handleMeasureDistance, handleGenerateTerrainPatch, handleGenerateTerrainPattern } from './combat-tools.js';
+import { CombatTools, handleCreateEncounter, handleGetEncounterState, handleExecuteCombatAction, handleAdvanceTurn, handleEndEncounter, handleLoadEncounter, handleRollDeathSave, handleExecuteLairAction, handleRenderMap, handleCalculateAoe, handleUpdateTerrain, handlePlaceProp, handleMeasureDistance, handleGenerateTerrainPatch, handleGenerateTerrainPattern, handleListEncounters, handleUpdateEncounter, handleDeleteEncounter, handleAddToken, handleUpdateToken, handleRemoveToken, handleRollInitiative, handleListTokens, handleGetToken } from './combat-tools.js';
 import { CRUDTools, handleCreateWorld, handleGetWorld, handleListWorlds, handleDeleteWorld, handleCreateCharacter, handleGetCharacter, handleUpdateCharacter, handleListCharacters, handleDeleteCharacter, handleUpdateWorldEnvironment } from './crud-tools.js';
-import { InventoryTools, handleCreateItemTemplate, handleGiveItem, handleRemoveItem, handleEquipItem, handleUnequipItem, handleGetInventory, handleGetItem, handleListItems, handleSearchItems, handleUpdateItem, handleDeleteItem, handleTransferItem, handleUseItem, handleGetInventoryDetailed } from './inventory-tools.js';
+import { InventoryTools, handleCreateItemTemplate, handleGiveItem, handleRemoveItem, handleEquipItem, handleUnequipItem, handleGetInventory, handleGetItem, handleListItems, handleSearchItems, handleUpdateItem, handleDeleteItem, handleTransferItem, handleUseItem, handleGetInventoryDetailed, handleAttuneItem, handleUnattuneItem } from './inventory-tools.js';
 import { QuestTools, handleCreateQuest, handleGetQuest, handleListQuests, handleAssignQuest, handleUpdateObjective, handleCompleteObjective, handleCompleteQuest, handleGetQuestLog } from './quest-tools.js';
 import { MathTools, handleDiceRoll, handleProbabilityCalculate, handleAlgebraSolve, handleAlgebraSimplify, handlePhysicsProjectile } from './math-tools.js';
 import { StrategyTools, handleStrategyTool } from './strategy-tools.js';
@@ -21,6 +21,7 @@ import { SecretTools, handleCreateSecret, handleGetSecret, handleListSecrets, ha
 import { PartyTools, handleCreateParty, handleGetParty, handleListParties, handleUpdateParty, handleDeleteParty, handleAddPartyMember, handleRemovePartyMember, handleUpdatePartyMember, handleSetPartyLeader, handleSetActiveCharacter, handleGetPartyMembers, handleGetPartyContext, handleGetUnassignedCharacters, handleMoveParty, handleGetPartyPosition, handleGetPartiesInRegion } from './party-tools.js';
 import { RestTools, handleTakeLongRest, handleTakeShortRest } from './rest-tools.js';
 import { ConcentrationTools, handleCheckConcentrationSave, handleBreakConcentration, handleGetConcentrationState, handleCheckConcentrationDuration, handleCheckAutoBreak } from './concentration-tools.js';
+import { handleSetConcentration, handleBreakConcentration as handleBreakConcentrationCombat, handleGetConcentration } from './combat-tools.js';
 import { ScrollTools, handleUseSpellScroll, handleCreateSpellScroll, handleIdentifyScroll, handleGetScrollUseDC, handleGetScrollDetails, handleCheckScrollUsability } from './scroll-tools.js';
 import { AuraTools, handleCreateAura, handleGetActiveAuras, handleGetAurasAffectingCharacter, handleProcessAuraEffects, handleRemoveAura, handleRemoveCharacterAuras, handleExpireAuras } from './aura-tools.js';
 import { NpcMemoryTools, handleGetNpcRelationship, handleUpdateNpcRelationship, handleRecordConversationMemory, handleGetConversationHistory, handleGetRecentInteractions, handleGetNpcContext, handleInteractSocially } from './npc-memory-tools.js';
@@ -38,6 +39,10 @@ import { NarrativeTools, handleAddNarrativeNote, handleSearchNarrativeNotes, han
 import { POITools, handleCreateNetwork, handleGetNetwork, handleListNetworks, handleExploreRoom, handleGetRoomGraph, handleLinkRooms } from './poi-tools.js';
 import { CompositeTools, handleSetupTacticalEncounter, handleSpawnEquippedCharacter, handleInitializeSession, handleSpawnPopulatedLocation, handleSpawnPresetEncounter, handleRestParty, handleLootEncounter, handleTravelToLocation, handleSpawnPresetLocation } from './composite-tools.js';
 import { TraceTools, handleTraceTools, handleTraceDependencies } from './trace-tools.js';
+import { EventLogTools, AuditLogTools, EventInboxExtendedTools, handleEventLogAppend, handleEventLogQuery, handleEventLogVerifyChain, handleEventLogGetLast, handleAuditLogCreate, handleAuditLogQuery, handleEventInboxEnqueue, handleEventInboxProcess, handleEventInboxComplete, handleEventInboxFail } from './event-log-tools.js';
+import { SnapshotTools, handleSnapshotCreate, handleSnapshotList, handleSnapshotGet, handleSnapshotDelete, handleRollbackToSnapshot, handleRollbackToEvent, handleReplayEvents, handleRngStateGet, handleRngStateReset } from './snapshot-tools.js';
+import { WorldTools, handleWorldCreate, handleWorldGet, handleWorldList, handleWorldDelete, handleRegionCreate, handleRegionGet, handleRegionList, handleTileGet, handleTileSet, handleTileExplore, handleStructureCreate, handleStructureGet, handleRoomCreate, handleRoomGet, handleRoomUpdate } from './world-tools.js';
+import { EntityTools, handleCharacterMove, handleCharacterAddCondition, handleCharacterRemoveCondition, handleCharacterUpdateSpellSlots, handleMonsterSpawn, handleMonsterGet, handleMonsterDamage, handleMonsterKill, handleMonsterListInRoom, handleMonsterListAlive, handleCorpseCreateFromMonster, handleCorpseLoot, handleCorpseAdvanceDecay } from './entity-tools.js';
 
 // Helper to create metadata
 // deferLoading defaults to true (most tools should be deferred)
@@ -137,19 +142,85 @@ export function buildToolRegistry(): ToolRegistry {
     },
 
     // === COMBAT TOOLS ===
+    // Encounter management
+    [CombatTools.LIST_ENCOUNTERS.name]: {
+       metadata: meta(CombatTools.LIST_ENCOUNTERS.name, CombatTools.LIST_ENCOUNTERS.description, 'combat',
+         ['encounter', 'list', 'world', 'active', 'status'],
+         ['Encounter listing', 'Status filtering'], false, 'medium'),
+       schema: CombatTools.LIST_ENCOUNTERS.inputSchema,
+       handler: handleListEncounters
+    },
+    [CombatTools.UPDATE_ENCOUNTER.name]: {
+       metadata: meta(CombatTools.UPDATE_ENCOUNTER.name, CombatTools.UPDATE_ENCOUNTER.description, 'combat',
+         ['encounter', 'update', 'modify', 'state', 'terrain'],
+         ['Encounter modification', 'State updates'], false, 'low'),
+       schema: CombatTools.UPDATE_ENCOUNTER.inputSchema,
+       handler: handleUpdateEncounter
+    },
+    [CombatTools.DELETE_ENCOUNTER.name]: {
+       metadata: meta(CombatTools.DELETE_ENCOUNTER.name, CombatTools.DELETE_ENCOUNTER.description, 'combat',
+         ['encounter', 'delete', 'remove', 'cleanup'],
+         ['Encounter deletion'], false, 'low'),
+       schema: CombatTools.DELETE_ENCOUNTER.inputSchema,
+       handler: handleDeleteEncounter
+    },
+    // Token management
+    [CombatTools.ADD_TOKEN.name]: {
+       metadata: meta(CombatTools.ADD_TOKEN.name, CombatTools.ADD_TOKEN.description, 'combat',
+         ['token', 'add', 'participant', 'combatant', 'join'],
+         ['Token addition', 'Participant setup'], false, 'low'),
+       schema: CombatTools.ADD_TOKEN.inputSchema,
+       handler: handleAddToken
+    },
+    [CombatTools.UPDATE_TOKEN.name]: {
+       metadata: meta(CombatTools.UPDATE_TOKEN.name, CombatTools.UPDATE_TOKEN.description, 'combat',
+         ['token', 'update', 'modify', 'hp', 'position', 'condition'],
+         ['Token state updates', 'HP/position changes'], false, 'low'),
+       schema: CombatTools.UPDATE_TOKEN.inputSchema,
+       handler: handleUpdateToken
+    },
+    [CombatTools.REMOVE_TOKEN.name]: {
+       metadata: meta(CombatTools.REMOVE_TOKEN.name, CombatTools.REMOVE_TOKEN.description, 'combat',
+         ['token', 'remove', 'delete', 'leave', 'defeat'],
+         ['Token removal', 'Participant removal'], false, 'low'),
+       schema: CombatTools.REMOVE_TOKEN.inputSchema,
+       handler: handleRemoveToken
+    },
+    [CombatTools.LIST_TOKENS.name]: {
+       metadata: meta(CombatTools.LIST_TOKENS.name, CombatTools.LIST_TOKENS.description, 'combat',
+         ['token', 'list', 'encounter', 'combatants'],
+         ['Token listing', 'Participant query'], false, 'low'),
+       schema: CombatTools.LIST_TOKENS.inputSchema,
+       handler: handleListTokens
+    },
+    [CombatTools.GET_TOKEN.name]: {
+       metadata: meta(CombatTools.GET_TOKEN.name, CombatTools.GET_TOKEN.description, 'combat',
+         ['token', 'get', 'retrieve', 'info'],
+         ['Token details', 'Participant info'], false, 'low'),
+       schema: CombatTools.GET_TOKEN.inputSchema,
+       handler: handleGetToken
+    },
+    // Initiative
+    [CombatTools.ROLL_INITIATIVE.name]: {
+       metadata: meta(CombatTools.ROLL_INITIATIVE.name, CombatTools.ROLL_INITIATIVE.description, 'combat',
+         ['initiative', 'roll', 'order', 'turn', 'd20'],
+         ['Initiative rolling', 'Turn order establishment'], false, 'medium'),
+       schema: CombatTools.ROLL_INITIATIVE.inputSchema,
+       handler: handleRollInitiative
+    },
     [CombatTools.CREATE_ENCOUNTER.name]: {
-      metadata: meta(CombatTools.CREATE_ENCOUNTER.name, CombatTools.CREATE_ENCOUNTER.description, 'combat',
-        ['encounter', 'combat', 'battle', 'initiative', 'fight'],
-        ['Initiative rolling', 'Participant setup', 'Combat state'], false, 'medium', false),
-      schema: CombatTools.CREATE_ENCOUNTER.inputSchema,
-      handler: handleCreateEncounter
+       metadata: meta(CombatTools.CREATE_ENCOUNTER.name, CombatTools.CREATE_ENCOUNTER.description, 'combat',
+         ['encounter', 'combat', 'battle', 'initiative', 'fight'],
+         ['Initiative rolling', 'Participant setup', 'Combat state'], false, 'medium', false),
+       schema: CombatTools.CREATE_ENCOUNTER.inputSchema,
+       handler: handleCreateEncounter
     },
     [CombatTools.GET_ENCOUNTER_STATE.name]: {
-      metadata: meta(CombatTools.GET_ENCOUNTER_STATE.name, CombatTools.GET_ENCOUNTER_STATE.description, 'combat',
-        ['encounter', 'state', 'turn', 'status', 'combat'],
-        ['Encounter status', 'Combatant info', 'Turn order'], true, 'high', false),
-      schema: CombatTools.GET_ENCOUNTER_STATE.inputSchema,
-      handler: handleGetEncounterState
+       metadata: meta(CombatTools.GET_ENCOUNTER_STATE.name, CombatTools.GET_ENCOUNTER_STATE.description, 'combat',
+         ['encounter', 'state', 'turn', 'status', 'combat'],
+         ['Encounter status', 'Combatant info', 'Turn order'], true, 'high', false),
+       schema: CombatTools.GET_ENCOUNTER_STATE.inputSchema,
+       handler: handleGetEncounterState
     },
     [CombatTools.EXECUTE_COMBAT_ACTION.name]: {
       metadata: meta(CombatTools.EXECUTE_COMBAT_ACTION.name, CombatTools.EXECUTE_COMBAT_ACTION.description, 'combat',
@@ -533,6 +604,20 @@ export function buildToolRegistry(): ToolRegistry {
       schema: InventoryTools.UNEQUIP_ITEM.inputSchema,
       handler: handleUnequipItem
     },
+    [InventoryTools.ATTUNE_ITEM.name]: {
+      metadata: meta(InventoryTools.ATTUNE_ITEM.name, InventoryTools.ATTUNE_ITEM.description, 'inventory',
+        ['item', 'attune', 'magic', 'bond'],
+        ['Magic item attunement'], false, 'low'),
+      schema: InventoryTools.ATTUNE_ITEM.inputSchema,
+      handler: handleAttuneItem
+    },
+    [InventoryTools.UNATTUNE_ITEM.name]: {
+      metadata: meta(InventoryTools.UNATTUNE_ITEM.name, InventoryTools.UNATTUNE_ITEM.description, 'inventory',
+        ['item', 'unattune', 'break', 'magic'],
+        ['End attunement'], false, 'low'),
+      schema: InventoryTools.UNATTUNE_ITEM.inputSchema,
+      handler: handleUnattuneItem
+    },
     [InventoryTools.GET_INVENTORY.name]: {
       metadata: meta(InventoryTools.GET_INVENTORY.name, InventoryTools.GET_INVENTORY.description, 'inventory',
         ['inventory', 'items', 'list', 'bag', 'backpack'],
@@ -889,6 +974,28 @@ export function buildToolRegistry(): ToolRegistry {
         ['Automatic break detection'], false, 'low'),
       schema: ConcentrationTools.CHECK_AUTO_BREAK.inputSchema,
       handler: handleCheckAutoBreak
+    },
+    // New concentration tools from combat contract
+    [CombatTools.SET_CONCENTRATION.name]: {
+       metadata: meta(CombatTools.SET_CONCENTRATION.name, CombatTools.SET_CONCENTRATION.description, 'concentration',
+         ['concentration', 'set', 'spell', 'cast', 'maintain'],
+         ['Concentration establishment', 'Spell maintenance'], false, 'low'),
+       schema: CombatTools.SET_CONCENTRATION.inputSchema,
+       handler: handleSetConcentration
+    },
+    [CombatTools.BREAK_CONCENTRATION.name]: {
+       metadata: meta(CombatTools.BREAK_CONCENTRATION.name, CombatTools.BREAK_CONCENTRATION.description, 'concentration',
+         ['concentration', 'break', 'end', 'voluntary', 'stop'],
+         ['Voluntary concentration break'], false, 'low'),
+       schema: CombatTools.BREAK_CONCENTRATION.inputSchema,
+       handler: handleBreakConcentrationCombat
+    },
+    [CombatTools.GET_CONCENTRATION.name]: {
+       metadata: meta(CombatTools.GET_CONCENTRATION.name, CombatTools.GET_CONCENTRATION.description, 'concentration',
+         ['concentration', 'get', 'state', 'status', 'active'],
+         ['Concentration state retrieval'], false, 'low'),
+       schema: CombatTools.GET_CONCENTRATION.inputSchema,
+       handler: handleGetConcentration
     },
 
     // === SCROLL TOOLS ===
@@ -1528,6 +1635,347 @@ export function buildToolRegistry(): ToolRegistry {
         ['Tool dependency tracing', 'Schema analysis', 'Live testing'], false, 'low', false),
       schema: TraceTools.TRACE_DEPENDENCIES.inputSchema,
       handler: handleTraceDependencies
+    },
+
+    // === EVENT LOG TOOLS ===
+    [EventLogTools.EVENT_LOG_APPEND.name]: {
+      metadata: meta(EventLogTools.EVENT_LOG_APPEND.name, EventLogTools.EVENT_LOG_APPEND.description, 'meta',
+        ['event', 'log', 'append', 'hash', 'chain', 'audit', 'history'],
+        ['Hash-chained event logging', 'Tamper detection', 'Event sourcing'], false, 'low'),
+      schema: EventLogTools.EVENT_LOG_APPEND.inputSchema,
+      handler: handleEventLogAppend
+    },
+    [EventLogTools.EVENT_LOG_QUERY.name]: {
+      metadata: meta(EventLogTools.EVENT_LOG_QUERY.name, EventLogTools.EVENT_LOG_QUERY.description, 'meta',
+        ['event', 'log', 'query', 'filter', 'history', 'search'],
+        ['Event filtering', 'Timestamp range queries', 'Actor-based queries'], true, 'medium'),
+      schema: EventLogTools.EVENT_LOG_QUERY.inputSchema,
+      handler: handleEventLogQuery
+    },
+    [EventLogTools.EVENT_LOG_VERIFY_CHAIN.name]: {
+      metadata: meta(EventLogTools.EVENT_LOG_VERIFY_CHAIN.name, EventLogTools.EVENT_LOG_VERIFY_CHAIN.description, 'meta',
+        ['event', 'log', 'verify', 'hash', 'chain', 'integrity', 'tamper'],
+        ['Hash chain verification', 'Tamper detection', 'Data integrity'], false, 'medium'),
+      schema: EventLogTools.EVENT_LOG_VERIFY_CHAIN.inputSchema,
+      handler: handleEventLogVerifyChain
+    },
+    [EventLogTools.EVENT_LOG_GET_LAST.name]: {
+      metadata: meta(EventLogTools.EVENT_LOG_GET_LAST.name, EventLogTools.EVENT_LOG_GET_LAST.description, 'meta',
+        ['event', 'log', 'last', 'recent', 'history'],
+        ['Recent event retrieval', 'Quick history lookup'], true, 'low'),
+      schema: EventLogTools.EVENT_LOG_GET_LAST.inputSchema,
+      handler: handleEventLogGetLast
+    },
+
+    // === AUDIT LOG TOOLS ===
+    [AuditLogTools.AUDIT_LOG_CREATE.name]: {
+      metadata: meta(AuditLogTools.AUDIT_LOG_CREATE.name, AuditLogTools.AUDIT_LOG_CREATE.description, 'meta',
+        ['audit', 'log', 'create', 'human', 'readable', 'description'],
+        ['Human-readable logging', 'Player-facing history', 'Session recap'], false, 'low'),
+      schema: AuditLogTools.AUDIT_LOG_CREATE.inputSchema,
+      handler: handleAuditLogCreate
+    },
+    [AuditLogTools.AUDIT_LOG_QUERY.name]: {
+      metadata: meta(AuditLogTools.AUDIT_LOG_QUERY.name, AuditLogTools.AUDIT_LOG_QUERY.description, 'meta',
+        ['audit', 'log', 'query', 'filter', 'history', 'recap'],
+        ['Audit log filtering', 'Session history', 'Importance filtering'], true, 'medium'),
+      schema: AuditLogTools.AUDIT_LOG_QUERY.inputSchema,
+      handler: handleAuditLogQuery
+    },
+
+    // === EVENT INBOX EXTENDED TOOLS ===
+    [EventInboxExtendedTools.EVENT_INBOX_ENQUEUE.name]: {
+      metadata: meta(EventInboxExtendedTools.EVENT_INBOX_ENQUEUE.name, EventInboxExtendedTools.EVENT_INBOX_ENQUEUE.description, 'meta',
+        ['event', 'inbox', 'enqueue', 'schedule', 'defer', 'timer'],
+        ['Deferred event processing', 'Scheduled events', 'Timer-based triggers'], false, 'low'),
+      schema: EventInboxExtendedTools.EVENT_INBOX_ENQUEUE.inputSchema,
+      handler: handleEventInboxEnqueue
+    },
+    [EventInboxExtendedTools.EVENT_INBOX_PROCESS.name]: {
+      metadata: meta(EventInboxExtendedTools.EVENT_INBOX_PROCESS.name, EventInboxExtendedTools.EVENT_INBOX_PROCESS.description, 'meta',
+        ['event', 'inbox', 'process', 'pending', 'execute'],
+        ['Event processing', 'Pending event retrieval', 'Turn processing'], false, 'low'),
+      schema: EventInboxExtendedTools.EVENT_INBOX_PROCESS.inputSchema,
+      handler: handleEventInboxProcess
+    },
+    [EventInboxExtendedTools.EVENT_INBOX_COMPLETE.name]: {
+      metadata: meta(EventInboxExtendedTools.EVENT_INBOX_COMPLETE.name, EventInboxExtendedTools.EVENT_INBOX_COMPLETE.description, 'meta',
+        ['event', 'inbox', 'complete', 'done', 'success'],
+        ['Event completion', 'Status update'], false, 'low'),
+      schema: EventInboxExtendedTools.EVENT_INBOX_COMPLETE.inputSchema,
+      handler: handleEventInboxComplete
+    },
+    [EventInboxExtendedTools.EVENT_INBOX_FAIL.name]: {
+      metadata: meta(EventInboxExtendedTools.EVENT_INBOX_FAIL.name, EventInboxExtendedTools.EVENT_INBOX_FAIL.description, 'meta',
+        ['event', 'inbox', 'fail', 'error', 'retry'],
+        ['Event failure handling', 'Error logging'], false, 'low'),
+      schema: EventInboxExtendedTools.EVENT_INBOX_FAIL.inputSchema,
+      handler: handleEventInboxFail
+    },
+
+    // === SNAPSHOT & ROLLBACK TOOLS ===
+    [SnapshotTools.SNAPSHOT_CREATE.name]: {
+      metadata: meta(SnapshotTools.SNAPSHOT_CREATE.name, SnapshotTools.SNAPSHOT_CREATE.description, 'meta',
+        ['snapshot', 'create', 'backup', 'save', 'state', 'checkpoint'],
+        ['State snapshotting', 'Checkpoint creation', 'Backup'], false, 'medium'),
+      schema: SnapshotTools.SNAPSHOT_CREATE.inputSchema,
+      handler: handleSnapshotCreate
+    },
+    [SnapshotTools.SNAPSHOT_LIST.name]: {
+      metadata: meta(SnapshotTools.SNAPSHOT_LIST.name, SnapshotTools.SNAPSHOT_LIST.description, 'meta',
+        ['snapshot', 'list', 'backups', 'checkpoints', 'history'],
+        ['Snapshot listing', 'Backup discovery'], true, 'low'),
+      schema: SnapshotTools.SNAPSHOT_LIST.inputSchema,
+      handler: handleSnapshotList
+    },
+    [SnapshotTools.SNAPSHOT_GET.name]: {
+      metadata: meta(SnapshotTools.SNAPSHOT_GET.name, SnapshotTools.SNAPSHOT_GET.description, 'meta',
+        ['snapshot', 'get', 'details', 'info'],
+        ['Snapshot details', 'Metadata retrieval'], false, 'low'),
+      schema: SnapshotTools.SNAPSHOT_GET.inputSchema,
+      handler: handleSnapshotGet
+    },
+    [SnapshotTools.SNAPSHOT_DELETE.name]: {
+      metadata: meta(SnapshotTools.SNAPSHOT_DELETE.name, SnapshotTools.SNAPSHOT_DELETE.description, 'meta',
+        ['snapshot', 'delete', 'remove', 'cleanup'],
+        ['Snapshot deletion', 'Backup cleanup'], false, 'low'),
+      schema: SnapshotTools.SNAPSHOT_DELETE.inputSchema,
+      handler: handleSnapshotDelete
+    },
+    [SnapshotTools.ROLLBACK_TO_SNAPSHOT.name]: {
+      metadata: meta(SnapshotTools.ROLLBACK_TO_SNAPSHOT.name, SnapshotTools.ROLLBACK_TO_SNAPSHOT.description, 'meta',
+        ['rollback', 'restore', 'snapshot', 'undo', 'revert'],
+        ['State restoration', 'Snapshot rollback', 'Undo'], false, 'high'),
+      schema: SnapshotTools.ROLLBACK_TO_SNAPSHOT.inputSchema,
+      handler: handleRollbackToSnapshot
+    },
+    [SnapshotTools.ROLLBACK_TO_EVENT.name]: {
+      metadata: meta(SnapshotTools.ROLLBACK_TO_EVENT.name, SnapshotTools.ROLLBACK_TO_EVENT.description, 'meta',
+        ['rollback', 'event', 'restore', 'point-in-time', 'undo'],
+        ['Point-in-time recovery', 'Event-based rollback'], false, 'high'),
+      schema: SnapshotTools.ROLLBACK_TO_EVENT.inputSchema,
+      handler: handleRollbackToEvent
+    },
+    [SnapshotTools.REPLAY_EVENTS.name]: {
+      metadata: meta(SnapshotTools.REPLAY_EVENTS.name, SnapshotTools.REPLAY_EVENTS.description, 'meta',
+        ['replay', 'events', 'reconstruct', 'rebuild', 'state'],
+        ['Event replay', 'State reconstruction'], false, 'high'),
+      schema: SnapshotTools.REPLAY_EVENTS.inputSchema,
+      handler: handleReplayEvents
+    },
+    [SnapshotTools.RNG_STATE_GET.name]: {
+      metadata: meta(SnapshotTools.RNG_STATE_GET.name, SnapshotTools.RNG_STATE_GET.description, 'meta',
+        ['rng', 'random', 'state', 'seed', 'deterministic'],
+        ['RNG state retrieval', 'Reproducibility debugging'], false, 'low'),
+      schema: SnapshotTools.RNG_STATE_GET.inputSchema,
+      handler: handleRngStateGet
+    },
+    [SnapshotTools.RNG_STATE_RESET.name]: {
+      metadata: meta(SnapshotTools.RNG_STATE_RESET.name, SnapshotTools.RNG_STATE_RESET.description, 'meta',
+        ['rng', 'random', 'reset', 'seed', 'replay', 'deterministic'],
+        ['RNG state reset', 'Deterministic replay'], false, 'low'),
+      schema: SnapshotTools.RNG_STATE_RESET.inputSchema,
+      handler: handleRngStateReset
+    },
+
+    // === WORLD DATA TOOLS (T051-T052) ===
+    [WorldTools.WORLD_CREATE.name]: {
+      metadata: meta(WorldTools.WORLD_CREATE.name, WorldTools.WORLD_CREATE.description, 'world',
+        ['world', 'create', 'new', 'seed', 'initialize'],
+        ['World creation', 'Seed setup', 'Dimensions'], false, 'medium'),
+      schema: WorldTools.WORLD_CREATE.inputSchema,
+      handler: handleWorldCreate
+    },
+    [WorldTools.WORLD_GET.name]: {
+      metadata: meta(WorldTools.WORLD_GET.name, WorldTools.WORLD_GET.description, 'world',
+        ['world', 'get', 'retrieve', 'fetch', 'info'],
+        ['World retrieval', 'Full world data'], false, 'low'),
+      schema: WorldTools.WORLD_GET.inputSchema,
+      handler: handleWorldGet
+    },
+    [WorldTools.WORLD_LIST.name]: {
+      metadata: meta(WorldTools.WORLD_LIST.name, WorldTools.WORLD_LIST.description, 'world',
+        ['world', 'list', 'all', 'query'],
+        ['World listing', 'All worlds'], false, 'low'),
+      schema: WorldTools.WORLD_LIST.inputSchema,
+      handler: handleWorldList
+    },
+    [WorldTools.WORLD_DELETE.name]: {
+      metadata: meta(WorldTools.WORLD_DELETE.name, WorldTools.WORLD_DELETE.description, 'world',
+        ['world', 'delete', 'remove', 'cascade', 'cleanup'],
+        ['World deletion', 'Cascade delete'], false, 'medium'),
+      schema: WorldTools.WORLD_DELETE.inputSchema,
+      handler: handleWorldDelete
+    },
+    [WorldTools.REGION_CREATE.name]: {
+      metadata: meta(WorldTools.REGION_CREATE.name, WorldTools.REGION_CREATE.description, 'world',
+        ['region', 'create', 'new', 'area', 'zone', 'territory'],
+        ['Region creation', 'Geographic divisions'], false, 'low'),
+      schema: WorldTools.REGION_CREATE.inputSchema,
+      handler: handleRegionCreate
+    },
+    [WorldTools.REGION_GET.name]: {
+      metadata: meta(WorldTools.REGION_GET.name, WorldTools.REGION_GET.description, 'world',
+        ['region', 'get', 'retrieve', 'info'],
+        ['Region retrieval'], false, 'low'),
+      schema: WorldTools.REGION_GET.inputSchema,
+      handler: handleRegionGet
+    },
+    [WorldTools.REGION_LIST.name]: {
+      metadata: meta(WorldTools.REGION_LIST.name, WorldTools.REGION_LIST.description, 'world',
+        ['region', 'list', 'all', 'world'],
+        ['Region listing', 'All regions in world'], false, 'low'),
+      schema: WorldTools.REGION_LIST.inputSchema,
+      handler: handleRegionList
+    },
+    [WorldTools.TILE_GET.name]: {
+      metadata: meta(WorldTools.TILE_GET.name, WorldTools.TILE_GET.description, 'world',
+        ['tile', 'get', 'terrain', 'biome', 'position'],
+        ['Tile data retrieval', 'Terrain info'], false, 'low'),
+      schema: WorldTools.TILE_GET.inputSchema,
+      handler: handleTileGet
+    },
+    [WorldTools.TILE_SET.name]: {
+      metadata: meta(WorldTools.TILE_SET.name, WorldTools.TILE_SET.description, 'world',
+        ['tile', 'set', 'update', 'terrain', 'biome', 'modify'],
+        ['Tile modification', 'Terrain editing'], false, 'low'),
+      schema: WorldTools.TILE_SET.inputSchema,
+      handler: handleTileSet
+    },
+    [WorldTools.TILE_EXPLORE.name]: {
+      metadata: meta(WorldTools.TILE_EXPLORE.name, WorldTools.TILE_EXPLORE.description, 'world',
+        ['tile', 'explore', 'fog', 'war', 'discover', 'reveal'],
+        ['Fog of war', 'Tile exploration'], false, 'low'),
+      schema: WorldTools.TILE_EXPLORE.inputSchema,
+      handler: handleTileExplore
+    },
+    [WorldTools.STRUCTURE_CREATE.name]: {
+      metadata: meta(WorldTools.STRUCTURE_CREATE.name, WorldTools.STRUCTURE_CREATE.description, 'world',
+        ['structure', 'create', 'city', 'dungeon', 'temple', 'poi'],
+        ['Structure creation', 'POI placement'], false, 'low'),
+      schema: WorldTools.STRUCTURE_CREATE.inputSchema,
+      handler: handleStructureCreate
+    },
+    [WorldTools.STRUCTURE_GET.name]: {
+      metadata: meta(WorldTools.STRUCTURE_GET.name, WorldTools.STRUCTURE_GET.description, 'world',
+        ['structure', 'get', 'retrieve', 'info'],
+        ['Structure retrieval'], false, 'low'),
+      schema: WorldTools.STRUCTURE_GET.inputSchema,
+      handler: handleStructureGet
+    },
+    [WorldTools.ROOM_CREATE.name]: {
+      metadata: meta(WorldTools.ROOM_CREATE.name, WorldTools.ROOM_CREATE.description, 'spatial',
+        ['room', 'create', 'new', 'space', 'interior'],
+        ['Room creation', 'Interior space'], false, 'low'),
+      schema: WorldTools.ROOM_CREATE.inputSchema,
+      handler: handleRoomCreate
+    },
+    [WorldTools.ROOM_GET.name]: {
+      metadata: meta(WorldTools.ROOM_GET.name, WorldTools.ROOM_GET.description, 'spatial',
+        ['room', 'get', 'retrieve', 'info', 'description'],
+        ['Room retrieval', 'Room details'], false, 'low'),
+      schema: WorldTools.ROOM_GET.inputSchema,
+      handler: handleRoomGet
+    },
+    [WorldTools.ROOM_UPDATE.name]: {
+      metadata: meta(WorldTools.ROOM_UPDATE.name, WorldTools.ROOM_UPDATE.description, 'spatial',
+        ['room', 'update', 'modify', 'edit', 'contents'],
+        ['Room modification', 'State update'], false, 'low'),
+      schema: WorldTools.ROOM_UPDATE.inputSchema,
+      handler: handleRoomUpdate
+    },
+
+    // === ENTITY TOOLS (T065-T066) ===
+    [EntityTools.CHARACTER_MOVE.name]: {
+      metadata: meta(EntityTools.CHARACTER_MOVE.name, EntityTools.CHARACTER_MOVE.description, 'character',
+        ['character', 'move', 'room', 'location', 'travel'],
+        ['Character movement', 'Room transition'], false, 'low'),
+      schema: EntityTools.CHARACTER_MOVE.inputSchema,
+      handler: handleCharacterMove
+    },
+    [EntityTools.CHARACTER_ADD_CONDITION.name]: {
+      metadata: meta(EntityTools.CHARACTER_ADD_CONDITION.name, EntityTools.CHARACTER_ADD_CONDITION.description, 'character',
+        ['character', 'condition', 'status', 'effect', 'debuff'],
+        ['Apply condition', 'Status effect'], false, 'low'),
+      schema: EntityTools.CHARACTER_ADD_CONDITION.inputSchema,
+      handler: handleCharacterAddCondition
+    },
+    [EntityTools.CHARACTER_REMOVE_CONDITION.name]: {
+      metadata: meta(EntityTools.CHARACTER_REMOVE_CONDITION.name, EntityTools.CHARACTER_REMOVE_CONDITION.description, 'character',
+        ['character', 'condition', 'remove', 'cure', 'clear'],
+        ['Remove condition', 'Cure status'], false, 'low'),
+      schema: EntityTools.CHARACTER_REMOVE_CONDITION.inputSchema,
+      handler: handleCharacterRemoveCondition
+    },
+    [EntityTools.CHARACTER_UPDATE_SPELL_SLOTS.name]: {
+      metadata: meta(EntityTools.CHARACTER_UPDATE_SPELL_SLOTS.name, EntityTools.CHARACTER_UPDATE_SPELL_SLOTS.description, 'character',
+        ['character', 'spell', 'slots', 'magic', 'rest'],
+        ['Spell slot management', 'Magic resource'], false, 'low'),
+      schema: EntityTools.CHARACTER_UPDATE_SPELL_SLOTS.inputSchema,
+      handler: handleCharacterUpdateSpellSlots
+    },
+    [EntityTools.MONSTER_SPAWN.name]: {
+      metadata: meta(EntityTools.MONSTER_SPAWN.name, EntityTools.MONSTER_SPAWN.description, 'combat',
+        ['monster', 'spawn', 'create', 'enemy', 'creature'],
+        ['Monster creation', 'Enemy spawn'], false, 'low'),
+      schema: EntityTools.MONSTER_SPAWN.inputSchema,
+      handler: handleMonsterSpawn
+    },
+    [EntityTools.MONSTER_GET.name]: {
+      metadata: meta(EntityTools.MONSTER_GET.name, EntityTools.MONSTER_GET.description, 'combat',
+        ['monster', 'get', 'retrieve', 'info', 'stats'],
+        ['Monster retrieval', 'Enemy info'], false, 'low'),
+      schema: EntityTools.MONSTER_GET.inputSchema,
+      handler: handleMonsterGet
+    },
+    [EntityTools.MONSTER_DAMAGE.name]: {
+      metadata: meta(EntityTools.MONSTER_DAMAGE.name, EntityTools.MONSTER_DAMAGE.description, 'combat',
+        ['monster', 'damage', 'hurt', 'attack', 'hp'],
+        ['Apply damage', 'HP reduction'], false, 'low'),
+      schema: EntityTools.MONSTER_DAMAGE.inputSchema,
+      handler: handleMonsterDamage
+    },
+    [EntityTools.MONSTER_KILL.name]: {
+      metadata: meta(EntityTools.MONSTER_KILL.name, EntityTools.MONSTER_KILL.description, 'combat',
+        ['monster', 'kill', 'death', 'defeat', 'slay'],
+        ['Monster death', 'Encounter resolution'], false, 'low'),
+      schema: EntityTools.MONSTER_KILL.inputSchema,
+      handler: handleMonsterKill
+    },
+    [EntityTools.MONSTER_LIST_IN_ROOM.name]: {
+      metadata: meta(EntityTools.MONSTER_LIST_IN_ROOM.name, EntityTools.MONSTER_LIST_IN_ROOM.description, 'combat',
+        ['monster', 'list', 'room', 'location', 'enemies'],
+        ['Room monsters', 'Enemy query'], false, 'low'),
+      schema: EntityTools.MONSTER_LIST_IN_ROOM.inputSchema,
+      handler: handleMonsterListInRoom
+    },
+    [EntityTools.MONSTER_LIST_ALIVE.name]: {
+      metadata: meta(EntityTools.MONSTER_LIST_ALIVE.name, EntityTools.MONSTER_LIST_ALIVE.description, 'combat',
+        ['monster', 'list', 'alive', 'active', 'remaining'],
+        ['Alive monsters', 'Active enemies'], false, 'low'),
+      schema: EntityTools.MONSTER_LIST_ALIVE.inputSchema,
+      handler: handleMonsterListAlive
+    },
+    [EntityTools.CORPSE_CREATE.name]: {
+      metadata: meta(EntityTools.CORPSE_CREATE.name, EntityTools.CORPSE_CREATE.description, 'corpse',
+        ['corpse', 'create', 'monster', 'death', 'loot'],
+        ['Corpse creation', 'Death handling'], false, 'low'),
+      schema: EntityTools.CORPSE_CREATE.inputSchema,
+      handler: handleCorpseCreateFromMonster
+    },
+    [EntityTools.CORPSE_LOOT.name]: {
+      metadata: meta(EntityTools.CORPSE_LOOT.name, EntityTools.CORPSE_LOOT.description, 'corpse',
+        ['corpse', 'loot', 'treasure', 'items', 'pickup'],
+        ['Loot collection', 'Item pickup'], false, 'low'),
+      schema: EntityTools.CORPSE_LOOT.inputSchema,
+      handler: handleCorpseLoot
+    },
+    [EntityTools.CORPSE_DECAY.name]: {
+      metadata: meta(EntityTools.CORPSE_DECAY.name, EntityTools.CORPSE_DECAY.description, 'corpse',
+        ['corpse', 'decay', 'time', 'decompose', 'cleanup'],
+        ['Corpse decay', 'Time passage'], false, 'low'),
+      schema: EntityTools.CORPSE_DECAY.inputSchema,
+      handler: handleCorpseAdvanceDecay
     }
     // Note: search_tools and load_tool_schema are registered separately in index.ts with full handlers
   };

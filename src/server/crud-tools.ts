@@ -361,6 +361,26 @@ export async function handleCreateCharacter(args: unknown, _ctx: SessionContext)
 
     const characterId = randomUUID();
 
+    // Build character with provisioned data
+    const character = {
+        ...parsed,
+        id: characterId,
+        hp,
+        maxHp,
+        // Map 'class' to 'characterClass' for DB compatibility
+        characterClass: className,
+        // Merge provisioned spells with any explicitly provided
+        knownSpells: parsed.knownSpells || [],
+        cantripsKnown: (parsed as any).cantripsKnown || [],
+        spellSlots: undefined,
+        pactMagicSlots: undefined,
+        createdAt: now,
+        updatedAt: now
+    } as unknown as Character | NPC;
+
+    // Create character FIRST to satisfy Foreign Key constraints for equipment
+    charRepo.create(character);
+
     // Provision starting equipment and spells if enabled
     let provisioningResult = null;
     const shouldProvision = parsed.provisionEquipment !== false &&
@@ -378,30 +398,21 @@ export async function handleCreateCharacter(args: unknown, _ctx: SessionContext)
                 startingGold: parsed.startingGold
             }
         );
+
+        // Update character with provisioned spells if any were granted
+        if (provisioningResult.spellsGranted.length > 0 || provisioningResult.cantripsGranted.length > 0) {
+            const updatedSpells = {
+                knownSpells: [...new Set([...character.knownSpells, ...provisioningResult.spellsGranted])],
+                cantripsKnown: [...new Set([...character.cantripsKnown, ...provisioningResult.cantripsGranted])],
+                spellSlots: provisioningResult.spellSlots || undefined,
+                pactMagicSlots: provisioningResult.pactMagicSlots || undefined
+            };
+            charRepo.update(characterId, updatedSpells);
+            
+            // Update local object for response
+            Object.assign(character, updatedSpells);
+        }
     }
-
-    // Build character with provisioned data
-    const character = {
-        ...parsed,
-        id: characterId,
-        hp,
-        maxHp,
-        // Map 'class' to 'characterClass' for DB compatibility
-        characterClass: className,
-        // Merge provisioned spells with any explicitly provided
-        knownSpells: provisioningResult?.spellsGranted.length
-            ? [...new Set([...parsed.knownSpells || [], ...provisioningResult.spellsGranted])]
-            : parsed.knownSpells || [],
-        cantripsKnown: provisioningResult?.cantripsGranted.length
-            ? [...new Set([...(parsed as any).cantripsKnown || [], ...provisioningResult.cantripsGranted])]
-            : (parsed as any).cantripsKnown || [],
-        spellSlots: provisioningResult?.spellSlots || undefined,
-        pactMagicSlots: provisioningResult?.pactMagicSlots || undefined,
-        createdAt: now,
-        updatedAt: now
-    } as unknown as Character | NPC;
-
-    charRepo.create(character);
 
     // Return character with provisioning summary
     const response: Record<string, unknown> = { ...character };

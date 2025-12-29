@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { QuestRepository } from '../storage/repos/quest.repo.js';
+import { QuestLogRepository } from '../storage/repos/quest-log.repo.js';
 import { CharacterRepository } from '../storage/repos/character.repo.js';
 import { InventoryRepository } from '../storage/repos/inventory.repo.js';
 import { ItemRepository } from '../storage/repos/item.repo.js';
-import { QuestSchema } from '../schema/quest.js';
 import { getDb } from '../storage/index.js';
 import { SessionContext } from './types.js';
 import { RichFormatter } from './utils/formatter.js';
@@ -17,17 +17,39 @@ function ensureDb() {
             : 'rpg.db';
     const db = getDb(dbPath);
     const questRepo = new QuestRepository(db);
+    const questLogRepo = new QuestLogRepository(db, questRepo);
     const characterRepo = new CharacterRepository(db);
     const inventoryRepo = new InventoryRepository(db);
     const itemRepo = new ItemRepository(db);
-    return { questRepo, characterRepo, inventoryRepo, itemRepo };
+    return { questRepo, questLogRepo, characterRepo, inventoryRepo, itemRepo };
 }
 
 export const QuestTools = {
     CREATE_QUEST: {
         name: 'create_quest',
         description: 'Define a new quest in the world.',
-        inputSchema: QuestSchema.omit({ id: true, createdAt: true, updatedAt: true })
+        inputSchema: z.object({
+            worldId: z.string(),
+            name: z.string(),
+            description: z.string(),
+            status: z.enum(['available', 'active', 'completed', 'failed']),
+            objectives: z.array(z.object({
+                id: z.string().optional(),
+                description: z.string(),
+                type: z.enum(['kill', 'collect', 'deliver', 'explore', 'interact', 'custom']),
+                target: z.string(),
+                required: z.number().int().min(1),
+                current: z.number().int().min(0).default(0),
+                completed: z.boolean().default(false)
+            })),
+            rewards: z.object({
+                experience: z.number().int().min(0).default(0),
+                gold: z.number().int().min(0).default(0),
+                items: z.array(z.string()).default([])
+            }),
+            prerequisites: z.array(z.string()).default([]),
+            giver: z.string().optional()
+        })
     },
     GET_QUEST: {
         name: 'get_quest',
@@ -108,7 +130,10 @@ export async function handleCreateQuest(args: unknown, _ctx: SessionContext) {
         updatedAt: now
     };
 
-    questRepo.create(quest);
+    const result = questRepo.insert(quest);
+    if (!result.success) {
+        throw new Error(`Failed to create quest: ${result.error}`);
+    }
 
     let output = RichFormatter.quest(quest as any);
     output += RichFormatter.success('Quest created!');
@@ -126,10 +151,11 @@ export async function handleGetQuest(args: unknown, _ctx: SessionContext) {
     const { questRepo } = ensureDb();
     const parsed = QuestTools.GET_QUEST.inputSchema.parse(args);
 
-    const quest = questRepo.findById(parsed.questId);
-    if (!quest) {
+    const result = questRepo.findById(parsed.questId);
+    if (!result.success || !result.data) {
         throw new Error(`Quest ${parsed.questId} not found`);
     }
+    const quest = result.data;
 
     let output = RichFormatter.quest(quest as any);
     output += RichFormatter.embedJson(quest, 'QUEST');
@@ -146,17 +172,25 @@ export async function handleListQuests(args: unknown, _ctx: SessionContext) {
     const { questRepo } = ensureDb();
     const parsed = QuestTools.LIST_QUESTS.inputSchema.parse(args);
 
-    const quests = questRepo.findAll(parsed.worldId);
+    const quests = parsed.worldId ? questRepo.findAllByWorld(parsed.worldId) : []; 
+    
+    let questList = quests;
+    if (!parsed.worldId) {
+        const result = questRepo.findAll();
+        if (result.success && result.data) {
+            questList = result.data;
+        }
+    }
 
     let output = RichFormatter.header('Quests', '📜');
-    if (quests.length === 0) {
+    if (questList.length === 0) {
         output += RichFormatter.alert('No quests found.', 'info');
     } else {
-        const rows = quests.map((q: any) => [q.name, q.status || 'active', String(q.objectives?.length || 0)]);
+        const rows = questList.map((q: any) => [q.name, q.status || 'active', String(q.objectives?.length || 0)]);
         output += RichFormatter.table(['Name', 'Status', 'Objectives'], rows);
-        output += `\n*${quests.length} quest(s) total*\n`;
+        output += `\n*${questList.length} quest(s) total*\n`;
     }
-    output += RichFormatter.embedJson({ quests, count: quests.length }, 'QUESTS');
+    output += RichFormatter.embedJson({ quests: questList, count: questList.length }, 'QUESTS');
 
     return {
         content: [{
@@ -167,24 +201,20 @@ export async function handleListQuests(args: unknown, _ctx: SessionContext) {
 }
 
 export async function handleAssignQuest(args: unknown, _ctx: SessionContext) {
-    const { questRepo, characterRepo } = ensureDb();
+    const { questRepo, questLogRepo, characterRepo } = ensureDb();
     const parsed = QuestTools.ASSIGN_QUEST.inputSchema.parse(args);
 
     const character = characterRepo.findById(parsed.characterId);
     if (!character) throw new Error(`Character ${parsed.characterId} not found`);
 
-    const quest = questRepo.findById(parsed.questId);
-    if (!quest) throw new Error(`Quest ${parsed.questId} not found`);
+    const questResult = questRepo.findById(parsed.questId);
+    if (!questResult.success || !questResult.data) throw new Error(`Quest ${parsed.questId} not found`);
+    const quest = questResult.data;
 
-    let log = questRepo.getLog(parsed.characterId);
-    if (!log) {
-        log = {
-            characterId: parsed.characterId,
-            activeQuests: [],
-            completedQuests: [],
-            failedQuests: []
-        };
-    }
+    // Check prerequisites using quest log
+    const logResult = questLogRepo.getOrCreate(parsed.characterId);
+    if (!logResult.success || !logResult.data) throw new Error(`Failed to access quest log: ${logResult.error}`);
+    const log = logResult.data;
 
     if (log.activeQuests.includes(parsed.questId)) {
         throw new Error(`Quest ${parsed.questId} is already active for character ${parsed.characterId}`);
@@ -193,17 +223,18 @@ export async function handleAssignQuest(args: unknown, _ctx: SessionContext) {
         throw new Error(`Quest ${parsed.questId} is already completed by character ${parsed.characterId}`);
     }
 
-    // Check prerequisites
     for (const prereqId of quest.prerequisites) {
         if (!log.completedQuests.includes(prereqId)) {
-            const prereqQuest = questRepo.findById(prereqId);
-            const prereqName = prereqQuest?.name || prereqId;
+            const prereqResult = questRepo.findById(prereqId);
+            const prereqName = (prereqResult.success && prereqResult.data) ? prereqResult.data.name : prereqId;
             throw new Error(`Prerequisite quest "${prereqName}" not completed`);
         }
     }
 
-    log.activeQuests.push(parsed.questId);
-    questRepo.updateLog(log);
+    const acceptResult = questLogRepo.acceptQuest(parsed.characterId, parsed.questId);
+    if (!acceptResult.success) {
+        throw new Error(acceptResult.error || 'Failed to assign quest');
+    }
 
     let output = RichFormatter.header('Quest Assigned', '📜');
     output += RichFormatter.keyValue({
@@ -222,174 +253,42 @@ export async function handleAssignQuest(args: unknown, _ctx: SessionContext) {
 }
 
 export async function handleUpdateObjective(args: unknown, _ctx: SessionContext) {
-    const { questRepo, characterRepo } = ensureDb();
+    const { questRepo, questLogRepo, characterRepo } = ensureDb();
     const parsed = QuestTools.UPDATE_OBJECTIVE.inputSchema.parse(args);
 
-    // Verify character exists and has this quest
+    // Verify character exists
     const character = characterRepo.findById(parsed.characterId);
-    if (!character) throw new Error(`Character ${parsed.characterId} not found`);
-
-    const log = questRepo.getLog(parsed.characterId);
-    if (!log || !log.activeQuests.includes(parsed.questId)) {
-        throw new Error(`Quest ${parsed.questId} is not active for character ${parsed.characterId}`);
+    if (!character) {
+        throw new Error(`Character ${parsed.characterId} not found`);
     }
 
-    const quest = questRepo.findById(parsed.questId);
-    if (!quest) throw new Error(`Quest ${parsed.questId} not found`);
+    const questResult = questRepo.findById(parsed.questId);
+    if (!questResult.success || !questResult.data) throw new Error(`Quest ${parsed.questId} not found`);
+    const quest = questResult.data;
 
-    const objectiveIndex = quest.objectives.findIndex(o => o.id === parsed.objectiveId);
-    if (objectiveIndex === -1) throw new Error(`Objective ${parsed.objectiveId} not found in quest`);
-
-    // Update progress
-    const updatedQuest = questRepo.updateObjectiveProgress(
-        parsed.questId,
-        parsed.objectiveId,
-        parsed.progress
-    );
-
-    if (!updatedQuest) {
-        throw new Error('Failed to update objective progress');
-    }
-
-    const objective = updatedQuest.objectives[objectiveIndex];
-
-    // Check if all objectives are now complete
-    const allComplete = questRepo.areAllObjectivesComplete(parsed.questId);
-
-    let output = RichFormatter.header('Objective Progress', '✅');
-    output += RichFormatter.keyValue({
-        'Quest': updatedQuest.name,
-        'Objective': objective.description,
-        'Progress': `${objective.current}/${objective.required}`,
-        'Completed': objective.completed ? 'Yes' : 'No',
-    });
-    if (allComplete) {
-        output += RichFormatter.success('🎉 All objectives complete! Ready to turn in.');
-    }
-    output += RichFormatter.embedJson({ objective, questComplete: allComplete, quest: updatedQuest }, 'OBJECTIVE');
-
-    return {
-        content: [{
-            type: 'text' as const,
-            text: output
-        }]
-    };
-}
-
-export async function handleCompleteObjective(args: unknown, _ctx: SessionContext) {
-    const { questRepo } = ensureDb();
-    const parsed = QuestTools.COMPLETE_OBJECTIVE.inputSchema.parse(args);
-
-    const quest = questRepo.findById(parsed.questId);
-    if (!quest) throw new Error(`Quest ${parsed.questId} not found`);
-
-    const objectiveIndex = quest.objectives.findIndex(o => o.id === parsed.objectiveId);
-    if (objectiveIndex === -1) throw new Error(`Objective ${parsed.objectiveId} not found`);
-
-    const updatedQuest = questRepo.completeObjective(parsed.questId, parsed.objectiveId);
-    if (!updatedQuest) {
-        throw new Error('Failed to complete objective');
-    }
-
-    const objective = updatedQuest.objectives[objectiveIndex];
-    const allComplete = questRepo.areAllObjectivesComplete(parsed.questId);
-
-    let output = RichFormatter.header('Objective Completed', '☑️');
-    output += RichFormatter.keyValue({
-        'Quest': updatedQuest.name,
-        'Objective': objective.description,
-    });
-    output += RichFormatter.success('Objective marked as complete!');
-    if (allComplete) {
-        output += RichFormatter.alert('🎉 All objectives complete! Ready to turn in.', 'success');
-    }
-    output += RichFormatter.embedJson({ objective, questComplete: allComplete, quest: updatedQuest }, 'OBJECTIVE');
-
-    return {
-        content: [{
-            type: 'text' as const,
-            text: output
-        }]
-    };
-}
-
-export async function handleCompleteQuest(args: unknown, _ctx: SessionContext) {
-    const { questRepo, characterRepo, inventoryRepo, itemRepo } = ensureDb();
-    const parsed = QuestTools.COMPLETE_QUEST.inputSchema.parse(args);
-
-    const character = characterRepo.findById(parsed.characterId);
-    if (!character) throw new Error(`Character ${parsed.characterId} not found`);
-
-    const quest = questRepo.findById(parsed.questId);
-    if (!quest) throw new Error(`Quest ${parsed.questId} not found`);
-
-    let log = questRepo.getLog(parsed.characterId);
-    if (!log || !log.activeQuests.includes(parsed.questId)) {
+    // Verify quest is active
+    const logResult = questLogRepo.findById(parsed.characterId);
+    if (!logResult.success || !logResult.data || !logResult.data.activeQuests.includes(parsed.questId)) {
         throw new Error(`Quest "${quest.name}" is not active for character ${character.name}`);
     }
 
-    // Verify all objectives are completed
-    const allCompleted = quest.objectives.every(o => o.completed);
-    if (!allCompleted) {
-        const incomplete = quest.objectives.filter(o => !o.completed);
-        throw new Error(`Not all objectives completed. Remaining: ${incomplete.map(o => o.description).join(', ')}`);
-    }
+    const updatedQuest = questRepo.updateObjectiveProgress(parsed.questId, parsed.objectiveId, parsed.progress);
+    if (!updatedQuest) throw new Error('Failed to update objective');
 
-    // Grant rewards
-    const rewardsGranted: { xp?: number; gold?: number; items: string[] } = {
-        items: []
-    };
-
-    // Grant XP (update character - need to check if character schema supports xp)
-    if (quest.rewards.experience > 0) {
-        rewardsGranted.xp = quest.rewards.experience;
-        // Note: Character XP tracking would need to be added to character schema
-        // For now, we just report it
-    }
-
-    // Grant gold
-    if (quest.rewards.gold > 0) {
-        rewardsGranted.gold = quest.rewards.gold;
-        // Note: Gold tracking would need to be added to character or inventory system
-        // For now, we just report it
-    }
-
-    // Grant items
-    for (const itemId of quest.rewards.items) {
-        try {
-            inventoryRepo.addItem(parsed.characterId, itemId, 1);
-            const item = itemRepo.findById(itemId);
-            rewardsGranted.items.push(item?.name || itemId);
-        } catch (err) {
-            // Item may not exist, still complete the quest
-            rewardsGranted.items.push(`${itemId} (item not found)`);
-        }
-    }
-
-    // Update quest log
-    log.activeQuests = log.activeQuests.filter(id => id !== parsed.questId);
-    log.completedQuests.push(parsed.questId);
-    questRepo.updateLog(log);
-
-    // Update quest status
-    questRepo.update(parsed.questId, { status: 'completed' });
-
-    let output = RichFormatter.header('Quest Completed!', '🎉');
+    let output = RichFormatter.header('Objective Updated', '📝');
     output += RichFormatter.keyValue({
-        'Quest': quest.name,
-        'Character': character.name,
+        'Quest': updatedQuest.name,
+        'Progress': `+${parsed.progress}`
     });
-    output += RichFormatter.section('Rewards');
-    output += RichFormatter.keyValue({
-        'XP': rewardsGranted.xp || 0,
-        'Gold': rewardsGranted.gold || 0,
-    });
-    if (rewardsGranted.items.length > 0) {
-        output += RichFormatter.subSection('Items');
-        output += RichFormatter.list(rewardsGranted.items);
+
+    // Find updated objective
+    const obj = updatedQuest.objectives.find(o => o.id === parsed.objectiveId);
+    if (obj) {
+        output += RichFormatter.keyValue({
+            'Objective': obj.description,
+            'Status': `${obj.current}/${obj.required} ${obj.completed ? '(COMPLETED)' : ''}`
+        });
     }
-    output += RichFormatter.success('Congratulations!');
-    output += RichFormatter.embedJson({ quest, rewards: rewardsGranted }, 'COMPLETE');
 
     return {
         content: [{
@@ -400,7 +299,7 @@ export async function handleCompleteQuest(args: unknown, _ctx: SessionContext) {
 }
 
 export async function handleGetQuestLog(args: unknown, _ctx: SessionContext) {
-    const { questRepo, characterRepo } = ensureDb();
+    const { questLogRepo, characterRepo } = ensureDb();
     const parsed = QuestTools.GET_QUEST_LOG.inputSchema.parse(args);
 
     // Verify character exists
@@ -410,7 +309,11 @@ export async function handleGetQuestLog(args: unknown, _ctx: SessionContext) {
     }
 
     // Get full quest log with complete quest data
-    const fullLog = questRepo.getFullQuestLog(parsed.characterId);
+    const fullLogResult = questLogRepo.getFullQuestLog(parsed.characterId);
+    if (!fullLogResult.success || !fullLogResult.data) {
+        throw new Error(`Failed to retrieve quest log: ${fullLogResult.error}`);
+    }
+    const fullLog = fullLogResult.data;
 
     // Transform to frontend-friendly format
     const quests = fullLog.quests.map(quest => ({
@@ -456,6 +359,138 @@ export async function handleGetQuestLog(args: unknown, _ctx: SessionContext) {
         }
     }
     output += RichFormatter.embedJson({ characterId: parsed.characterId, characterName: character.name, quests, summary: fullLog.summary }, 'QUESTLOG');
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+export async function handleCompleteObjective(args: unknown, _ctx: SessionContext) {
+    const { questRepo } = ensureDb();
+    const parsed = QuestTools.COMPLETE_OBJECTIVE.inputSchema.parse(args);
+
+    const questResult = questRepo.findById(parsed.questId);
+    if (!questResult.success || !questResult.data) {
+        throw new Error(`Quest ${parsed.questId} not found (Error: ${questResult.error})`);
+    }
+    
+    // Check if objective exists
+    const quest = questResult.data;
+    const objective = quest.objectives.find(o => o.id === parsed.objectiveId);
+    if (!objective) throw new Error(`Objective ${parsed.objectiveId} not found in quest ${parsed.questId}`);
+
+    const updatedQuest = questRepo.completeObjective(parsed.questId, parsed.objectiveId);
+    if (!updatedQuest) {
+        throw new Error('Failed to complete objective');
+    }
+
+    let output = RichFormatter.header('Objective Completed', '✅');
+    output += RichFormatter.keyValue({
+        'Quest': updatedQuest.name,
+        'Objective': objective.description
+    });
+    
+    // Check if full quest is complete
+    const allComplete = updatedQuest.objectives.every(o => o.completed);
+    if (allComplete) {
+        output += RichFormatter.alert('All objectives complete! Quest is ready to turn in.', 'success');
+    }
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+export async function handleCompleteQuest(args: unknown, _ctx: SessionContext) {
+    const { questRepo, questLogRepo, characterRepo, inventoryRepo, itemRepo } = ensureDb();
+    const parsed = QuestTools.COMPLETE_QUEST.inputSchema.parse(args);
+
+    // Verify character exists
+    const character = characterRepo.findById(parsed.characterId);
+    if (!character) {
+        throw new Error(`Character ${parsed.characterId} not found`);
+    }
+
+    const questResult = questRepo.findById(parsed.questId);
+    if (!questResult.success || !questResult.data) throw new Error(`Quest ${parsed.questId} not found`);
+    const quest = questResult.data;
+
+    // Verify quest is active
+    const logResult = questLogRepo.findById(parsed.characterId);
+    if (!logResult.success || !logResult.data || !logResult.data.activeQuests.includes(parsed.questId)) {
+        throw new Error(`Quest "${quest.name}" is not active for character ${character.name}`);
+    }
+
+    // Verify all objectives are completed
+    const allCompleted = quest.objectives.every(o => o.completed);
+    if (!allCompleted) {
+        const incomplete = quest.objectives.filter(o => !o.completed);
+        throw new Error(`Not all objectives completed. Remaining: ${incomplete.map(o => o.description).join(', ')}`);
+    }
+
+    // Grant rewards
+    const rewardsGranted: { xp?: number; gold?: number; items: string[] } = {
+        items: []
+    };
+
+    // Grant XP (update character - need to check if character schema supports xp)
+    if (quest.rewards.experience > 0) {
+        rewardsGranted.xp = quest.rewards.experience;
+        // Logic to add XP to character would go here if progression repo was available/linked
+        // For now we just log it
+    }
+
+    // Grant gold
+    if (quest.rewards.gold > 0) {
+        rewardsGranted.gold = quest.rewards.gold;
+        inventoryRepo.addCurrency(parsed.characterId, { gold: quest.rewards.gold });
+    }
+
+    // Grant items
+    for (const itemId of quest.rewards.items) {
+        try {
+            inventoryRepo.addItem(parsed.characterId, itemId, 1);
+            const itemResult = itemRepo.findById(itemId);
+            const itemName = itemResult.success && itemResult.data ? itemResult.data.name : itemId;
+            rewardsGranted.items.push(itemName);
+        } catch (err) {
+            // Item may not exist, still complete the quest
+            rewardsGranted.items.push(`${itemId} (item not found)`);
+        }
+    }
+
+    // Update quest log
+    const completeResult = questLogRepo.completeQuest(parsed.characterId, parsed.questId);
+    if (!completeResult.success) {
+        throw new Error(`Failed to complete quest in log: ${completeResult.error}`);
+    }
+
+    // Update quest status (optional - usually quests remain 'active' in world but 'completed' in log, 
+    // unless it's a unique world quest)
+    // questRepo.update(parsed.questId, { status: 'completed' });
+
+    let output = RichFormatter.header('Quest Completed!', '🎉');
+    output += RichFormatter.keyValue({
+        'Quest': quest.name,
+        'Character': character.name,
+    });
+    output += RichFormatter.section('Rewards');
+    output += RichFormatter.keyValue({
+        'XP': rewardsGranted.xp || 0,
+        'Gold': rewardsGranted.gold || 0,
+    });
+    if (rewardsGranted.items.length > 0) {
+        output += RichFormatter.subSection('Items');
+        output += RichFormatter.list(rewardsGranted.items);
+    }
+    output += RichFormatter.success('Congratulations!');
+    output += RichFormatter.embedJson({ quest, rewards: rewardsGranted }, 'COMPLETE');
 
     return {
         content: [{

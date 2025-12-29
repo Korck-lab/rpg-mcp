@@ -1,137 +1,106 @@
 import Database from 'better-sqlite3';
 import { Item, ItemSchema } from '../../schema/inventory.js';
+import { BaseRepository, RepositoryResult } from '../base.repo.js';
 
-export class ItemRepository {
-    constructor(private db: Database.Database) { }
-
-    create(item: Item): void {
-        const validItem = ItemSchema.parse(item);
-
-        const stmt = this.db.prepare(`
-            INSERT INTO items (id, name, description, type, weight, value, properties, created_at, updated_at)
-            VALUES (@id, @name, @description, @type, @weight, @value, @properties, @createdAt, @updatedAt)
-        `);
-
-        stmt.run({
-            id: validItem.id,
-            name: validItem.name,
-            description: validItem.description || null,
-            type: validItem.type,
-            weight: validItem.weight,
-            value: validItem.value,
-            properties: JSON.stringify(validItem.properties || {}),
-            createdAt: validItem.createdAt,
-            updatedAt: validItem.updatedAt
-        });
+export class ItemRepository extends BaseRepository<Item> {
+    constructor(db: Database.Database) {
+        super(db, 'items');
     }
 
-    findById(id: string): Item | null {
-        const stmt = this.db.prepare('SELECT * FROM items WHERE id = ?');
-        const row = stmt.get(id) as ItemRow | undefined;
-
-        if (!row) return null;
-        return this.rowToItem(row);
-    }
-
-    findAll(): Item[] {
-        const stmt = this.db.prepare('SELECT * FROM items');
-        const rows = stmt.all() as ItemRow[];
-        return rows.map(row => this.rowToItem(row));
-    }
-
-    delete(id: string): void {
-        const stmt = this.db.prepare('DELETE FROM items WHERE id = ?');
-        stmt.run(id);
-    }
-
-    update(id: string, updates: Partial<Omit<Item, 'id' | 'createdAt'>>): Item | null {
-        const existing = this.findById(id);
-        if (!existing) return null;
-
-        const now = new Date().toISOString();
-        const updated = {
-            ...existing,
-            ...updates,
-            updatedAt: now
-        };
-
-        const stmt = this.db.prepare(`
-            UPDATE items SET
-                name = @name,
-                description = @description,
-                type = @type,
-                weight = @weight,
-                value = @value,
-                properties = @properties,
-                updated_at = @updatedAt
-            WHERE id = @id
-        `);
-
-        stmt.run({
-            id: updated.id,
-            name: updated.name,
-            description: updated.description || null,
-            type: updated.type,
-            weight: updated.weight,
-            value: updated.value,
-            properties: JSON.stringify(updated.properties || {}),
-            updatedAt: updated.updatedAt
-        });
-
-        return this.findById(id);
-    }
-
-    findByName(name: string): Item[] {
-        const stmt = this.db.prepare('SELECT * FROM items WHERE LOWER(name) LIKE LOWER(?)');
-        const rows = stmt.all(`%${name}%`) as ItemRow[];
-        return rows.map(row => this.rowToItem(row));
-    }
-
-    findByType(type: string): Item[] {
-        const stmt = this.db.prepare('SELECT * FROM items WHERE type = ?');
-        const rows = stmt.all(type) as ItemRow[];
-        return rows.map(row => this.rowToItem(row));
-    }
-
-    search(query: { name?: string; type?: string; minValue?: number; maxValue?: number }): Item[] {
-        let sql = 'SELECT * FROM items WHERE 1=1';
-        const params: any[] = [];
-
-        if (query.name) {
-            sql += ' AND LOWER(name) LIKE LOWER(?)';
-            params.push(`%${query.name}%`);
-        }
-        if (query.type) {
-            sql += ' AND type = ?';
-            params.push(query.type);
-        }
-        if (query.minValue !== undefined) {
-            sql += ' AND value >= ?';
-            params.push(query.minValue);
-        }
-        if (query.maxValue !== undefined) {
-            sql += ' AND value <= ?';
-            params.push(query.maxValue);
-        }
-
-        const stmt = this.db.prepare(sql);
-        const rows = stmt.all(...params) as ItemRow[];
-        return rows.map(row => this.rowToItem(row));
-    }
-
-    private rowToItem(row: ItemRow): Item {
+    protected toEntity(row: unknown): Item {
+        const r = row as ItemRow;
         return ItemSchema.parse({
-            id: row.id,
-            name: row.name,
-            description: row.description || undefined,
-            type: row.type,
-            weight: row.weight,
-            value: row.value,
-            properties: row.properties ? JSON.parse(row.properties) : undefined,
-            createdAt: row.created_at,
-            updatedAt: row.updated_at
+            id: r.id,
+            name: r.name,
+            description: r.description || undefined,
+            type: r.type,
+            rarity: r.rarity || 'common',
+            requiresAttunement: Boolean(r.requires_attunement),
+            attunementRequirements: r.attunement_requirements || undefined,
+            weight: r.weight,
+            value: r.value,
+            properties: r.properties ? JSON.parse(r.properties) : undefined,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at
         });
     }
+
+    protected toRow(entity: Partial<Item>): Record<string, unknown> {
+        return {
+            id: entity.id,
+            name: entity.name,
+            description: entity.description || null,
+            type: entity.type,
+            rarity: entity.rarity || 'common',
+            requires_attunement: entity.requiresAttunement ? 1 : 0,
+            attunement_requirements: entity.attunementRequirements || null,
+            weight: entity.weight ?? 0,
+            value: entity.value ?? 0,
+            properties: entity.properties ? JSON.stringify(entity.properties) : null,
+            created_at: entity.createdAt,
+            updated_at: entity.updatedAt
+        };
+    }
+
+    create(item: Item): RepositoryResult<Item> {
+        return this.insert(item);
+    }
+
+    delete(id: string): RepositoryResult<void> {
+        return super.delete(id);
+    }
+
+    findByName(name: string): RepositoryResult<Item[]> {
+        try {
+            const rows = this.query('SELECT * FROM items WHERE LOWER(name) LIKE LOWER(?)', [`%${name}%`]);
+            const items = rows.map(row => this.toEntity(row));
+            return { success: true, data: items };
+        } catch (error) {
+            return { success: false, error: (error as Error).message };
+        }
+    }
+
+    findByType(type: string): RepositoryResult<Item[]> {
+        try {
+            const rows = this.query('SELECT * FROM items WHERE type = ?', [type]);
+            const items = rows.map(row => this.toEntity(row));
+            return { success: true, data: items };
+        } catch (error) {
+            return { success: false, error: (error as Error).message };
+        }
+    }
+
+    search(query: { name?: string; type?: string; minValue?: number; maxValue?: number }): RepositoryResult<Item[]> {
+        try {
+            let sql = 'SELECT * FROM items WHERE 1=1';
+            const params: unknown[] = [];
+
+            if (query.name) {
+                sql += ' AND LOWER(name) LIKE LOWER(?)';
+                params.push(`%${query.name}%`);
+            }
+            if (query.type) {
+                sql += ' AND type = ?';
+                params.push(query.type);
+            }
+            if (query.minValue !== undefined) {
+                sql += ' AND value >= ?';
+                params.push(query.minValue);
+            }
+            if (query.maxValue !== undefined) {
+                sql += ' AND value <= ?';
+                params.push(query.maxValue);
+            }
+
+            const rows = this.query(sql, params);
+            const items = rows.map(row => this.toEntity(row));
+            return { success: true, data: items };
+        } catch (error) {
+            return { success: false, error: (error as Error).message };
+        }
+    }
+
+
 }
 
 interface ItemRow {
@@ -139,6 +108,9 @@ interface ItemRow {
     name: string;
     description: string | null;
     type: string;
+    rarity: string | null;
+    requires_attunement: number;
+    attunement_requirements: string | null;
     weight: number;
     value: number;
     properties: string | null;

@@ -114,12 +114,31 @@ export const InventoryTools = {
         inputSchema: z.object({
             characterId: z.string(),
             itemId: z.string(),
-            slot: z.enum(['mainhand', 'offhand', 'armor', 'head', 'feet', 'accessory'])
+            slot: z.enum([
+                'main_hand', 'off_hand', 'head', 'chest', 'legs', 'feet', 
+                'hands', 'neck', 'ring_1', 'ring_2', 'back', 'waist'
+            ])
         })
     },
     UNEQUIP_ITEM: {
         name: 'unequip_item',
         description: 'Unequip an item.',
+        inputSchema: z.object({
+            characterId: z.string(),
+            itemId: z.string()
+        })
+    },
+    ATTUNE_ITEM: {
+        name: 'attune_item',
+        description: 'Attune to a magic item (requires attunement slots).',
+        inputSchema: z.object({
+            characterId: z.string(),
+            itemId: z.string()
+        })
+    },
+    UNATTUNE_ITEM: {
+        name: 'unattune_item',
+        description: 'End attunement to a magic item.',
         inputSchema: z.object({
             characterId: z.string(),
             itemId: z.string()
@@ -153,7 +172,10 @@ export async function handleCreateItemTemplate(args: unknown, _ctx: SessionConte
         updatedAt: now
     };
 
-    itemRepo.create(item);
+    const createResult = itemRepo.create(item);
+    if (!createResult.success) {
+        throw new Error(createResult.error || 'Failed to create item');
+    }
 
     let output = RichFormatter.header('Item Created', '📦');
     output += RichFormatter.keyValue({
@@ -167,7 +189,7 @@ export async function handleCreateItemTemplate(args: unknown, _ctx: SessionConte
         output += `\n${item.description}\n`;
     }
     output += RichFormatter.success('Item template created!');
-    output += RichFormatter.embedJson(item, 'ITEM');
+    output += RichFormatter.embedJson({ item }, 'STATE');
 
     return {
         content: [{
@@ -187,10 +209,11 @@ export async function handleGiveItem(args: unknown, _ctx: SessionContext) {
     }
 
     // Get item details for validation
-    const item = itemRepo.findById(parsed.itemId);
-    if (!item) {
-        throw new Error(`Item not found: ${parsed.itemId}`);
+    const itemResult = itemRepo.findById(parsed.itemId);
+    if (!itemResult.success || !itemResult.data) {
+        throw new Error(itemResult.error || `Item not found: ${parsed.itemId}`);
     }
+    const item = itemResult.data;
 
     // Check unique item constraints
     const properties = item.properties || {};
@@ -254,6 +277,26 @@ export async function handleGiveItem(args: unknown, _ctx: SessionContext) {
         'Character': `\`${parsed.characterId}\``,
     });
     output += RichFormatter.success(`Added ${parsed.quantity}x ${item.name} to inventory.`);
+    
+    // Return updated inventory state with FULL DETAILS for client model compatibility
+    const updatedInventory = inventoryRepo.getInventoryWithDetails(parsed.characterId);
+    
+    // Format for embedding - map InventoryWithItems to match Inventory schema structure
+    const embedInventory = {
+        characterId: updatedInventory.characterId,
+        items: updatedInventory.items.map(i => ({
+            itemId: i.item.id,
+            item: i.item, // Include full item details
+            quantity: i.quantity,
+            equipped: i.equipped,
+            attuned: i.attuned,
+            slot: i.slot
+        })),
+        capacity: updatedInventory.capacity,
+        currency: updatedInventory.currency
+    };
+    
+    output += RichFormatter.embedJson({ inventory: embedInventory }, 'STATE');
 
     return {
         content: [{
@@ -280,6 +323,10 @@ export async function handleRemoveItem(args: unknown, _ctx: SessionContext) {
         'Character': `\`${parsed.characterId}\``,
     });
     output += RichFormatter.success('Item removed from inventory.');
+    
+    // Return updated inventory state with FULL DETAILS
+    const updatedInventory = inventoryRepo.getInventoryWithDetails(parsed.characterId);
+    output += RichFormatter.embedJson({ inventory: updatedInventory }, 'STATE');
 
     return {
         content: [{
@@ -302,10 +349,11 @@ export async function handleEquipItem(args: unknown, _ctx: SessionContext) {
     }
 
     // Get item details for AC calculation
-    const item = itemRepo.findById(parsed.itemId);
-    if (!item) {
-        throw new Error(`Item not found: ${parsed.itemId}`);
+    const itemResult = itemRepo.findById(parsed.itemId);
+    if (!itemResult.success || !itemResult.data) {
+        throw new Error(itemResult.error || `Item not found: ${parsed.itemId}`);
     }
+    const item = itemResult.data;
 
     inventoryRepo.equipItem(parsed.characterId, parsed.itemId, parsed.slot);
 
@@ -323,7 +371,9 @@ export async function handleEquipItem(args: unknown, _ctx: SessionContext) {
         }
 
         // Armor: sets base AC (may include DEX bonus in calculation)
-        if (props.baseAC && typeof props.baseAC === 'number' && parsed.slot === 'armor') {
+        // Check if item is armor type OR if it's being equipped in an armor slot
+        const isArmorSlot = ['chest', 'legs', 'head'].includes(parsed.slot);
+        if (props.baseAC && typeof props.baseAC === 'number' && (item.type === 'armor' || isArmorSlot)) {
             const dexMod = Math.floor((character.stats.dex - 10) / 2);
             const maxDexBonus = props.maxDexBonus !== undefined ? Number(props.maxDexBonus) : 99;
             const effectiveDexBonus = Math.min(dexMod, maxDexBonus);
@@ -335,18 +385,22 @@ export async function handleEquipItem(args: unknown, _ctx: SessionContext) {
             charRepo.update(parsed.characterId, { ac: newAc });
         }
 
+        const updatedInventory = inventoryRepo.getInventoryWithDetails(parsed.characterId);
         return {
             content: [{
                 type: 'text' as const,
-                text: `Equipped ${item.name} in slot ${parsed.slot}.${acMessage}`
+                text: `Equipped ${item.name} in slot ${parsed.slot}.${acMessage}` + 
+                      RichFormatter.embedJson({ inventory: updatedInventory }, 'STATE')
             }]
         };
     }
 
+    const updatedInventory = inventoryRepo.getInventoryWithDetails(parsed.characterId);
     return {
         content: [{
             type: 'text' as const,
-            text: `Equipped item ${parsed.itemId} in slot ${parsed.slot}`
+            text: `Equipped item ${parsed.itemId} in slot ${parsed.slot}` + 
+                  RichFormatter.embedJson({ inventory: updatedInventory }, 'STATE')
         }]
     };
 }
@@ -356,7 +410,8 @@ export async function handleUnequipItem(args: unknown, _ctx: SessionContext) {
     const parsed = InventoryTools.UNEQUIP_ITEM.inputSchema.parse(args);
 
     // Get item details before unequipping for AC calculation
-    const item = itemRepo.findById(parsed.itemId);
+    const itemResult = itemRepo.findById(parsed.itemId);
+    const item = itemResult.success ? itemResult.data : null;
     const inventory = inventoryRepo.getInventory(parsed.characterId);
     const equippedItem = inventory.items.find(i => i.itemId === parsed.itemId && i.equipped);
     const slot = equippedItem?.slot;
@@ -377,7 +432,9 @@ export async function handleUnequipItem(args: unknown, _ctx: SessionContext) {
         }
 
         // Armor: revert to base 10 + DEX
-        if (props.baseAC && typeof props.baseAC === 'number' && slot === 'armor') {
+        // Check if item is armor type OR if it was equipped in an armor slot
+        const isArmorSlot = ['chest', 'legs', 'head'].includes(slot || '');
+        if (props.baseAC && typeof props.baseAC === 'number' && (item.type === 'armor' || isArmorSlot)) {
             const dexMod = Math.floor((character.stats.dex - 10) / 2);
             newAc = 10 + dexMod; // Unarmored AC
             acMessage = ` AC reverted to unarmored (${newAc})`;
@@ -387,18 +444,22 @@ export async function handleUnequipItem(args: unknown, _ctx: SessionContext) {
             charRepo.update(parsed.characterId, { ac: newAc });
         }
 
+        const updatedInventory = inventoryRepo.getInventoryWithDetails(parsed.characterId);
         return {
             content: [{
                 type: 'text' as const,
-                text: `Unequipped ${item.name}.${acMessage}`
+                text: `Unequipped ${item.name}.${acMessage}` + 
+                      RichFormatter.embedJson({ inventory: updatedInventory }, 'STATE')
             }]
         };
     }
 
+    const updatedInventory = inventoryRepo.getInventoryWithDetails(parsed.characterId);
     return {
         content: [{
             type: 'text' as const,
-            text: `Unequipped item ${parsed.itemId}`
+            text: `Unequipped item ${parsed.itemId}` + 
+                  RichFormatter.embedJson({ inventory: updatedInventory }, 'STATE')
         }]
     };
 }
@@ -407,17 +468,34 @@ export async function handleGetInventory(args: unknown, _ctx: SessionContext) {
     const { inventoryRepo } = ensureDb();
     const parsed = InventoryTools.GET_INVENTORY.inputSchema.parse(args);
 
-    const inventory = inventoryRepo.getInventory(parsed.characterId);
+    // Use getInventoryWithDetails to return full item data expected by client
+    const inventory = inventoryRepo.getInventoryWithDetails(parsed.characterId);
 
     let output = RichFormatter.header('Inventory', '🎒');
     output += RichFormatter.keyValue({ 'Character': `\`${parsed.characterId}\`` });
     output += RichFormatter.inventory(inventory.items.map((i: any) => ({
-        name: i.itemId,
+        name: i.item?.name || i.itemId,
         quantity: i.quantity,
         equipped: i.equipped,
         slot: i.slot,
     })));
-    output += RichFormatter.embedJson(inventory, 'INVENTORY');
+    
+    // Format for embedding - map InventoryWithItems to match Inventory schema structure
+    const embedInventory = {
+        characterId: inventory.characterId,
+        items: inventory.items.map(i => ({
+            itemId: i.item.id,
+            item: i.item, // Include full item details
+            quantity: i.quantity,
+            equipped: i.equipped,
+            attuned: i.attuned,
+            slot: i.slot
+        })),
+        capacity: inventory.capacity,
+        currency: inventory.currency
+    };
+    
+    output += RichFormatter.embedJson({ inventory: embedInventory }, 'STATE');
 
     return {
         content: [{
@@ -431,11 +509,11 @@ export async function handleGetItem(args: unknown, _ctx: SessionContext) {
     const { itemRepo } = ensureDb();
     const parsed = InventoryTools.GET_ITEM.inputSchema.parse(args);
 
-    const item = itemRepo.findById(parsed.itemId);
-
-    if (!item) {
-        throw new Error(`Item not found: ${parsed.itemId}`);
+    const itemResult = itemRepo.findById(parsed.itemId);
+    if (!itemResult.success || !itemResult.data) {
+        throw new Error(itemResult.error || `Item not found: ${parsed.itemId}`);
     }
+    const item = itemResult.data;
 
     let output = RichFormatter.header(item.name, '📦');
     output += RichFormatter.keyValue({
@@ -447,7 +525,7 @@ export async function handleGetItem(args: unknown, _ctx: SessionContext) {
     if (item.description) {
         output += `\n${item.description}\n`;
     }
-    output += RichFormatter.embedJson({ item }, 'ITEM');
+    output += RichFormatter.embedJson({ item }, 'STATE');
 
     return {
         content: [{
@@ -461,12 +539,16 @@ export async function handleListItems(args: unknown, _ctx: SessionContext) {
     const { itemRepo } = ensureDb();
     const parsed = InventoryTools.LIST_ITEMS.inputSchema.parse(args);
 
-    let items;
+    let itemsResult;
     if (parsed.type) {
-        items = itemRepo.findByType(parsed.type);
+        itemsResult = itemRepo.findByType(parsed.type);
     } else {
-        items = itemRepo.findAll();
+        itemsResult = itemRepo.findAll();
     }
+    if (!itemsResult.success) {
+        throw new Error(itemsResult.error || 'Failed to retrieve items');
+    }
+    const items = itemsResult.data!;
 
     let output = RichFormatter.header('Items', '📦');
     if (parsed.type) {
@@ -479,7 +561,7 @@ export async function handleListItems(args: unknown, _ctx: SessionContext) {
         output += RichFormatter.table(['Name', 'Type', 'Weight', 'Value'], rows);
         output += `\n*${items.length} item(s) total*\n`;
     }
-    output += RichFormatter.embedJson({ items, count: items.length }, 'ITEMS');
+    output += RichFormatter.embedJson({ items, totalCount: items.length }, 'STATE');
 
     return {
         content: [{
@@ -493,7 +575,11 @@ export async function handleSearchItems(args: unknown, _ctx: SessionContext) {
     const { itemRepo } = ensureDb();
     const parsed = InventoryTools.SEARCH_ITEMS.inputSchema.parse(args);
 
-    const items = itemRepo.search(parsed);
+    const itemsResult = itemRepo.search(parsed);
+    if (!itemsResult.success) {
+        throw new Error(itemsResult.error || 'Failed to search items');
+    }
+    const items = itemsResult.data!;
 
     let output = RichFormatter.header('Search Results', '🔍');
     output += RichFormatter.keyValue(parsed as Record<string, unknown>);
@@ -504,7 +590,7 @@ export async function handleSearchItems(args: unknown, _ctx: SessionContext) {
         output += RichFormatter.table(['Name', 'Type', 'Value'], rows);
         output += `\n*${items.length} result(s)*\n`;
     }
-    output += RichFormatter.embedJson({ items, count: items.length, query: parsed }, 'SEARCH');
+    output += RichFormatter.embedJson({ items, totalMatches: items.length, searchQuery: parsed }, 'STATE');
 
     return {
         content: [{
@@ -519,11 +605,11 @@ export async function handleUpdateItem(args: unknown, _ctx: SessionContext) {
     const parsed = InventoryTools.UPDATE_ITEM.inputSchema.parse(args);
 
     const { itemId, ...updates } = parsed;
-    const item = itemRepo.update(itemId, updates);
-
-    if (!item) {
-        throw new Error(`Item not found: ${itemId}`);
+    const updateResult = itemRepo.update(itemId, updates);
+    if (!updateResult.success || !updateResult.data) {
+        throw new Error(updateResult.error || `Item not found: ${itemId}`);
     }
+    const item = updateResult.data;
 
     let output = RichFormatter.header('Item Updated', '✏️');
     output += RichFormatter.keyValue({
@@ -532,7 +618,7 @@ export async function handleUpdateItem(args: unknown, _ctx: SessionContext) {
         'Type': item.type,
     });
     output += RichFormatter.success('Item updated successfully.');
-    output += RichFormatter.embedJson({ item }, 'ITEM');
+    output += RichFormatter.embedJson({ item }, 'STATE');
 
     return {
         content: [{
@@ -546,12 +632,16 @@ export async function handleDeleteItem(args: unknown, _ctx: SessionContext) {
     const { itemRepo } = ensureDb();
     const parsed = InventoryTools.DELETE_ITEM.inputSchema.parse(args);
 
-    const existing = itemRepo.findById(parsed.itemId);
-    if (!existing) {
-        throw new Error(`Item not found: ${parsed.itemId}`);
+    const existingResult = itemRepo.findById(parsed.itemId);
+    if (!existingResult.success || !existingResult.data) {
+        throw new Error(existingResult.error || `Item not found: ${parsed.itemId}`);
     }
+    const existing = existingResult.data;
 
-    itemRepo.delete(parsed.itemId);
+    const deleteResult = itemRepo.delete(parsed.itemId);
+    if (!deleteResult.success) {
+        throw new Error(deleteResult.error || 'Failed to delete item');
+    }
 
     let output = RichFormatter.header('Item Deleted', '🗑️');
     output += RichFormatter.keyValue({
@@ -573,10 +663,11 @@ export async function handleTransferItem(args: unknown, _ctx: SessionContext) {
     const parsed = InventoryTools.TRANSFER_ITEM.inputSchema.parse(args);
 
     // Get item details for the response
-    const item = itemRepo.findById(parsed.itemId);
-    if (!item) {
-        throw new Error(`Item not found: ${parsed.itemId}`);
+    const itemResult = itemRepo.findById(parsed.itemId);
+    if (!itemResult.success || !itemResult.data) {
+        throw new Error(itemResult.error || `Item not found: ${parsed.itemId}`);
     }
+    const item = itemResult.data;
 
     const success = inventoryRepo.transferItem(
         parsed.fromCharacterId,
@@ -597,6 +688,28 @@ export async function handleTransferItem(args: unknown, _ctx: SessionContext) {
         'To': `\`${parsed.toCharacterId}\``,
     });
     output += RichFormatter.success('Transfer complete!');
+    
+    // For transfer, we usually want the source's inventory update or just success status
+    // Client can re-fetch if needed. But let's return source inventory for consistency if possible
+    // Note: Python client expects "TransferResponse" which doesn't include inventory.
+    // So we don't need to change the JSON payload structure here for TransferResponse compatibility.
+    // However, if we want to update local state, we could.
+    // The previous implementation returned:
+    /*
+    output += RichFormatter.embedJson({ 
+        fromCharacterId: parsed.fromCharacterId,
+        toCharacterId: parsed.toCharacterId,
+        itemId: parsed.itemId,
+        quantityTransferred: parsed.quantity 
+    }, 'STATE');
+    */
+    // This matches TransferResponse fields. So NO CHANGE needed for TransferItem tool return value.
+    output += RichFormatter.embedJson({ 
+        fromCharacterId: parsed.fromCharacterId,
+        toCharacterId: parsed.toCharacterId,
+        itemId: parsed.itemId,
+        quantityTransferred: parsed.quantity 
+    }, 'STATE');
 
     return {
         content: [{
@@ -611,10 +724,11 @@ export async function handleUseItem(args: unknown, _ctx: SessionContext) {
     const parsed = InventoryTools.USE_ITEM.inputSchema.parse(args);
 
     // Get item details
-    const item = itemRepo.findById(parsed.itemId);
-    if (!item) {
-        throw new Error(`Item not found: ${parsed.itemId}`);
+    const itemResult = itemRepo.findById(parsed.itemId);
+    if (!itemResult.success || !itemResult.data) {
+        throw new Error(itemResult.error || `Item not found: ${parsed.itemId}`);
     }
+    const item = itemResult.data;
 
     // Verify it's a consumable
     if (item.type !== 'consumable') {
@@ -645,6 +759,117 @@ export async function handleUseItem(args: unknown, _ctx: SessionContext) {
     output += RichFormatter.section('Effect');
     output += `${effect}\n`;
     output += RichFormatter.success('Item consumed!');
+    
+    // Get updated inventory
+    const updatedInventory = inventoryRepo.getInventory(parsed.characterId);
+    // Find if item still exists
+    const remainingItem = updatedInventory.items.find(i => i.itemId === parsed.itemId);
+    
+    output += RichFormatter.embedJson({ 
+        itemId: parsed.itemId,
+        characterId: parsed.characterId,
+        effectDescription: effect,
+        usesRemaining: remainingItem ? remainingItem.quantity : 0 
+    }, 'STATE');
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+export async function handleAttuneItem(args: unknown, _ctx: SessionContext) {
+    const { inventoryRepo, itemRepo } = ensureDb();
+    const parsed = InventoryTools.ATTUNE_ITEM.inputSchema.parse(args);
+
+    // Get item name for output
+    const itemResult = itemRepo.findById(parsed.itemId);
+    const itemName = (itemResult.success && itemResult.data) ? itemResult.data.name : parsed.itemId;
+
+    const success = inventoryRepo.attuneItem(parsed.characterId, parsed.itemId);
+
+    if (!success) {
+        // Should have thrown error, but just in case
+        throw new Error('Failed to attune item');
+    }
+
+    let output = RichFormatter.header('Item Attuned', '🔮');
+    output += RichFormatter.keyValue({
+        'Item': itemName,
+        'Character': `\`${parsed.characterId}\``,
+    });
+    output += RichFormatter.success(`Attuned to ${itemName}.`);
+
+    // Return updated inventory
+    const updatedInventory = inventoryRepo.getInventoryWithDetails(parsed.characterId);
+    
+    // Format for embedding
+    const embedInventory = {
+        characterId: updatedInventory.characterId,
+        items: updatedInventory.items.map(i => ({
+            itemId: i.item.id,
+            item: i.item,
+            quantity: i.quantity,
+            equipped: i.equipped,
+            attuned: i.attuned,
+            slot: i.slot
+        })),
+        capacity: updatedInventory.capacity,
+        currency: updatedInventory.currency
+    };
+
+    output += RichFormatter.embedJson({ inventory: embedInventory }, 'STATE');
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: output
+        }]
+    };
+}
+
+export async function handleUnattuneItem(args: unknown, _ctx: SessionContext) {
+    const { inventoryRepo, itemRepo } = ensureDb();
+    const parsed = InventoryTools.UNATTUNE_ITEM.inputSchema.parse(args);
+
+    // Get item name for output
+    const itemResult = itemRepo.findById(parsed.itemId);
+    const itemName = (itemResult.success && itemResult.data) ? itemResult.data.name : parsed.itemId;
+
+    const success = inventoryRepo.unattuneItem(parsed.characterId, parsed.itemId);
+
+    if (!success) {
+        throw new Error('Failed to unattune item');
+    }
+
+    let output = RichFormatter.header('Item Unattuned', '⚪');
+    output += RichFormatter.keyValue({
+        'Item': itemName,
+        'Character': `\`${parsed.characterId}\``,
+    });
+    output += RichFormatter.success(`Unattuned from ${itemName}.`);
+
+    // Return updated inventory
+    const updatedInventory = inventoryRepo.getInventoryWithDetails(parsed.characterId);
+    
+    // Format for embedding
+    const embedInventory = {
+        characterId: updatedInventory.characterId,
+        items: updatedInventory.items.map(i => ({
+            itemId: i.item.id,
+            item: i.item,
+            quantity: i.quantity,
+            equipped: i.equipped,
+            attuned: i.attuned,
+            slot: i.slot
+        })),
+        capacity: updatedInventory.capacity,
+        currency: updatedInventory.currency
+    };
+
+    output += RichFormatter.embedJson({ inventory: embedInventory }, 'STATE');
 
     return {
         content: [{
@@ -672,7 +897,16 @@ export async function handleGetInventoryDetailed(args: unknown, _ctx: SessionCon
         equipped: i.equipped,
         slot: i.slot,
     })));
-    output += RichFormatter.embedJson(inventory, 'INVENTORY');
+    output += RichFormatter.embedJson({ 
+        inventory, 
+        equippedItems: inventory.items.reduce((acc, i) => {
+            if (i.equipped && i.slot && i.item) {
+                acc[i.slot] = i.item;
+            }
+            return acc;
+        }, {} as Record<string, any>),
+        totalValueGp: (inventory as any).currency?.gold || 0 // Placeholder logic for now
+    }, 'STATE');
 
     return {
         content: [{

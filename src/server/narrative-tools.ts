@@ -1,18 +1,18 @@
-/**
- * Narrative Tools - Session Notes & Memory Layer
- * 
- * Implements the "Narrative Memory Layer" for tracking:
- * - Plot Threads: Active storylines, quests, hooks
- * - Canonical Moments: Verbatim quotes, key decisions, immutable history
- * - NPC Voices: Speech patterns, vocabulary, secrets
- * - Foreshadowing: Hints to drop, secrets to reveal later
- * - Session Logs: General summaries and mini-updates
- */
-
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { SessionContext } from './types.js';
 import { getDb } from '../storage/index.js';
+import { NarrativeNotesRepository, NarrativeNote } from '../storage/repos/narrative-notes.repo.js';
+
+function ensureRepo() {
+    const dbPath = process.env.NODE_ENV === 'test'
+        ? ':memory:'
+        : process.env.RPG_DATA_DIR
+            ? `${process.env.RPG_DATA_DIR}/rpg.db`
+            : 'rpg.db';
+    const db = getDb(dbPath);
+    return new NarrativeNotesRepository(db);
+}
 
 // ============================================================================
 // SCHEMAS
@@ -166,7 +166,7 @@ export const NarrativeTools = {
 
 export async function handleAddNarrativeNote(args: unknown, _ctx: SessionContext) {
   const parsed = NarrativeTools.ADD_NARRATIVE_NOTE.inputSchema.parse(args);
-  const db = getDb(process.env.RPG_DATA_DIR ? `${process.env.RPG_DATA_DIR}/rpg.db` : 'rpg.db');
+  const repo = ensureRepo();
 
   const id = uuidv4();
   const now = new Date().toISOString();
@@ -196,23 +196,25 @@ export async function handleAddNarrativeNote(args: unknown, _ctx: SessionContext
     console.warn(`[NarrativeNote] Metadata validation warning for type ${parsed.type}:`, e);
   }
 
-  db.prepare(`
-    INSERT INTO narrative_notes (id, world_id, type, content, metadata, visibility, tags, entity_id, entity_type, status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  const note: NarrativeNote = {
     id,
-    parsed.worldId,
-    parsed.type,
-    parsed.content,
-    JSON.stringify(validatedMetadata),
-    parsed.visibility,
-    JSON.stringify(parsed.tags),
-    parsed.entityId || null,
-    parsed.entityType || null,
-    parsed.status,
-    now,
-    now
-  );
+    worldId: parsed.worldId,
+    type: parsed.type,
+    content: parsed.content,
+    metadata: validatedMetadata,
+    visibility: parsed.visibility,
+    tags: parsed.tags,
+    entityId: parsed.entityId,
+    entityType: parsed.entityType,
+    status: parsed.status,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  const result = repo.insert(note);
+  if (!result.success) {
+    throw new Error(`Failed to create note: ${result.error}`);
+  }
 
   return {
     content: [{
@@ -229,6 +231,8 @@ export async function handleAddNarrativeNote(args: unknown, _ctx: SessionContext
 
 export async function handleSearchNarrativeNotes(args: unknown, _ctx: SessionContext) {
   const parsed = NarrativeTools.SEARCH_NARRATIVE_NOTES.inputSchema.parse(args);
+  // Using direct repo access for complex search not fully covered by basic repo methods
+  
   const db = getDb(process.env.RPG_DATA_DIR ? `${process.env.RPG_DATA_DIR}/rpg.db` : 'rpg.db');
 
   let sql = `SELECT * FROM narrative_notes WHERE world_id = ?`;
@@ -262,7 +266,7 @@ export async function handleSearchNarrativeNotes(args: unknown, _ctx: SessionCon
   // Tag filtering (AND logic - all specified tags must be present)
   if (parsed.tags && parsed.tags.length > 0) {
     for (const tag of parsed.tags) {
-      sql += ` AND tags LIKE ?`;
+      sql += ` AND tags_json LIKE ?`; // Changed to tags_json
       params.push(`%"${tag}"%`);
     }
   }
@@ -275,8 +279,8 @@ export async function handleSearchNarrativeNotes(args: unknown, _ctx: SessionCon
   // Parse JSON fields
   const results = notes.map(note => ({
     ...note,
-    metadata: JSON.parse(note.metadata || '{}'),
-    tags: JSON.parse(note.tags || '[]')
+    metadata: JSON.parse(note.metadata_json || '{}'), // Changed column name
+    tags: JSON.parse(note.tags_json || '[]') // Changed column name
   }));
 
   return {
@@ -292,65 +296,34 @@ export async function handleSearchNarrativeNotes(args: unknown, _ctx: SessionCon
 
 export async function handleUpdateNarrativeNote(args: unknown, _ctx: SessionContext) {
   const parsed = NarrativeTools.UPDATE_NARRATIVE_NOTE.inputSchema.parse(args);
-  const db = getDb(process.env.RPG_DATA_DIR ? `${process.env.RPG_DATA_DIR}/rpg.db` : 'rpg.db');
+  const repo = ensureRepo();
 
-  // First get the existing note
-  const existing = db.prepare('SELECT * FROM narrative_notes WHERE id = ?').get(parsed.noteId) as any;
-  if (!existing) {
+  const updates: any = {};
+  if (parsed.content) updates.content = parsed.content;
+  if (parsed.status) updates.status = parsed.status;
+  if (parsed.visibility) updates.visibility = parsed.visibility;
+  if (parsed.tags) updates.tags = parsed.tags;
+  if (parsed.metadata) {
+      const existing = repo.findById(parsed.noteId);
+      if (existing.success && existing.data) {
+          updates.metadata = { ...existing.data.metadata, ...parsed.metadata };
+      } else {
+          updates.metadata = parsed.metadata;
+      }
+  }
+  updates.updatedAt = new Date().toISOString();
+
+  const result = repo.update(parsed.noteId, updates);
+
+  if (!result.success) {
     return {
       content: [{
         type: 'text' as const,
-        text: JSON.stringify({ success: false, error: 'Note not found' })
+        text: JSON.stringify({ success: false, error: result.error || 'Note not found' })
       }],
       isError: true
     };
   }
-
-  const updates: string[] = [];
-  const params: any[] = [];
-
-  if (parsed.content !== undefined) {
-    updates.push('content = ?');
-    params.push(parsed.content);
-  }
-
-  if (parsed.status !== undefined) {
-    updates.push('status = ?');
-    params.push(parsed.status);
-  }
-
-  if (parsed.visibility !== undefined) {
-    updates.push('visibility = ?');
-    params.push(parsed.visibility);
-  }
-
-  if (parsed.tags !== undefined) {
-    updates.push('tags = ?');
-    params.push(JSON.stringify(parsed.tags));
-  }
-
-  if (parsed.metadata !== undefined) {
-    // Merge with existing metadata
-    const existingMeta = JSON.parse(existing.metadata || '{}');
-    const merged = { ...existingMeta, ...parsed.metadata };
-    updates.push('metadata = ?');
-    params.push(JSON.stringify(merged));
-  }
-
-  if (updates.length === 0) {
-    return {
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({ success: true, message: 'No updates provided' })
-      }]
-    };
-  }
-
-  updates.push('updated_at = ?');
-  params.push(new Date().toISOString());
-  params.push(parsed.noteId);
-
-  db.prepare(`UPDATE narrative_notes SET ${updates.join(', ')} WHERE id = ?`).run(...params);
 
   return {
     content: [{
@@ -358,7 +331,7 @@ export async function handleUpdateNarrativeNote(args: unknown, _ctx: SessionCont
       text: JSON.stringify({
         success: true,
         noteId: parsed.noteId,
-        message: `Updated note. Changes: ${updates.slice(0, -1).join(', ')}`
+        message: `Updated note successfully`
       })
     }]
   };
@@ -366,11 +339,11 @@ export async function handleUpdateNarrativeNote(args: unknown, _ctx: SessionCont
 
 export async function handleGetNarrativeNote(args: unknown, _ctx: SessionContext) {
   const parsed = NarrativeTools.GET_NARRATIVE_NOTE.inputSchema.parse(args);
-  const db = getDb(process.env.RPG_DATA_DIR ? `${process.env.RPG_DATA_DIR}/rpg.db` : 'rpg.db');
+  const repo = ensureRepo();
 
-  const note = db.prepare('SELECT * FROM narrative_notes WHERE id = ?').get(parsed.noteId) as any;
+  const result = repo.findById(parsed.noteId);
 
-  if (!note) {
+  if (!result.success || !result.data) {
     return {
       content: [{
         type: 'text' as const,
@@ -383,28 +356,24 @@ export async function handleGetNarrativeNote(args: unknown, _ctx: SessionContext
   return {
     content: [{
       type: 'text' as const,
-      text: JSON.stringify({
-        ...note,
-        metadata: JSON.parse(note.metadata || '{}'),
-        tags: JSON.parse(note.tags || '[]')
-      })
+      text: JSON.stringify(result.data)
     }]
   };
 }
 
 export async function handleDeleteNarrativeNote(args: unknown, _ctx: SessionContext) {
   const parsed = NarrativeTools.DELETE_NARRATIVE_NOTE.inputSchema.parse(args);
-  const db = getDb(process.env.RPG_DATA_DIR ? `${process.env.RPG_DATA_DIR}/rpg.db` : 'rpg.db');
+  const repo = ensureRepo();
 
-  const result = db.prepare('DELETE FROM narrative_notes WHERE id = ?').run(parsed.noteId);
+  const result = repo.delete(parsed.noteId);
 
   return {
     content: [{
       type: 'text' as const,
       text: JSON.stringify({
-        success: result.changes > 0,
-        deleted: result.changes > 0,
-        message: result.changes > 0 ? 'Note deleted' : 'Note not found'
+        success: result.success,
+        deleted: result.success,
+        message: result.success ? 'Note deleted' : (result.error || 'Note not found')
       })
     }]
   };
@@ -412,6 +381,7 @@ export async function handleDeleteNarrativeNote(args: unknown, _ctx: SessionCont
 
 export async function handleGetNarrativeContextNotes(args: unknown, _ctx: SessionContext) {
   const parsed = NarrativeTools.GET_NARRATIVE_CONTEXT.inputSchema.parse(args);
+  // Using direct DB access for complex multi-query
   const db = getDb(process.env.RPG_DATA_DIR ? `${process.env.RPG_DATA_DIR}/rpg.db` : 'rpg.db');
 
   const sections: { title: string; notes: any[]; priority: number }[] = [];
@@ -459,8 +429,8 @@ export async function handleGetNarrativeContextNotes(args: unknown, _ctx: Sessio
         notes: notes.map(n => ({
           id: n.id,
           content: n.content,
-          metadata: JSON.parse(n.metadata || '{}'),
-          tags: JSON.parse(n.tags || '[]'),
+          metadata: JSON.parse(n.metadata_json || '{}'), // Changed to metadata_json
+          tags: JSON.parse(n.tags_json || '[]'), // Changed to tags_json
           status: n.status,
           entityId: n.entity_id,
           entityType: n.entity_type,

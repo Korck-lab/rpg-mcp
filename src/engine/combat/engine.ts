@@ -21,6 +21,7 @@ import { SizeCategory, GridBounds } from '../../schema/encounter.js';
  */
 export interface CombatParticipant {
     id: string;
+    characterId?: string; // Link to persistent character record
     name: string;
     initiativeBonus: number;
     initiative?: number;  // Rolled initiative value (set when encounter starts)
@@ -28,6 +29,7 @@ export interface CombatParticipant {
     hp: number;
     maxHp: number;
     conditions: Condition[];
+    metadata?: Record<string, any>; // Arbitrary metadata for persistence
     position?: { x: number; y: number; z?: number };  // CRIT-003: Spatial position
     // Phase 4: Movement economy
     movementSpeed?: number;       // Base speed in feet (default 30)
@@ -172,12 +174,12 @@ export interface EventEmitter {
  * - Lair Actions (trigger on initiative count 20)
  */
 export class CombatEngine {
-    private rng: CombatRNG;
+    private _rng: CombatRNG;
     private state: CombatState | null = null;
     private emitter?: EventEmitter;
 
     constructor(seed: string, emitter?: EventEmitter) {
-        this.rng = new CombatRNG(seed);
+        this._rng = new CombatRNG(seed);
         this.emitter = emitter;
     }
 
@@ -185,7 +187,7 @@ export class CombatEngine {
      * Get the seeded RNG for deterministic operations
      */
     get rng(): CombatRNG {
-        return this.rng;
+        return this._rng;
     }
 
     /**
@@ -197,7 +199,7 @@ export class CombatEngine {
     startEncounter(participants: CombatParticipant[]): CombatState {
         // Roll initiative for each participant and store the value
         const participantsWithInitiative = participants.map(p => {
-            const rolledInitiative = this.rng.d20(p.initiativeBonus);
+            const rolledInitiative = this._rng.d20(p.initiativeBonus);
             return {
                 ...p,
                 initiative: rolledInitiative,
@@ -532,7 +534,7 @@ export class CombatEngine {
         const hpBefore = target.hp;
 
         // Roll with full transparency
-        const attackRoll = this.rng.checkDegreeDetailed(attackBonus, dc);
+        const attackRoll = this._rng.checkDegreeDetailed(attackBonus, dc);
 
         let damageDealt = 0;
         let damageModifier: 'immune' | 'resistant' | 'vulnerable' | 'normal' = 'normal';
@@ -668,14 +670,14 @@ export class CombatEngine {
         modifier: number,
         dc: number
     ): 'critical-failure' | 'failure' | 'success' | 'critical-success' {
-        return this.rng.checkDegree(modifier, dc);
+        return this._rng.checkDegree(modifier, dc);
     }
 
     /**
      * Make a detailed check exposing all dice mechanics
      */
     makeCheckDetailed(modifier: number, dc: number): CheckResult {
-        return this.rng.checkDegreeDetailed(modifier, dc);
+        return this._rng.checkDegreeDetailed(modifier, dc);
     }
 
     /**
@@ -765,7 +767,7 @@ export class CombatEngine {
         }
 
         // Roll the d20
-        const roll = this.rng.d20();
+        const roll = this._rng.d20();
         const isNat20 = roll === 20;
         const isNat1 = roll === 1;
         const success = roll >= 10;
@@ -879,7 +881,7 @@ export class CombatEngine {
         if (!participant) throw new Error(`Participant ${participantId} not found`);
 
         // Generate unique ID for condition instance
-        const randomId = this.rng.rollDie(36).toString(36) + this.rng.rollDie(36).toString(36);
+        const randomId = this._rng.rollDie(36).toString(36) + this._rng.rollDie(36).toString(36);
         const fullCondition: Condition = {
             ...condition,
             id: `${participantId}-${condition.type}-${Date.now()}-${randomId}`
@@ -920,6 +922,48 @@ export class CombatEngine {
     /**
      * Check if a participant has a specific condition type
      */
+    rollInitiativeForAll(): { tokenId: string; name: string; initiative: number }[] {
+        if (!this.state) throw new Error('No active combat');
+
+        const results: { tokenId: string; name: string; initiative: number }[] = [];
+
+        // Roll initiative for each participant
+        for (const participant of this.state.participants) {
+            const rolledInitiative = this._rng.d20(participant.initiativeBonus);
+            participant.initiative = rolledInitiative;
+            results.push({
+                tokenId: participant.id,
+                name: participant.name,
+                initiative: rolledInitiative
+            });
+        }
+
+        // Re-sort turn order by initiative
+        this.state.participants.sort((a, b) => {
+            const aInit = a.initiative ?? 0;
+            const bInit = b.initiative ?? 0;
+            if (bInit !== aInit) {
+                return bInit - aInit;
+            }
+            return a.id.localeCompare(b.id);
+        });
+
+        this.state.turnOrder = this.state.participants.map(p => p.id);
+
+        // Handle lair actions if present
+        const lairOwner = this.state.participants.find(p => p.hasLairActions);
+        if (lairOwner) {
+            const lairIndex = this.state.participants.findIndex(p => (p.initiative ?? 0) <= 20);
+            if (lairIndex === -1) {
+                this.state.turnOrder.push('LAIR');
+            } else {
+                this.state.turnOrder.splice(lairIndex, 0, 'LAIR');
+            }
+        }
+
+        return results;
+    }
+
     hasCondition(participantId: string, type: ConditionType): boolean {
         if (!this.state) return false;
 
@@ -1019,7 +1063,7 @@ export class CombatEngine {
             // Handle save-ends conditions
             if (condition.durationType === DurationType.SAVE_ENDS && condition.saveDC && condition.saveAbility) {
                 const saveBonus = this.getSaveBonus(participant, condition.saveAbility);
-                const degree = this.rng.checkDegree(saveBonus, condition.saveDC);
+                const degree = this._rng.checkDegree(saveBonus, condition.saveDC);
 
                 if (degree === 'success' || degree === 'critical-success') {
                     this.removeCondition(participant.id, condition.id);
@@ -1275,10 +1319,10 @@ export class CombatEngine {
         const targetAC = 10 + (target.initiativeBonus > 0 ? Math.floor(target.initiativeBonus / 2) : 0);
 
         // Fixed damage for opportunity attacks: 1d6 + 2
-        const baseDamage = this.rng.roll('1d6') + 2;
+        const baseDamage = this._rng.roll('1d6') + 2;
 
         const hpBefore = target.hp;
-        const attackRoll = this.rng.checkDegreeDetailed(attackBonus, targetAC);
+        const attackRoll = this._rng.checkDegreeDetailed(attackBonus, targetAC);
 
         let damageDealt = 0;
         if (attackRoll.isHit) {

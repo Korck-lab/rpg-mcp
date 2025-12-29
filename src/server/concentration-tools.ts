@@ -1,8 +1,10 @@
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 import { SessionContext } from './types.js';
 import { getDb } from '../storage/index.js';
 import { CharacterRepository } from '../storage/repos/character.repo.js';
 import { ConcentrationRepository } from '../storage/repos/concentration.repo.js';
+import { CombatRNG } from '../engine/combat/rng.js';
 import {
     checkConcentration,
     breakConcentration,
@@ -75,13 +77,14 @@ function ensureDb() {
 export async function handleCheckConcentrationSave(args: unknown, _ctx: SessionContext) {
     const { characterRepo, concentrationRepo } = ensureDb();
     const parsed = ConcentrationTools.CHECK_CONCENTRATION_SAVE.inputSchema.parse(args);
+    const rng = new CombatRNG(randomUUID());
 
     const character = characterRepo.findById(parsed.characterId);
     if (!character) {
         throw new Error(`Character ${parsed.characterId} not found`);
     }
 
-    const result = checkConcentration(character, parsed.damageAmount, concentrationRepo);
+    const result = checkConcentration(character, parsed.damageAmount, concentrationRepo, rng);
 
     // If concentration broken, actually break it
     if (result.broken) {

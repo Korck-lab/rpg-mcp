@@ -96,12 +96,14 @@ export function breakConcentration(
     // Delete concentration record
     concentrationRepo.delete(request.characterId);
 
-    // Update character's concentrating_on field to null
-    const character = characterRepo.findById(request.characterId);
-    if (character) {
-        characterRepo.update(request.characterId, {
-            concentratingOn: null,
-        });
+    // Update character's concentrating_on field to null (if character exists and repo provided)
+    if (characterRepo) {
+        const character = characterRepo.findById(request.characterId);
+        if (character) {
+            characterRepo.update(request.characterId, {
+                concentratingOn: null,
+            });
+        }
     }
 
     return {

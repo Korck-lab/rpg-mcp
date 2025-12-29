@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { PartyRepository } from '../storage/repos/party.repo.js';
 import { CharacterRepository } from '../storage/repos/character.repo.js';
 import { QuestRepository } from '../storage/repos/quest.repo.js';
+import { QuestLogRepository } from '../storage/repos/quest-log.repo.js';
 import {
     Party,
     PartyMember,
@@ -24,7 +25,8 @@ function ensureDb() {
     const partyRepo = new PartyRepository(db);
     const charRepo = new CharacterRepository(db);
     const questRepo = new QuestRepository(db);
-    return { db, partyRepo, charRepo, questRepo };
+    const questLogRepo = new QuestLogRepository(db, questRepo);
+    return { db, partyRepo, charRepo, questRepo, questLogRepo };
 }
 
 // Tool definitions
@@ -647,8 +649,9 @@ export async function handleGetPartyContext(args: unknown, _ctx: SessionContext)
     // Add quest info if available
     if (party.currentQuestId) {
         try {
-            const quest = questRepo.findById(party.currentQuestId);
-            if (quest) {
+            const questResult = questRepo.findById(party.currentQuestId);
+            if (questResult.success && questResult.data) {
+                const quest = questResult.data;
                 const completedCount = quest.objectives.filter((o: any) => o.completed).length;
                 context.activeQuest = {
                     name: quest.name,

@@ -1,12 +1,49 @@
 import Database from 'better-sqlite3';
 import { Inventory, InventoryItem, InventorySchema } from '../../schema/inventory.js';
+import { BaseRepository } from '../base.repo.js';
 
-export class InventoryRepository {
-    constructor(private db: Database.Database) { }
+interface InventoryItemRow {
+    id: string; // composite key: character_id-item_id
+    character_id: string;
+    item_id: string;
+    quantity: number;
+    equipped: number;
+    slot: string | null;
+    attuned: number;
+}
+
+export class InventoryRepository extends BaseRepository<InventoryItemRow> {
+    constructor(db: Database.Database) {
+        super(db, 'inventory_items'); // Use inventory_items as primary table
+    }
+
+    toEntity(row: any): InventoryItemRow {
+        return {
+            id: `${row.character_id}-${row.item_id}`,
+            character_id: row.character_id,
+            item_id: row.item_id,
+            quantity: row.quantity,
+            equipped: row.equipped,
+            slot: row.slot,
+            attuned: row.attuned
+        };
+    }
+
+    toRow(entity: InventoryItemRow): any {
+        const [character_id, item_id] = entity.id.split('-');
+        return {
+            character_id,
+            item_id,
+            quantity: entity.quantity,
+            equipped: entity.equipped,
+            slot: entity.slot,
+            attuned: entity.attuned
+        };
+    }
 
     getInventory(characterId: string): Inventory {
         const stmt = this.db.prepare(`
-            SELECT i.*, ii.quantity, ii.equipped, ii.slot
+            SELECT i.*, ii.quantity, ii.equipped, ii.attuned, ii.slot
             FROM inventory_items ii
             JOIN items i ON ii.item_id = i.id
             WHERE ii.character_id = ?
@@ -18,6 +55,7 @@ export class InventoryRepository {
             itemId: row.id,
             quantity: row.quantity,
             equipped: Boolean(row.equipped),
+            attuned: Boolean(row.attuned),
             slot: row.slot || undefined
         }));
 
@@ -59,6 +97,23 @@ export class InventoryRepository {
     }
 
     equipItem(characterId: string, itemId: string, slot: string): void {
+        // Check if item requires attunement and is attuned
+        const itemStmt = this.db.prepare(`
+            SELECT i.requires_attunement, ii.attuned
+            FROM items i
+            JOIN inventory_items ii ON i.id = ii.item_id
+            WHERE ii.character_id = ? AND ii.item_id = ?
+        `);
+        const itemRow = itemStmt.get(characterId, itemId) as { requires_attunement: number; attuned: number } | undefined;
+
+        if (!itemRow) {
+            throw new Error(`Item ${itemId} not found in inventory for character ${characterId}`);
+        }
+
+        if (itemRow.requires_attunement && !itemRow.attuned) {
+            throw new Error(`Item ${itemId} requires attunement before it can be equipped`);
+        }
+
         // First, unequip anything in that slot
         const unequipStmt = this.db.prepare('UPDATE inventory_items SET equipped = 0, slot = NULL WHERE character_id = ? AND slot = ?');
         unequipStmt.run(characterId, slot);
@@ -71,6 +126,63 @@ export class InventoryRepository {
     unequipItem(characterId: string, itemId: string): void {
         const stmt = this.db.prepare('UPDATE inventory_items SET equipped = 0, slot = NULL WHERE character_id = ? AND item_id = ?');
         stmt.run(characterId, itemId);
+    }
+
+    attuneItem(characterId: string, itemId: string): boolean {
+        // Check if item requires attunement
+        const itemStmt = this.db.prepare(`
+            SELECT i.requires_attunement, ii.attuned
+            FROM items i
+            JOIN inventory_items ii ON i.id = ii.item_id
+            WHERE ii.character_id = ? AND ii.item_id = ?
+        `);
+        const itemRow = itemStmt.get(characterId, itemId) as { requires_attunement: number; attuned: number } | undefined;
+
+        if (!itemRow) {
+            throw new Error(`Item ${itemId} not found in inventory for character ${characterId}`);
+        }
+
+        if (!itemRow.requires_attunement) {
+            throw new Error(`Item ${itemId} does not require attunement`);
+        }
+
+        if (itemRow.attuned) {
+            throw new Error(`Item ${itemId} is already attuned`);
+        }
+
+        // Check attunement slots (max 3)
+        const countStmt = this.db.prepare('SELECT COUNT(*) as count FROM inventory_items WHERE character_id = ? AND attuned = 1');
+        const countRow = countStmt.get(characterId) as { count: number };
+
+        if (countRow.count >= 3) {
+            throw new Error(`Character ${characterId} has reached the maximum of 3 attuned items`);
+        }
+
+        // Attune the item
+        const attuneStmt = this.db.prepare('UPDATE inventory_items SET attuned = 1 WHERE character_id = ? AND item_id = ?');
+        const result = attuneStmt.run(characterId, itemId);
+
+        return result.changes > 0;
+    }
+
+    unattuneItem(characterId: string, itemId: string): boolean {
+        // Check if item is attuned
+        const itemStmt = this.db.prepare('SELECT attuned FROM inventory_items WHERE character_id = ? AND item_id = ?');
+        const itemRow = itemStmt.get(characterId, itemId) as { attuned: number } | undefined;
+
+        if (!itemRow) {
+            throw new Error(`Item ${itemId} not found in inventory for character ${characterId}`);
+        }
+
+        if (!itemRow.attuned) {
+            throw new Error(`Item ${itemId} is not attuned`);
+        }
+
+        // Unattune the item
+        const unattuneStmt = this.db.prepare('UPDATE inventory_items SET attuned = 0 WHERE character_id = ? AND item_id = ?');
+        unattuneStmt.run(characterId, itemId);
+
+        return true;
     }
 
     /**
@@ -119,7 +231,7 @@ export class InventoryRepository {
 
     getInventoryWithDetails(characterId: string): InventoryWithItems {
         const stmt = this.db.prepare(`
-            SELECT i.*, ii.quantity, ii.equipped, ii.slot
+            SELECT i.*, ii.quantity, ii.equipped, ii.attuned, ii.slot
             FROM inventory_items ii
             JOIN items i ON ii.item_id = i.id
             WHERE ii.character_id = ?
@@ -140,6 +252,7 @@ export class InventoryRepository {
             },
             quantity: row.quantity,
             equipped: Boolean(row.equipped),
+            attuned: Boolean(row.attuned),
             slot: row.slot || undefined
         }));
 
@@ -296,6 +409,7 @@ interface InventoryRowFull {
     properties: string | null;
     quantity: number;
     equipped: number;
+    attuned: number;
     slot: string | null;
 }
 
@@ -313,6 +427,7 @@ interface InventoryWithItems {
         };
         quantity: number;
         equipped: boolean;
+        attuned: boolean;
         slot?: string;
     }>;
     totalWeight: number;
@@ -328,5 +443,6 @@ interface InventoryRow {
     value: number;
     quantity: number;
     equipped: number;
+    attuned: number;
     slot: string | null;
 }

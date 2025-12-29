@@ -1,10 +1,12 @@
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 import { SessionContext } from './types.js';
 import { getDb } from '../storage/index.js';
 import { AuraRepository } from '../storage/repos/aura.repo.js';
 import { EncounterRepository } from '../storage/repos/encounter.repo.js';
 import { CharacterRepository } from '../storage/repos/character.repo.js';
 import { ConcentrationRepository } from '../storage/repos/concentration.repo.js';
+import { CombatRNG } from '../engine/combat/rng.js';
 import {
     createAura,
     endAura,
@@ -15,7 +17,7 @@ import {
 } from '../engine/magic/aura.js';
 import { startConcentration, breakConcentration } from '../engine/magic/concentration.js';
 import { CreateAuraRequestSchema, AuraTriggerSchema, AuraState, AuraEffectResult } from '../schema/aura.js';
-import { Token } from '../schema/encounter.js';
+import { CombatToken } from '../schema/combat-token.js';
 
 /**
  * Aura Management Tools
@@ -24,10 +26,11 @@ import { Token } from '../schema/encounter.js';
 
 export const AuraTools = {
     CREATE_AURA: {
-        name: 'create_aura',
+        name: 'createAura',
         description: 'Create a new aura effect centered on a character (e.g., Spirit Guardians, Aura of Protection). Auras move with their owner and affect targets within radius. Optionally requires concentration.',
         inputSchema: z.object({
             ownerId: z.string().describe('The ID of the character creating the aura'),
+            encounterId: z.string().optional().describe('The encounter ID this aura belongs to'),
             spellName: z.string().describe('Name of the spell or ability creating the aura'),
             spellLevel: z.number().int().min(0).max(9).describe('Spell level (0-9)'),
             radius: z.number().int().min(1).describe('Radius in feet (e.g., 15 for Spirit Guardians)'),
@@ -74,7 +77,7 @@ export const AuraTools = {
         }),
     },
     REMOVE_AURA: {
-        name: 'remove_aura',
+        name: 'removeAura',
         description: 'Manually end an aura by ID (e.g., when concentration breaks or spell is dismissed).',
         inputSchema: z.object({
             auraId: z.string().describe('The ID of the aura to remove'),
@@ -127,7 +130,7 @@ export async function handleCreateAura(args: unknown, _ctx: SessionContext) {
             parsed.spellLevel,
             parsed.currentRound,
             parsed.maxDuration,
-            undefined, // Auras don't track specific target IDs
+            [], // Auras don't track specific target IDs but DB requires not null
             concentrationRepo,
             characterRepo
         );
@@ -136,11 +139,16 @@ export async function handleCreateAura(args: unknown, _ctx: SessionContext) {
     // Create the aura
     const aura = createAura(parsed, auraRepo);
 
+    let output = formatAuraCreated(aura, character.name);
+    output += '\n\n<!-- STATE_JSON\n';
+    output += JSON.stringify({ aura }, null, 2);
+    output += '\nSTATE_JSON -->';
+
     return {
         content: [
             {
                 type: 'text' as const,
-                text: formatAuraCreated(aura, character.name),
+                text: output,
             },
         ],
     };
@@ -187,8 +195,8 @@ export async function handleGetAurasAffectingCharacter(args: unknown, _ctx: Sess
     }
 
     // Parse tokens from JSON string (EncounterRow stores as string)
-    const tokens: Token[] = typeof encounter.tokens === 'string' 
-        ? JSON.parse(encounter.tokens) 
+    const tokens: CombatToken[] = typeof encounter.tokens === 'string'
+        ? JSON.parse(encounter.tokens)
         : encounter.tokens;
 
     const target = tokens.find(t => t.id === parsed.characterId);
@@ -196,20 +204,11 @@ export async function handleGetAurasAffectingCharacter(args: unknown, _ctx: Sess
         throw new Error(`Character ${parsed.characterId} not found in encounter`);
     }
 
-    if (!target.position) {
-        return {
-            content: [
-                {
-                    type: 'text' as const,
-                    text: `Character ${parsed.characterId} has no position in the encounter.`,
-                },
-            ],
-        };
-    }
+    const targetPosition = { x: target.positionX, y: target.positionY, z: target.positionZ };
 
     // Get auras at the target's position
     const { getAurasAtPosition } = await import('../engine/magic/aura.js');
-    const affectingAuras = getAurasAtPosition(tokens, target.position, auraRepo);
+    const affectingAuras = getAurasAtPosition(tokens, targetPosition, auraRepo);
 
     if (affectingAuras.length === 0) {
         return {
@@ -238,6 +237,7 @@ export async function handleGetAurasAffectingCharacter(args: unknown, _ctx: Sess
 export async function handleProcessAuraEffects(args: unknown, _ctx: SessionContext) {
     const { auraRepo, encounterRepo } = ensureDb();
     const parsed = AuraTools.PROCESS_AURA_EFFECTS.inputSchema.parse(args);
+    const rng = new CombatRNG(randomUUID());
 
     const encounter = encounterRepo.findById(parsed.encounterId);
     if (!encounter) {
@@ -245,15 +245,16 @@ export async function handleProcessAuraEffects(args: unknown, _ctx: SessionConte
     }
 
     // Parse tokens from JSON string (EncounterRow stores as string)
-    const tokens: Token[] = typeof encounter.tokens === 'string' 
-        ? JSON.parse(encounter.tokens) 
+    const tokens: CombatToken[] = typeof encounter.tokens === 'string'
+        ? JSON.parse(encounter.tokens)
         : encounter.tokens;
 
     const results = checkAuraEffectsForTarget(
         tokens,
         parsed.targetId,
         parsed.trigger,
-        auraRepo
+        auraRepo,
+        rng
     );
 
     if (results.length === 0) {

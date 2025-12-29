@@ -21,7 +21,7 @@ export class CombatRNG {
     /**
      * Roll a single die with N sides
      */
-    private rollDie(sides: number): number {
+    public rollDie(sides: number): number {
         return Math.floor(this.rng() * sides) + 1;
     }
 
