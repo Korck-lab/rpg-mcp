@@ -118,3 +118,4 @@ export * from './repos/monster.repo.js';
 export * from './repos/quest.repo.js';
 export * from './repos/quest-log.repo.js';
 export * from './repos/narrative-notes.repo.js';
+export * from './repos/lore.repo.js';
