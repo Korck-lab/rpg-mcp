@@ -1160,6 +1160,7 @@ export async function handleGetEncounterState(args: unknown, ctx: SessionContext
         region_id: encounterRow.region_id,
         room_id: encounterRow.room_id,
         round: state.round,
+        current_turn_index: state.currentTurnIndex,
         status: encounterRow.status,
         terrain: state.terrain,
         props: state.props,
@@ -1755,7 +1756,9 @@ export async function handleAdvanceTurn(args: unknown, ctx: SessionContext) {
     }
 
     const previousParticipant = engine.getCurrentParticipant();
+    
     engine.nextTurnWithConditions();
+    
     const state = engine.getState();
 
     // Save state
@@ -1800,8 +1803,10 @@ export async function handleEndEncounter(args: unknown, ctx: SessionContext) {
     // CRIT-001 FIX: Sync HP changes back to character records
     const syncResults: { id: string; name: string; hp: number; synced: boolean }[] = [];
 
+    const db = getDb();
+    const repo = new EncounterRepository(db);
+
     if (finalState) {
-        const db = getDb();
         const { CharacterRepository } = await import('../storage/repos/character.repo.js');
         const charRepo = new CharacterRepository(db);
 
@@ -1829,6 +1834,9 @@ export async function handleEndEncounter(args: unknown, ctx: SessionContext) {
             }
         }
     }
+
+    // Update encounter status to completed
+    repo.update(parsed.encounterId, { status: 'completed', endedAt: new Date().toISOString() });
 
     // Now delete the encounter from memory
     getCombatManager().delete(namespacedId);
