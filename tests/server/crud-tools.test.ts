@@ -14,6 +14,17 @@ import {
 
 const mockCtx = { sessionId: 'test-session' };
 
+// Helper to extract embedded JSON from formatted output
+function extractJson(text: string, tag: string): any {
+    const regex = new RegExp(`<!-- ${tag}_JSON\\n([\\s\\S]*?)\\n${tag}_JSON -->`, 'i');
+    const match = text.match(regex);
+    if (match) {
+        return JSON.parse(match[1]);
+    }
+    // Fallback: try parsing as plain JSON
+    return JSON.parse(text);
+}
+
 describe('World CRUD Tools', () => {
     afterEach(() => {
         closeTestDb();
@@ -29,7 +40,7 @@ describe('World CRUD Tools', () => {
             }, mockCtx);
 
             expect(result.content).toHaveLength(1);
-            const response = JSON.parse(result.content[0].text);
+            const response = extractJson(result.content[0].text, 'WORLD');
             expect(response.id).toBeDefined();
             expect(response.name).toBe('Test World');
         });
@@ -54,14 +65,14 @@ describe('World CRUD Tools', () => {
                 width: 50,
                 height: 50
             }, mockCtx);
-            const world = JSON.parse(result.content[0].text);
+            const world = extractJson(result.content[0].text, 'WORLD');
             worldId = world.id;
         });
 
         it('should retrieve an existing world', async () => {
             const result = await handleGetWorld({ id: worldId }, mockCtx);
 
-            const world = JSON.parse(result.content[0].text);
+            const world = extractJson(result.content[0].text, 'WORLD');
             expect(world.id).toBe(worldId);
             expect(world.name).toBe('Get World');
         });
@@ -83,7 +94,7 @@ describe('World CRUD Tools', () => {
                 width: 50,
                 height: 50
             }, mockCtx);
-            worldId1 = JSON.parse(result1.content[0].text).id;
+            worldId1 = extractJson(result1.content[0].text, 'WORLD').id;
 
             const result2 = await handleCreateWorld({
                 name: 'World 2',
@@ -91,13 +102,13 @@ describe('World CRUD Tools', () => {
                 width: 60,
                 height: 60
             }, mockCtx);
-            worldId2 = JSON.parse(result2.content[0].text).id;
+            worldId2 = extractJson(result2.content[0].text, 'WORLD').id;
         });
 
         it('should list all worlds', async () => {
             const result = await handleListWorlds({}, mockCtx);
 
-            const response = JSON.parse(result.content[0].text);
+            const response = extractJson(result.content[0].text, 'WORLDS');
             expect(response.worlds.length).toBeGreaterThanOrEqual(2);
             expect(response.worlds.some((w: any) => w.id === worldId1)).toBe(true);
             expect(response.worlds.some((w: any) => w.id === worldId2)).toBe(true);
@@ -114,14 +125,14 @@ describe('World CRUD Tools', () => {
                 width: 50,
                 height: 50
             }, mockCtx);
-            worldId = JSON.parse(result.content[0].text).id;
+            worldId = extractJson(result.content[0].text, 'WORLD').id;
         });
 
         it('should delete a world', async () => {
             const result = await handleDeleteWorld({ id: worldId }, mockCtx);
 
-            const response = JSON.parse(result.content[0].text);
-            expect(response.message).toBe('World deleted');
+            // Delete returns formatted text, not JSON
+            expect(result.content[0].text).toContain('World deleted');
 
             // Verify it's gone
             await expect(handleGetWorld({ id: worldId }, mockCtx))
@@ -154,7 +165,7 @@ describe('Character CRUD Tools', () => {
             }, mockCtx);
 
             expect(result.content).toHaveLength(1);
-            const response = JSON.parse(result.content[0].text);
+            const response = extractJson(result.content[0].text, 'CHARACTER');
             expect(response.id).toBeDefined();
             expect(response.name).toBe('Hero');
         });
@@ -171,7 +182,7 @@ describe('Character CRUD Tools', () => {
                 behavior: 'hostile'
             }, mockCtx);
 
-            const response = JSON.parse(result.content[0].text);
+            const response = extractJson(result.content[0].text, 'CHARACTER');
             expect(response.factionId).toBe('goblins');
             expect(response.behavior).toBe('hostile');
         });
@@ -189,13 +200,13 @@ describe('Character CRUD Tools', () => {
                 ac: 17,
                 level: 2
             }, mockCtx);
-            charId = JSON.parse(result.content[0].text).id;
+            charId = extractJson(result.content[0].text, 'CHARACTER').id;
         });
 
         it('should retrieve an existing character', async () => {
             const result = await handleGetCharacter({ id: charId }, mockCtx);
 
-            const char = JSON.parse(result.content[0].text);
+            const char = extractJson(result.content[0].text, 'CHARACTER');
             expect(char.id).toBe(charId);
             expect(char.name).toBe('Fighter');
         });
@@ -218,7 +229,7 @@ describe('Character CRUD Tools', () => {
                 ac: 12,
                 level: 2
             }, mockCtx);
-            charId = JSON.parse(result.content[0].text).id;
+            charId = extractJson(result.content[0].text, 'CHARACTER').id;
         });
 
         it('should update character HP', async () => {
@@ -227,7 +238,7 @@ describe('Character CRUD Tools', () => {
                 hp: 15
             }, mockCtx);
 
-            const response = JSON.parse(result.content[0].text);
+            const response = extractJson(result.content[0].text, 'CHARACTER');
             expect(response.hp).toBe(15);
         });
 
@@ -238,7 +249,7 @@ describe('Character CRUD Tools', () => {
                 level: 3
             }, mockCtx);
 
-            const response = JSON.parse(result.content[0].text);
+            const response = extractJson(result.content[0].text, 'CHARACTER');
             expect(response.hp).toBe(18);
             expect(response.level).toBe(3);
         });
@@ -267,7 +278,7 @@ describe('Character CRUD Tools', () => {
         it('should list all characters', async () => {
             const result = await handleListCharacters({}, mockCtx);
 
-            const response = JSON.parse(result.content[0].text);
+            const response = extractJson(result.content[0].text, 'CHARACTERS');
             expect(response.characters.length).toBeGreaterThanOrEqual(2);
         });
     });
@@ -284,14 +295,14 @@ describe('Character CRUD Tools', () => {
                 ac: 12,
                 level: 1
             }, mockCtx);
-            charId = JSON.parse(result.content[0].text).id;
+            charId = extractJson(result.content[0].text, 'CHARACTER').id;
         });
 
         it('should delete a character', async () => {
             const result = await handleDeleteCharacter({ id: charId }, mockCtx);
 
-            const response = JSON.parse(result.content[0].text);
-            expect(response.message).toBe('Character deleted');
+            // Delete returns formatted text, not JSON
+            expect(result.content[0].text).toContain('Character deleted');
 
             // Verify it's gone
             await expect(handleGetCharacter({ id: charId }, mockCtx))

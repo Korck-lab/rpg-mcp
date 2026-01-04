@@ -106,6 +106,7 @@ export class EncounterRepository {
                 )
             `);
 
+            const terrainValue = validEncounter.terrain ? JSON.stringify(validEncounter.terrain) : null;
             encounterStmt.run({
                 id: validEncounter.id,
                 worldId: validEncounter.worldId,
@@ -115,7 +116,7 @@ export class EncounterRepository {
                 round: validEncounter.round,
                 activeTokenId: validEncounter.activeTokenId || null,
                 status: validEncounter.status,
-                terrain: validEncounter.terrain ? JSON.stringify(validEncounter.terrain) : null,
+                terrain: terrainValue,
                 props: validEncounter.props ? JSON.stringify(validEncounter.props) : null,
                 gridMinX: validEncounter.gridMinX ?? 0,
                 gridMaxX: validEncounter.gridMaxX ?? 20,
@@ -401,27 +402,53 @@ export class EncounterRepository {
     saveState(encounterId: string, state: any): void {
         const transaction = this.db.transaction(() => {
             // Update encounter metadata
+            // Note: We only update terrain/props if they are explicitly provided in state
+            // to avoid overwriting existing values with null (CombatEngine doesn't store terrain)
             const currentTurnId = state.turnOrder[state.currentTurnIndex];
-            const encounterStmt = this.db.prepare(`
-                UPDATE encounters
-                SET round = ?, active_token_id = ?, status = ?, terrain = ?, props = ?,
-                    grid_min_x = ?, grid_max_x = ?, grid_min_y = ?, grid_max_y = ?, updated_at = ?
-                WHERE id = ?
-            `);
-
-            encounterStmt.run(
+            
+            // Build dynamic UPDATE to preserve existing terrain/props if not provided
+            const updates: string[] = [
+                'round = ?',
+                'active_token_id = ?',
+                'status = ?',
+                'grid_min_x = ?',
+                'grid_max_x = ?',
+                'grid_min_y = ?',
+                'grid_max_y = ?',
+                'updated_at = ?'
+            ];
+            const values: any[] = [
                 state.round,
                 currentTurnId,
                 'active',
-                state.terrain ? JSON.stringify(state.terrain) : null,
-                state.props ? JSON.stringify(state.props) : null,
                 state.gridBounds?.minX ?? 0,
                 state.gridBounds?.maxX ?? 20,
                 state.gridBounds?.minY ?? 0,
                 state.gridBounds?.maxY ?? 20,
-                new Date().toISOString(),
-                encounterId
-            );
+                new Date().toISOString()
+            ];
+            
+            // Only update terrain if explicitly provided (not undefined)
+            if (state.terrain !== undefined) {
+                updates.push('terrain = ?');
+                values.push(state.terrain ? JSON.stringify(state.terrain) : null);
+            }
+            
+            // Only update props if explicitly provided (not undefined)
+            if (state.props !== undefined) {
+                updates.push('props = ?');
+                values.push(state.props ? JSON.stringify(state.props) : null);
+            }
+            
+            values.push(encounterId);
+            
+            const encounterStmt = this.db.prepare(`
+                UPDATE encounters
+                SET ${updates.join(', ')}
+                WHERE id = ?
+            `);
+
+            encounterStmt.run(...values);
 
             // Sync combat tokens (upsert)
             const tokenUpsertStmt = this.db.prepare(`
@@ -568,7 +595,8 @@ export class EncounterRepository {
 
     findById(id: string): EncounterRow | undefined {
         const stmt = this.db.prepare('SELECT * FROM encounters WHERE id = ?');
-        return stmt.get(id) as EncounterRow | undefined;
+        const row = stmt.get(id) as EncounterRow | undefined;
+        return row;
     }
 
     delete(id: string): boolean {

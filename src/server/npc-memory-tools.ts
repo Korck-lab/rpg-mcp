@@ -460,7 +460,7 @@ export async function handleGetFactionMembers(args: unknown, _ctx: SessionContex
     // Get all characters with the specified faction_id
     const allCharacters = charRepo.findAll();
     const factionMembers = allCharacters
-        .filter(char => char.factionId === parsed.factionId)
+        .filter(char => 'factionId' in char && char.factionId === parsed.factionId)
         .map(char => char.id);
 
     return {

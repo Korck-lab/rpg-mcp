@@ -147,6 +147,10 @@ export const BIOME_HABITABILITY: Record<BiomeType, number> = {
     [BiomeType.OCEAN]: -100,
     [BiomeType.DEEP_OCEAN]: -100,
     [BiomeType.LAKE]: -100,
+    [BiomeType.CORAL_REEF]: -100,
+    [BiomeType.VOLCANIC]: -15,
+    [BiomeType.MOUNTAIN]: 3,
+    [BiomeType.ICE_SHELF]: -25,
 };
 
 /**

@@ -191,6 +191,17 @@ export class CombatEngine {
     }
 
     /**
+     * Find a participant by ID or characterId
+     * This allows using either the token's UUID or the original character ID
+     */
+    findParticipant(idOrCharacterId: string): CombatParticipant | undefined {
+        if (!this.state) return undefined;
+        return this.state.participants.find(
+            p => p.id === idOrCharacterId || p.characterId === idOrCharacterId
+        );
+    }
+
+    /**
      * Start a new combat encounter
      * Rolls initiative for all participants and establishes turn order
      * 
@@ -329,7 +340,7 @@ export class CombatEngine {
         // LAIR is a special entry, not a participant
         if (currentId === 'LAIR') return null;
         
-        return this.state.participants.find(p => p.id === currentId) || null;
+        return this.findParticipant(currentId) || null;
     }
 
     /**
@@ -347,7 +358,7 @@ export class CombatEngine {
     canUseLegendaryAction(participantId: string): boolean {
         if (!this.state) return false;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant) return false;
 
         // Must have legendary actions
@@ -377,7 +388,7 @@ export class CombatEngine {
             return { success: false, remaining: 0, error: 'No active combat' };
         }
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant) {
             return { success: false, remaining: 0, error: 'Participant not found' };
         }
@@ -423,7 +434,7 @@ export class CombatEngine {
             return { success: false, remaining: 0, error: 'No active combat' };
         }
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant) {
             return { success: false, remaining: 0, error: 'Participant not found' };
         }
@@ -525,8 +536,9 @@ export class CombatEngine {
     ): CombatActionResult {
         if (!this.state) throw new Error('No active combat');
 
-        const actor = this.state.participants.find(p => p.id === actorId);
-        const target = this.state.participants.find(p => p.id === targetId);
+        // Find participants by id or characterId for flexibility
+        const actor = this.findParticipant(actorId);
+        const target = this.findParticipant(targetId);
 
         if (!actor) throw new Error(`Actor ${actorId} not found`);
         if (!target) throw new Error(`Target ${targetId} not found`);
@@ -625,8 +637,9 @@ export class CombatEngine {
     executeHeal(actorId: string, targetId: string, amount: number): CombatActionResult {
         if (!this.state) throw new Error('No active combat');
 
-        const actor = this.state.participants.find(p => p.id === actorId);
-        const target = this.state.participants.find(p => p.id === targetId);
+        // Find participants by id or characterId for flexibility
+        const actor = this.findParticipant(actorId);
+        const target = this.findParticipant(targetId);
         
         if (!actor) throw new Error(`Actor ${actorId} not found`);
         if (!target) throw new Error(`Target ${targetId} not found`);
@@ -686,7 +699,7 @@ export class CombatEngine {
     applyDamage(participantId: string, damage: number): void {
         if (!this.state) return;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (participant) {
             participant.hp = Math.max(0, participant.hp - damage);
             this.emitter?.publish('combat', {
@@ -705,7 +718,7 @@ export class CombatEngine {
     heal(participantId: string, amount: number): void {
         if (!this.state) return;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (participant) {
             const wasAtZero = participant.hp === 0;
             participant.hp = Math.min(participant.maxHp, participant.hp + amount);
@@ -740,7 +753,7 @@ export class CombatEngine {
     rollDeathSave(participantId: string): DeathSaveResult | null {
         if (!this.state) return null;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant) return null;
 
         // Can only roll death saves at 0 HP
@@ -824,7 +837,7 @@ export class CombatEngine {
     applyDamageAtZeroHp(participantId: string, isCritical: boolean = false): void {
         if (!this.state) return;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant || participant.hp > 0 || participant.isDead) return;
 
         // Initialize if needed
@@ -858,7 +871,7 @@ export class CombatEngine {
     isConscious(participantId: string): boolean {
         if (!this.state) return false;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         return participant ? participant.hp > 0 : false;
     }
 
@@ -877,7 +890,7 @@ export class CombatEngine {
     applyCondition(participantId: string, condition: Omit<Condition, 'id'>): Condition {
         if (!this.state) throw new Error('No active combat');
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant) throw new Error(`Participant ${participantId} not found`);
 
         // Generate unique ID for condition instance
@@ -897,7 +910,7 @@ export class CombatEngine {
     removeCondition(participantId: string, conditionId: string): boolean {
         if (!this.state) return false;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant) return false;
 
         const initialLength = participant.conditions.length;
@@ -911,7 +924,7 @@ export class CombatEngine {
     removeConditionsByType(participantId: string, type: ConditionType): number {
         if (!this.state) return 0;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant) return 0;
 
         const initialLength = participant.conditions.length;
@@ -967,7 +980,7 @@ export class CombatEngine {
     hasCondition(participantId: string, type: ConditionType): boolean {
         if (!this.state) return false;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         return participant ? participant.conditions.some(c => c.type === type) : false;
     }
 
@@ -977,7 +990,7 @@ export class CombatEngine {
     getConditions(participantId: string): Condition[] {
         if (!this.state) return [];
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         return participant ? [...participant.conditions] : [];
     }
 
@@ -1125,7 +1138,7 @@ export class CombatEngine {
     canTakeActions(participantId: string): boolean {
         if (!this.state) return false;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant || participant.hp <= 0) return false;
 
         // Check for incapacitating conditions
@@ -1141,7 +1154,7 @@ export class CombatEngine {
     canTakeReactions(participantId: string): boolean {
         if (!this.state) return false;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant || participant.hp <= 0) return false;
 
         return !participant.conditions.some(c => {
@@ -1161,7 +1174,7 @@ export class CombatEngine {
     ): { valid: boolean; error?: string } {
         if (!this.state) return { valid: false, error: 'No active combat' };
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant) return { valid: false, error: 'Participant not found' };
 
         // 1. Check strict incapacitation
@@ -1216,7 +1229,7 @@ export class CombatEngine {
         spellLevel?: number
     ): void {
         if (!this.state) return;
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant) return;
 
         if (!participant.spellsCast) participant.spellsCast = {};
@@ -1256,7 +1269,7 @@ export class CombatEngine {
     ): CombatParticipant[] {
         if (!this.state) return [];
 
-        const mover = this.state.participants.find(p => p.id === moverId);
+        const mover = this.findParticipant(moverId);
         if (!mover) return [];
 
         // If mover has disengaged, no opportunity attacks are provoked
@@ -1304,8 +1317,8 @@ export class CombatEngine {
     ): CombatActionResult {
         if (!this.state) throw new Error('No active combat');
 
-        const attacker = this.state.participants.find(p => p.id === attackerId);
-        const target = this.state.participants.find(p => p.id === targetId);
+        const attacker = this.findParticipant(attackerId);
+        const target = this.findParticipant(targetId);
 
         if (!attacker) throw new Error(`Attacker ${attackerId} not found`);
         if (!target) throw new Error(`Target ${targetId} not found`);
@@ -1391,7 +1404,7 @@ export class CombatEngine {
     disengage(participantId: string): void {
         if (!this.state) return;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (participant) {
             participant.hasDisengaged = true;
         }
@@ -1403,7 +1416,7 @@ export class CombatEngine {
     attacksAgainstHaveAdvantage(participantId: string): boolean {
         if (!this.state) return false;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant) return false;
 
         return participant.conditions.some(c => {
@@ -1418,7 +1431,7 @@ export class CombatEngine {
     attacksHaveDisadvantage(participantId: string): boolean {
         if (!this.state) return false;
 
-        const participant = this.state.participants.find(p => p.id === participantId);
+        const participant = this.findParticipant(participantId);
         if (!participant) return false;
 
         return participant.conditions.some(c => {

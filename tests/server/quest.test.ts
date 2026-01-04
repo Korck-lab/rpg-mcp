@@ -6,6 +6,21 @@ import { handleCreateItemTemplate, handleGetInventory } from '../../src/server/i
 import { closeDb, getDb } from '../../src/storage';
 import { Quest } from '../../src/schema/quest';
 
+// Helper to extract JSON from tagged response format or plain JSON
+function extractJson(text: string, tag: string = 'STATE'): any {
+    const regex = new RegExp(`<!-- ${tag}_JSON\\n([\\s\\S]*?)\\n${tag}_JSON -->`);
+    const match = text.match(regex);
+    if (match) {
+        return JSON.parse(match[1]);
+    }
+    // Try to find any JSON object in the text
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+    }
+    return JSON.parse(text);
+}
+
 describe('Quest System', () => {
     let worldId: string;
     let characterId: string;
@@ -23,19 +38,20 @@ describe('Quest System', () => {
             width: 10,
             height: 10
         }, { sessionId: 'test' });
-        const worldData = JSON.parse(worldResult.content[0].text);
+        const worldData = extractJson(worldResult.content[0].text, 'WORLD');
         worldId = worldData.id;
 
-        // Create Character
+        // Create Character (disable starting equipment for clean test)
         const charResult = await handleCreateCharacter({
             name: 'Hero',
             stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
             hp: 10,
             maxHp: 10,
             ac: 10,
-            level: 1
+            level: 1,
+            provisionEquipment: false
         }, { sessionId: 'test' });
-        const charData = JSON.parse(charResult.content[0].text);
+        const charData = extractJson(charResult.content[0].text, 'STATE');
         characterId = charData.id;
 
         // Create Item Template (for reward)
@@ -45,8 +61,8 @@ describe('Quest System', () => {
             weight: 1,
             value: 10
         }, { sessionId: 'test' });
-        const itemData = JSON.parse(itemResult.content[0].text);
-        itemId = itemData.id;
+        const itemData = extractJson(itemResult.content[0].text, 'STATE');
+        itemId = itemData.item?.id || itemData.id;
     });
 
     afterEach(() => {
@@ -74,7 +90,7 @@ describe('Quest System', () => {
                 items: [itemId]
             }
         }, { sessionId: 'test' });
-        const quest = JSON.parse(questResult.content[0].text) as Quest;
+        const quest = extractJson(questResult.content[0].text, 'STATE') as Quest;
         expect(quest.name).toBe('Kill Rats');
 
         // 2. Assign Quest
@@ -85,7 +101,7 @@ describe('Quest System', () => {
 
         // Verify Log - now returns full quest objects in 'quests' array
         let logResult = await handleGetQuestLog({ characterId }, { sessionId: 'test' });
-        let log = JSON.parse(logResult.content[0].text);
+        let log = extractJson(logResult.content[0].text, 'STATE');
         // Check if quest is in the quests array (full objects now)
         expect(log.quests.some((q: any) => q.id === quest.id)).toBe(true);
 
@@ -113,7 +129,7 @@ describe('Quest System', () => {
 
         // Verify Log - quest should now have 'completed' status
         logResult = await handleGetQuestLog({ characterId }, { sessionId: 'test' });
-        log = JSON.parse(logResult.content[0].text);
+        log = extractJson(logResult.content[0].text, 'STATE');
         // Check quest is no longer active (status should be 'completed')
         const completedQuest = log.quests.find((q: any) => q.id === quest.id);
         expect(completedQuest).toBeDefined();
@@ -121,8 +137,10 @@ describe('Quest System', () => {
 
         // Verify Reward (Item)
         const invResult = await handleGetInventory({ characterId }, { sessionId: 'test' });
-        const inv = JSON.parse(invResult.content[0].text);
-        expect(inv.items).toHaveLength(1);
-        expect(inv.items[0].itemId).toBe(itemId);
+        const inv = extractJson(invResult.content[0].text, 'STATE');
+        // handleGetInventory returns { inventory: { items: [...] } }
+        const inventory = inv.inventory || inv;
+        expect(inventory.items).toHaveLength(1);
+        expect(inventory.items[0].itemId).toBe(itemId);
     });
 });

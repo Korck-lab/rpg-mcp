@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 import { CharacterRepository } from '../../../src/storage/repos/character.repo.js';
 import { ItemRepository } from '../../../src/storage/repos/item.repo.js';
 import { InventoryRepository } from '../../../src/storage/repos/inventory.repo.js';
-import { migrate } from '../../../src/storage/migrations.js';
+import { initDB } from '../../../src/storage/db.js';
 import {
     validateScrollUse,
     rollArcanaCheck,
@@ -20,15 +20,27 @@ import {
     calculateScrollValue,
     getScrollRarity,
 } from '../../../src/schema/scroll.js';
+import { CombatRNG } from '../../../src/engine/combat/rng.js';
 import type { Character } from '../../../src/schema/character.js';
 import type { Item } from '../../../src/schema/inventory.js';
 import type { ScrollProperties } from '../../../src/schema/scroll.js';
+
+/**
+ * Create a test RNG adapter that matches the interface expected by scroll functions
+ */
+function createTestRng(seed: string = 'test-seed') {
+    const combatRng = new CombatRNG(seed);
+    return {
+        d20: () => combatRng.rollDie(20),
+    };
+}
 
 describe('Spell Scroll System', () => {
     let db: Database.Database;
     let characterRepo: CharacterRepository;
     let itemRepo: ItemRepository;
     let inventoryRepo: InventoryRepository;
+    let rng: ReturnType<typeof createTestRng>;
 
     // Test characters
     let wizard: Character;
@@ -41,9 +53,9 @@ describe('Spell Scroll System', () => {
     let wishScroll: Item;
 
     beforeEach(() => {
-        // Create in-memory database for tests
-        db = new Database(':memory:');
-        migrate(db);
+        rng = createTestRng('scroll-test-seed');
+        // Create in-memory database for tests with full migrations
+        db = initDB(':memory:');
 
         characterRepo = new CharacterRepository(db);
         itemRepo = new ItemRepository(db);
@@ -318,7 +330,7 @@ describe('Spell Scroll System', () => {
 
     describe('Arcana Check Rolling', () => {
         it('should roll d20 and add Intelligence modifier', () => {
-            const check = rollArcanaCheck(wizard);
+            const check = rollArcanaCheck(wizard, rng);
 
             expect(check.roll).toBeGreaterThanOrEqual(1);
             expect(check.roll).toBeLessThanOrEqual(20);
@@ -327,7 +339,7 @@ describe('Spell Scroll System', () => {
         });
 
         it('should use 0 modifier for fighter with 10 INT', () => {
-            const check = rollArcanaCheck(fighter);
+            const check = rollArcanaCheck(fighter, rng);
 
             expect(check.modifier).toBe(0);
             expect(check.total).toBe(check.roll);
@@ -338,7 +350,7 @@ describe('Spell Scroll System', () => {
         it('should auto-succeed for appropriate wizard', () => {
             inventoryRepo.addItem(wizard.id, fireballScroll.id, 1);
 
-            const result = useSpellScroll(wizard, fireballScroll, inventoryRepo);
+            const result = useSpellScroll(wizard, fireballScroll, inventoryRepo, rng);
 
             expect(result.success).toBe(true);
             expect(result.consumed).toBe(true);
@@ -360,7 +372,9 @@ describe('Spell Scroll System', () => {
                 db.prepare('DELETE FROM inventory_items').run();
                 inventoryRepo.addItem(fighter.id, wishScroll.id, 1);
 
-                const result = useSpellScroll(fighter, wishScroll, inventoryRepo);
+                // Create a new RNG for each iteration to get different rolls
+                const iterRng = createTestRng(`scroll-consume-test-${i}`);
+                const result = useSpellScroll(fighter, wishScroll, inventoryRepo, iterRng);
                 results.push(result);
 
                 // Scroll should always be consumed
@@ -377,7 +391,7 @@ describe('Spell Scroll System', () => {
         });
 
         it('should fail if character does not have scroll', () => {
-            const result = useSpellScroll(wizard, fireballScroll, inventoryRepo);
+            const result = useSpellScroll(wizard, fireballScroll, inventoryRepo, rng);
 
             expect(result.success).toBe(false);
             expect(result.consumed).toBe(false);
@@ -396,7 +410,7 @@ describe('Spell Scroll System', () => {
             };
             itemRepo.create(sword);
 
-            const result = useSpellScroll(wizard, sword, inventoryRepo);
+            const result = useSpellScroll(wizard, sword, inventoryRepo, rng);
 
             expect(result.success).toBe(false);
             expect(result.consumed).toBe(false);
@@ -406,7 +420,7 @@ describe('Spell Scroll System', () => {
         it('should require check for scroll above character level', () => {
             inventoryRepo.addItem(lowLevelWizard.id, fireballScroll.id, 1);
 
-            const result = useSpellScroll(lowLevelWizard, fireballScroll, inventoryRepo);
+            const result = useSpellScroll(lowLevelWizard, fireballScroll, inventoryRepo, rng);
 
             expect(result.requiresCheck).toBe(true);
             expect(result.consumed).toBe(true);
@@ -513,7 +527,7 @@ describe('Spell Scroll System', () => {
         it('should follow rule: scroll consumed on use regardless of success', () => {
             inventoryRepo.addItem(fighter.id, fireballScroll.id, 1);
 
-            const result = useSpellScroll(fighter, fireballScroll, inventoryRepo);
+            const result = useSpellScroll(fighter, fireballScroll, inventoryRepo, rng);
 
             // Regardless of check result, scroll should be consumed
             expect(result.consumed).toBe(true);
@@ -538,7 +552,7 @@ describe('Spell Scroll System', () => {
             itemRepo.create(badScroll);
             inventoryRepo.addItem(wizard.id, badScroll.id, 1);
 
-            const result = useSpellScroll(wizard, badScroll, inventoryRepo);
+            const result = useSpellScroll(wizard, badScroll, inventoryRepo, rng);
 
             expect(result.success).toBe(false);
             expect(result.reason).toBe('invalid_scroll');
@@ -547,14 +561,14 @@ describe('Spell Scroll System', () => {
         it('should handle multiple scrolls of same type', () => {
             inventoryRepo.addItem(wizard.id, fireballScroll.id, 3);
 
-            const result1 = useSpellScroll(wizard, fireballScroll, inventoryRepo);
+            const result1 = useSpellScroll(wizard, fireballScroll, inventoryRepo, rng);
             expect(result1.success).toBe(true);
 
             const inventory = inventoryRepo.getInventory(wizard.id);
             const scrollItem = inventory.items.find(i => i.itemId === fireballScroll.id);
             expect(scrollItem?.quantity).toBe(2);
 
-            const result2 = useSpellScroll(wizard, fireballScroll, inventoryRepo);
+            const result2 = useSpellScroll(wizard, fireballScroll, inventoryRepo, rng);
             expect(result2.success).toBe(true);
 
             const inventory2 = inventoryRepo.getInventory(wizard.id);
@@ -573,7 +587,7 @@ describe('Spell Scroll System', () => {
             itemRepo.create(cantripScroll);
             inventoryRepo.addItem(wizard.id, cantripScroll.id, 1);
 
-            const result = useSpellScroll(wizard, cantripScroll, inventoryRepo);
+            const result = useSpellScroll(wizard, cantripScroll, inventoryRepo, rng);
 
             expect(result.success).toBe(true);
             expect(result.consumed).toBe(true);

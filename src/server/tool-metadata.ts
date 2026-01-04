@@ -8,7 +8,7 @@ export type ToolCategory =
   | 'math' | 'strategy' | 'secret' | 'concentration' | 'rest' | 'scroll'
   | 'aura' | 'npc' | 'spatial' | 'theft' | 'corpse' | 'improvisation'
   | 'turn-management' | 'meta' | 'batch' | 'context' | 'narrative' | 'composite'
-  | 'snapshot';
+  | 'snapshot' | 'trading' | 'canonicalization';
 
 export type TokenCost = 'low' | 'medium' | 'high' | 'variable';
 

@@ -16,21 +16,43 @@ import { CharacterRepository } from '../../src/storage/repos/character.repo.js';
 import { EncounterRepository } from '../../src/storage/repos/encounter.repo.js';
 import { handleExecuteCombatAction, handleCreateEncounter, handleEndEncounter, handleAdvanceTurn, clearCombatState } from '../../src/server/combat-tools.js';
 import { handleTakeLongRest, handleTakeShortRest } from '../../src/server/rest-tools.js';
-import { closeDb, getDb } from '../../src/storage/index.js';
+import { closeDb, initDB, setDb } from '../../src/storage/index.js';
+import { handleCreateWorld } from '../../src/server/crud-tools.js';
+import { handleAddToken, handleRollInitiative } from '../../src/server/combat-tools.js';
 import { getInitialSpellSlots, getMaxSpellLevel } from '../../src/engine/magic/spell-validator.js';
 import type { CharacterClass } from '../../src/schema/spell.js';
 
 // Test utilities - using shared global database
 let charRepo: CharacterRepository;
 let encounterRepo: EncounterRepository;
+let testWorldId: string;
 
-beforeEach(() => {
+// Helper to extract JSON from formatted responses
+function extractJson(text: string, tag: string): any {
+    const regex = new RegExp(`<!-- ${tag}_JSON\\n([\\s\\S]*?)\\n${tag}_JSON -->`);
+    const match = text.match(regex);
+    if (match) return JSON.parse(match[1]);
+    return JSON.parse(text);
+}
+
+beforeEach(async () => {
     // Reset to a fresh in-memory database (shared with combat-tools)
     closeDb();
-    const db = getDb(':memory:');
+    const db = initDB(':memory:');
+    setDb(db);
     clearCombatState();
     charRepo = new CharacterRepository(db);
     encounterRepo = new EncounterRepository(db);
+    
+    // Create a test world for encounters
+    const worldResult = await handleCreateWorld({
+        name: 'Spellcasting Test World',
+        seed: `spell-test-${Date.now()}`,
+        width: 50,
+        height: 50
+    }, { sessionId: TEST_SESSION_ID } as any);
+    const worldData = extractJson(worldResult.content[0].text, 'WORLD');
+    testWorldId = worldData.id;
 });
 
 afterEach(() => {
@@ -171,24 +193,132 @@ function getTestContext(): { sessionId: string } {
     return { sessionId: TEST_SESSION_ID };
 }
 
-async function setupCombatEncounter(characterId: string): Promise<string> {
+async function setupCombatEncounter(characterId: string): Promise<{ encounterId: string; tokenId: string; dummyTokenId: string }> {
+    const ctx = getTestContext() as any;
+    
+    // Create empty encounter with worldId
     const response = await handleCreateEncounter({
+        worldId: testWorldId,
         seed: `test-encounter-${uuid()}`,
-        participants: [
-            { id: characterId, name: 'Test Character', hp: 20, maxHp: 20, initiativeBonus: 0 },
-            { id: 'dummy-target', name: 'Training Dummy', hp: 100, maxHp: 100, initiativeBonus: 0 }
-        ]
-    }, getTestContext() as any);
+    }, ctx);
 
-    // Extract encounterId from the response text
-    // Response format: { content: [{ type: 'text', text: '...Encounter ID: encounter-xxx-123...' }] }
-    const responseObj = response as { content: Array<{ type: string; text: string }> };
-    const text = responseObj?.content?.[0]?.text || '';
-    const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-    if (!match) {
-        throw new Error(`Could not extract encounter ID from response: ${text.substring(0, 100)}`);
+    const encounterData = extractJson(response.content[0].text, 'STATE');
+    const encounterId = encounterData.encounter?.id || encounterData.encounterId;
+    
+    if (!encounterId) {
+        throw new Error(`Could not extract encounter ID from response`);
     }
-    return match[1];
+    
+    // Add tokens and capture the actual token IDs
+    const tokenResponse = await handleAddToken({
+        encounterId,
+        id: characterId,
+        characterId: characterId, // Use characterId for spellcasting lookup
+        name: 'Test Character',
+        hp: 20,
+        maxHp: 20,
+        ac: 10,
+        initiativeBonus: 0,
+        positionX: 5,
+        positionY: 5,
+        isEnemy: false
+    }, ctx);
+    const tokenData = extractJson(tokenResponse.content[0].text, 'STATE');
+    const tokenId = tokenData.token?.id || tokenData.tokenId || characterId;
+    
+    const dummyResponse = await handleAddToken({
+        encounterId,
+        id: 'dummy-target',
+        characterId: 'char-dummy-target',
+        name: 'Training Dummy',
+        hp: 100,
+        maxHp: 100,
+        ac: 10,
+        initiativeBonus: 0,
+        positionX: 7,
+        positionY: 5,
+        isEnemy: true
+    }, ctx);
+    const dummyData = extractJson(dummyResponse.content[0].text, 'STATE');
+    const dummyTokenId = dummyData.token?.id || dummyData.tokenId || 'dummy-target';
+    
+    // Roll initiative
+    await handleRollInitiative({ encounterId, seed: 'init-seed' }, ctx);
+    
+    return { encounterId, tokenId, dummyTokenId };
+}
+
+// Flexible helper to create encounters with multiple participants
+interface TokenConfig {
+    id: string;
+    characterId?: string;
+    name: string;
+    hp: number;
+    maxHp: number;
+    ac?: number;
+    initiativeBonus?: number;
+    isEnemy?: boolean;
+    positionX?: number;
+    positionY?: number;
+}
+
+interface EncounterWithTokensResult {
+    encounterId: string;
+    tokenIds: Map<string, string>; // Maps original ID to actual token ID
+}
+
+async function createEncounterWithTokens(seed: string, tokens: TokenConfig[]): Promise<string>;
+async function createEncounterWithTokens(seed: string, tokens: TokenConfig[], returnDetails: true): Promise<EncounterWithTokensResult>;
+async function createEncounterWithTokens(seed: string, tokens: TokenConfig[], returnDetails?: boolean): Promise<string | EncounterWithTokensResult> {
+    const ctx = getTestContext() as any;
+
+    // Create empty encounter
+    const encounterResult = await handleCreateEncounter({
+        worldId: testWorldId,
+        seed: seed
+    }, ctx);
+    const encounterText = (encounterResult as any).content[0].text;
+    const encounterData = extractJson(encounterText, 'STATE');
+    const encounterId = encounterData.encounter?.id || encounterData.encounterId;
+
+    if (!encounterId) {
+        throw new Error(`Could not extract encounter ID from response`);
+    }
+
+    const tokenIds = new Map<string, string>();
+
+    // Add all tokens
+    for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+        const addResult = await handleAddToken({
+            encounterId,
+            characterId: token.characterId || `char-${token.id}`,
+            name: token.name,
+            hp: token.hp,
+            maxHp: token.maxHp,
+            ac: token.ac || 10,
+            initiativeBonus: token.initiativeBonus || 0,
+            isEnemy: token.isEnemy ?? (i > 0), // First token is ally, rest are enemies by default
+            positionX: token.positionX ?? (i * 5),
+            positionY: token.positionY ?? 0
+        }, ctx);
+        
+        // Extract the actual token ID from the response
+        const addText = (addResult as any).content[0].text;
+        const addData = extractJson(addText, 'STATE');
+        const actualTokenId = addData.token?.id || addData.tokenId;
+        if (actualTokenId && token.id) {
+            tokenIds.set(token.id, actualTokenId);
+        }
+    }
+
+    // Roll initiative
+    await handleRollInitiative({ encounterId, seed: 'init-seed' }, ctx);
+
+    if (returnDetails) {
+        return { encounterId, tokenIds };
+    }
+    return encounterId;
 }
 
 interface SpellCastTestResult {
@@ -216,11 +346,23 @@ interface SpellCastTestResult {
 }
 
 async function castSpell(characterId: string, spellName: string, options: Record<string, unknown> = {}): Promise<SpellCastTestResult> {
-    const encounterId = (options.encounterId as string) || await setupCombatEncounter(characterId);
+    // If encounter provided, user must also provide tokenId if it differs from characterId
+    // If no encounter provided, we setup a new one and get the tokenId
+    const setupResult = options.encounterId 
+        ? { 
+            encounterId: options.encounterId as string, 
+            tokenId: (options.tokenId as string) || characterId, 
+            dummyTokenId: 'dummy-target' 
+        } 
+        : await setupCombatEncounter(characterId);
+        
+    const encounterId = setupResult.encounterId;
+    const actorId = setupResult.tokenId;
+
     const response = await handleExecuteCombatAction({
         encounterId,
         action: 'cast_spell',
-        actorId: characterId,
+        actorId: actorId, // Use the actual token ID
         spellName,
         targetId: (options.targetId as string) || (options.targetPoint ? undefined : 'dummy-target'), // Don't default if point provided
         slotLevel: options.slotLevel as number | undefined,
@@ -383,18 +525,18 @@ describe('Category 2: Spell Slot Exhaustion', () => {
     // 2.1 - Cannot cast when slots exhausted
     test('2.1 - wizard with 0 slots cannot cast leveled spell', async () => {
         const wizard = await createWizard(1, { knownSpells: ['Magic Missile'] });
-        const encounterId = await setupCombatEncounter(wizard.id!);
+        const { encounterId, tokenId: wizardTokenId } = await setupCombatEncounter(wizard.id!);
 
         // Level 1 wizard has 2 first-level slots
-        await castSpell(wizard.id!, 'Magic Missile', { encounterId }); // Slot 1 used
+        await castSpell(wizard.id!, 'Magic Missile', { encounterId, tokenId: wizardTokenId }); // Slot 1 used
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
 
-        await castSpell(wizard.id!, 'Magic Missile', { encounterId }); // Slot 2 used
+        await castSpell(wizard.id!, 'Magic Missile', { encounterId, tokenId: wizardTokenId }); // Slot 2 used
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
 
-        await expect(castSpell(wizard.id!, 'Magic Missile', { encounterId })).rejects.toThrow(
+        await expect(castSpell(wizard.id!, 'Magic Missile', { encounterId, tokenId: wizardTokenId })).rejects.toThrow(
             /no (spell slots remaining|level 1\+ spell slots available)/i
         );
     });
@@ -402,19 +544,19 @@ describe('Category 2: Spell Slot Exhaustion', () => {
     // 2.2 - Must use appropriate slot level
     test('2.2 - cannot cast 3rd level spell with only 1st level slots available', async () => {
         const wizard = await createWizard(5, { knownSpells: ['Fireball'] });
-        const encounterId = await setupCombatEncounter(wizard.id!);
+        const { encounterId, tokenId: wizardTokenId } = await setupCombatEncounter(wizard.id!);
 
         // Exhaust 3rd level slots (level 5 wizard has 2)
-        await castSpell(wizard.id!, 'Fireball', { encounterId });
+        await castSpell(wizard.id!, 'Fireball', { encounterId, tokenId: wizardTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
 
-        await castSpell(wizard.id!, 'Fireball', { encounterId });
+        await castSpell(wizard.id!, 'Fireball', { encounterId, tokenId: wizardTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
 
         // Try to cast again - should fail even though 1st/2nd slots remain
-        await expect(castSpell(wizard.id!, 'Fireball', { encounterId })).rejects.toThrow(
+        await expect(castSpell(wizard.id!, 'Fireball', { encounterId, tokenId: wizardTokenId })).rejects.toThrow(
             /no level 3\+ spell slots available/i
         );
     });
@@ -447,11 +589,11 @@ describe('Category 2: Spell Slot Exhaustion', () => {
         const initialChar = await getCharacter(wizard.id!);
         const initialSlots = initialChar?.spellSlots?.level1?.current ?? 2;
 
-        const encounterId = await setupCombatEncounter(wizard.id!);
+        const { encounterId, tokenId: wizardTokenId } = await setupCombatEncounter(wizard.id!);
 
         // Cast cantrip many times
         for (let i = 0; i < 5; i++) {
-            await castSpell(wizard.id!, 'Fire Bolt', { encounterId });
+            await castSpell(wizard.id!, 'Fire Bolt', { encounterId, tokenId: wizardTokenId });
             // Advance turn twice to get back to wizard
             await handleAdvanceTurn({ encounterId }, getTestContext() as any);
             await handleAdvanceTurn({ encounterId }, getTestContext() as any);
@@ -465,17 +607,17 @@ describe('Category 2: Spell Slot Exhaustion', () => {
     // 2.6 - Slot consumption tracking is accurate
     test('2.6 - spell slot consumption tracked accurately', async () => {
         const wizard = await createWizard(5, { knownSpells: ['Magic Missile', 'Fireball'] });
-        const encounterId = await setupCombatEncounter(wizard.id!);
+        const { encounterId, tokenId: wizardTokenId } = await setupCombatEncounter(wizard.id!);
 
         // Level 5 wizard: 4x 1st, 3x 2nd, 2x 3rd
         const before = await getCharacter(wizard.id!);
         expect(before?.spellSlots?.level1?.current).toBe(4);
         expect(before?.spellSlots?.level3?.current).toBe(2);
 
-        await castSpell(wizard.id!, 'Magic Missile', { encounterId }); // Uses 1st level
+        await castSpell(wizard.id!, 'Magic Missile', { encounterId, tokenId: wizardTokenId }); // Uses 1st level
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
-        await castSpell(wizard.id!, 'Fireball', { encounterId });      // Uses 3rd level
+        await castSpell(wizard.id!, 'Fireball', { encounterId, tokenId: wizardTokenId });      // Uses 3rd level
 
         const after = await getCharacter(wizard.id!);
         expect(after?.spellSlots?.level1?.current).toBe(3);
@@ -529,9 +671,9 @@ describe('Category 3: Known Spell Violations', () => {
     // 3.5 - Case sensitivity handling (should be case-insensitive)
     test('3.5 - spell names are case-insensitive', async () => {
         const wizard = await createWizard(1, { knownSpells: ['Magic Missile'] });
-        const encounterId = await setupCombatEncounter(wizard.id!);
+        const { encounterId, tokenId: wizardTokenId } = await setupCombatEncounter(wizard.id!);
 
-        const result1 = await castSpell(wizard.id!, 'magic missile', { encounterId });
+        const result1 = await castSpell(wizard.id!, 'magic missile', { encounterId, tokenId: wizardTokenId });
         expect(result1.success).toBe(true);
     });
 
@@ -580,12 +722,12 @@ describe('Category 4: Damage Validation', () => {
     // 4.2 - Cannot bypass validation with raw damage parameter
     test('4.2 - spell damage cannot be specified directly', async () => {
         const wizard = await createWizard(5, { knownSpells: ['Magic Missile'] });
-        const encounterId = await setupCombatEncounter(wizard.id!);
+        const { encounterId, tokenId: wizardTokenId } = await setupCombatEncounter(wizard.id!);
 
         await expect(handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId, // Use token ID
             spellName: 'Magic Missile',
             damage: 999, // LLM trying to hallucinate damage
             targetId: 'dummy-target'
@@ -656,35 +798,35 @@ describe('Category 5: Spell Slot Recovery (CRIT-002)', () => {
     // 5.1 - Long rest restores all spell slots
     test('5.1 - CRIT-002: long rest restores all spell slots', async () => {
         const wizard = await createWizard(5, { knownSpells: ['Magic Missile', 'Fireball'] });
-        const encounterId = await setupCombatEncounter(wizard.id!);
+        const { encounterId, tokenId: wizardTokenId } = await setupCombatEncounter(wizard.id!);
 
         // Expending slot 1
-        await castSpell(wizard.id!, 'Magic Missile', { encounterId });
+        await castSpell(wizard.id!, 'Magic Missile', { encounterId, tokenId: wizardTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         
         // Expending slot 2
-        await castSpell(wizard.id!, 'Magic Missile', { encounterId });
+        await castSpell(wizard.id!, 'Magic Missile', { encounterId, tokenId: wizardTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         
         // Slot 3
-        await castSpell(wizard.id!, 'Magic Missile', { encounterId });
+        await castSpell(wizard.id!, 'Magic Missile', { encounterId, tokenId: wizardTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         
         // Slot 4
-        await castSpell(wizard.id!, 'Magic Missile', { encounterId });
+        await castSpell(wizard.id!, 'Magic Missile', { encounterId, tokenId: wizardTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         
         // Level 3 Slot 1
-        await castSpell(wizard.id!, 'Fireball', { encounterId });
+        await castSpell(wizard.id!, 'Fireball', { encounterId, tokenId: wizardTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         
         // Level 3 Slot 2
-        await castSpell(wizard.id!, 'Fireball', { encounterId });
+        await castSpell(wizard.id!, 'Fireball', { encounterId, tokenId: wizardTokenId });
 
         const exhausted = await getCharacter(wizard.id!);
         expect(exhausted?.spellSlots?.level1?.current).toBe(0);
@@ -703,8 +845,8 @@ describe('Category 5: Spell Slot Recovery (CRIT-002)', () => {
     test('5.2 - short rest does not restore wizard spell slots', async () => {
         const wizard = await createWizard(5, { knownSpells: ['Magic Missile'] });
 
-        const encounterId = await setupCombatEncounter(wizard.id!);
-        await castSpell(wizard.id!, 'Magic Missile', { encounterId });
+        const { encounterId, tokenId: wizardTokenId } = await setupCombatEncounter(wizard.id!);
+        await castSpell(wizard.id!, 'Magic Missile', { encounterId, tokenId: wizardTokenId });
         const before = (await getCharacter(wizard.id!))?.spellSlots?.level1?.current;
 
         await handleEndEncounter({ encounterId }, getTestContext() as any);
@@ -718,15 +860,15 @@ describe('Category 5: Spell Slot Recovery (CRIT-002)', () => {
     // 5.3 - Warlock pact magic: short rest recovery
     test('5.3 - warlock recovers pact slots on short rest', async () => {
         const warlock = await createWarlock(5, { knownSpells: ['Hex'] });
-        const encounterId = await setupCombatEncounter(warlock.id!);
+        const { encounterId, tokenId: warlockTokenId } = await setupCombatEncounter(warlock.id!);
 
         // Level 5 warlock:        // Consumes pact slot 1
-        await castSpell(warlock.id!, 'Hex', { encounterId });
+        await castSpell(warlock.id!, 'Hex', { encounterId, tokenId: warlockTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
 
         // Consumes pact slot 2
-        await castSpell(warlock.id!, 'Hex', { encounterId });
+        await castSpell(warlock.id!, 'Hex', { encounterId, tokenId: warlockTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
 
@@ -740,33 +882,30 @@ describe('Category 5: Spell Slot Recovery (CRIT-002)', () => {
         expect(recovered?.pactMagicSlots?.current).toBe(2);
     });
 
-    // 5.4 - Spell slots sync back after encounter ends
     test('5.4 - spell slot changes persist after encounter ends', async () => {
         const wizard = await createWizard(5, { knownSpells: ['Magic Missile'] });
 
         const before = (await getCharacter(wizard.id!))?.spellSlots?.level1?.current;
         expect(before).toBe(4);
 
-        const response = await handleCreateEncounter({
-            seed: `persist-test-${uuid()}`,
-            participants: [
-                { id: wizard.id!, name: wizard.name!, hp: 30, maxHp: 30, initiativeBonus: 3 },
-                { id: 'goblin-1', name: 'Goblin', hp: 7, maxHp: 7, initiativeBonus: 2 }
-            ]
-        }, getTestContext() as any);
-
-        // Extract encounter ID from response
-        const responseObj = response as { content: Array<{ type: string; text: string }> };
-        const text = responseObj?.content?.[0]?.text || '';
-        const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = match?.[1] || 'test-encounter';
+        const { encounterId, tokenIds } = await createEncounterWithTokens(
+            `persist-test-${uuid()}`, 
+            [
+                { id: wizard.id!, characterId: wizard.id!, name: wizard.name!, hp: 30, maxHp: 30, initiativeBonus: 3, isEnemy: false },
+                { id: 'goblin-1', characterId: 'char-goblin-1', name: 'Goblin', hp: 7, maxHp: 7, initiativeBonus: 2, isEnemy: true }
+            ], 
+            true
+        );
+        
+        const wizardTokenId = tokenIds.get(wizard.id!)!;
+        const goblinTokenId = tokenIds.get('goblin-1')!;
 
         await handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId,
             spellName: 'Magic Missile',
-            targetId: 'goblin-1'
+            targetId: goblinTokenId
         }, getTestContext() as any);
 
         await handleEndEncounter({ encounterId }, getTestContext() as any);
@@ -791,9 +930,9 @@ describe('Category 5: Spell Slot Recovery (CRIT-002)', () => {
     test('5.6 - long rest restores slots to maximum, not partial', async () => {
         const wizard = await createWizard(5, { knownSpells: ['Magic Missile'] });
 
-        const encounterId = await setupCombatEncounter(wizard.id!);
+        const { encounterId, tokenId: wizardTokenId } = await setupCombatEncounter(wizard.id!);
         // Use 1 slot
-        await castSpell(wizard.id!, 'Magic Missile', { encounterId });
+        await castSpell(wizard.id!, 'Magic Missile', { encounterId, tokenId: wizardTokenId });
 
         await handleEndEncounter({ encounterId }, getTestContext() as any);
         await handleTakeLongRest({ characterId: wizard.id! }, getTestContext() as any);
@@ -892,16 +1031,16 @@ describe('Category 7: Concentration Mechanics', () => {
             knownSpells: ['Haste', 'Fly']
         });
         const ally = await createTestCharacter({});
-        const encounterId = await setupCombatEncounter(wizard.id!);
+        const { encounterId, tokenId: wizardTokenId } = await setupCombatEncounter(wizard.id!);
 
-        await castSpell(wizard.id!, 'Haste', { targetId: ally.id, encounterId });
+        await castSpell(wizard.id!, 'Haste', { targetId: ally.id, encounterId, tokenId: wizardTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
 
         let char = await getCharacter(wizard.id!);
         expect(char?.concentratingOn).toBe('Haste');
 
-        await castSpell(wizard.id!, 'Fly', { targetId: wizard.id, encounterId });
+        await castSpell(wizard.id!, 'Fly', { targetId: wizard.id, encounterId, tokenId: wizardTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
 
@@ -927,20 +1066,14 @@ describe('Category 7: Concentration Mechanics', () => {
             stats: { str: 8, dex: 14, con: 14, int: 18, wis: 10, cha: 10 } // +2 CON
         });
 
-        const encounterResponse = await handleCreateEncounter({
-            seed: 'test-encounter-7.3',
-            participants: [
-                { id: wizard.id!, name: wizard.name!, hp: 30, maxHp: 30, initiativeBonus: 3 },
-                { id: 'enemy-1', name: 'Enemy', hp: 50, maxHp: 50, initiativeBonus: 2 }
-            ]
-        }, getTestContext() as any);
+        const { encounterId, tokenIds } = await createEncounterWithTokens(`test-encounter-7.3-${Date.now()}`, [
+            { id: wizard.id!, characterId: wizard.id!, name: wizard.name!, hp: 30, maxHp: 30, ac: 12, initiativeBonus: 3, isEnemy: false },
+            { id: 'enemy-1', characterId: 'char-enemy-1', name: 'Enemy', hp: 50, maxHp: 50, ac: 12, initiativeBonus: 2, isEnemy: true }
+        ], true);
+        const wizardTokenId = tokenIds.get(wizard.id!)!;
+        const enemyTokenId = tokenIds.get('enemy-1')!;
 
-        // Extract ID
-        const text = (encounterResponse as any).content[0].text;
-        const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = match ? match[1] : 'unknown';
-
-        await castSpell(wizard.id!, 'Hold Person', { targetId: 'enemy-1', encounterId });
+        await castSpell(wizard.id!, 'Hold Person', { targetId: enemyTokenId, encounterId, tokenId: wizardTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
 
@@ -948,8 +1081,8 @@ describe('Category 7: Concentration Mechanics', () => {
         await handleExecuteCombatAction({
             encounterId,
             action: 'attack',
-            actorId: 'enemy-1',
-            targetId: wizard.id!,
+            actorId: enemyTokenId,
+            targetId: wizardTokenId,
             attackBonus: 5,
             dc: 10,
             damage: 20
@@ -970,20 +1103,14 @@ describe('Category 7: Concentration Mechanics', () => {
             maxHp: 30
         });
 
-        const encounterResponse = await handleCreateEncounter({
-            seed: 'test-encounter-7.4',
-            participants: [
-                { id: wizard.id!, name: wizard.name!, hp: 10, maxHp: 30, initiativeBonus: 3 },
-                { id: 'enemy-1', name: 'Enemy', hp: 50, maxHp: 50, initiativeBonus: 2 }
-            ]
-        }, getTestContext() as any);
+        const { encounterId, tokenIds } = await createEncounterWithTokens(`test-encounter-7.4-${Date.now()}`, [
+            { id: wizard.id!, characterId: wizard.id!, name: wizard.name!, hp: 10, maxHp: 30, ac: 12, initiativeBonus: 3, isEnemy: false },
+            { id: 'enemy-1', characterId: 'char-enemy-1', name: 'Enemy', hp: 50, maxHp: 50, ac: 12, initiativeBonus: 2, isEnemy: true }
+        ], true);
+        const wizardTokenId = tokenIds.get(wizard.id!)!;
+        const enemyTokenId = tokenIds.get('enemy-1')!;
 
-        // Extract ID
-        const text = (encounterResponse as any).content[0].text;
-        const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = match ? match[1] : 'unknown';
-
-        await castSpell(wizard.id!, 'Hold Person', { targetId: 'enemy-1', encounterId });
+        await castSpell(wizard.id!, 'Hold Person', { targetId: enemyTokenId, encounterId, tokenId: wizardTokenId });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
 
@@ -991,8 +1118,8 @@ describe('Category 7: Concentration Mechanics', () => {
         await handleExecuteCombatAction({
             encounterId,
             action: 'attack',
-            actorId: 'enemy-1',
-            targetId: wizard.id!,
+            actorId: enemyTokenId,
+            targetId: wizardTokenId,
             attackBonus: 100, // Ensure hit
             dc: 5,
             damage: 20 // Ensure > HP
@@ -1064,19 +1191,14 @@ describe('Category 9: Targeting & Range', () => {
         });
 
         // Setup encounter with explicit positions
-        const encounterResponse = await handleCreateEncounter({
-            seed: 'test-encounter-9.1',
-            participants: [
-                { id: cleric.id!, name: 'Cleric', hp: 20, maxHp: 20, initiativeBonus: 0, position: { x: 0, y: 0 } },
-                { id: ally.id, name: 'Ally', hp: 20, maxHp: 20, initiativeBonus: 0, position: { x: 10, y: 10 } }
-            ]
-        }, getTestContext() as any);
+        const { encounterId, tokenIds } = await createEncounterWithTokens(`test-encounter-9.1-${Date.now()}`, [
+            { id: cleric.id!, characterId: cleric.id!, name: 'Cleric', hp: 20, maxHp: 20, ac: 10, initiativeBonus: 0, isEnemy: false, positionX: 0, positionY: 0 },
+            { id: ally.id!, characterId: ally.id!, name: 'Ally', hp: 20, maxHp: 20, ac: 10, initiativeBonus: 0, isEnemy: false, positionX: 10, positionY: 10 }
+        ], true);
+        const clericTokenId = tokenIds.get(cleric.id!)!;
+        const allyTokenId = tokenIds.get(ally.id!)!;
 
-        const text = (encounterResponse as any).content[0].text;
-        const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = match ? match[1] : 'unknown';
-
-        await expect(castSpell(cleric.id!, 'Cure Wounds', { targetId: ally.id, encounterId })).rejects.toThrow(
+        await expect(castSpell(cleric.id!, 'Cure Wounds', { targetId: allyTokenId, encounterId, tokenId: clericTokenId })).rejects.toThrow(
             /cure wounds has range touch/i
         );
     });
@@ -1100,21 +1222,16 @@ describe('Category 9: Targeting & Range', () => {
         });
 
         // Setup encounter with explicit positions
-        const encounterResponse = await handleCreateEncounter({
-            seed: 'test-encounter-9.3',
-            participants: [
-                { id: wizard.id!, name: 'Wizard', hp: 20, maxHp: 20, initiativeBonus: 0, position: { x: 0, y: 0 } },
-                { id: 'dummy-target', name: 'Dummy', hp: 100, maxHp: 100, initiativeBonus: 0, position: { x: 5, y: 5 } }
-            ]
-        }, getTestContext() as any);
-
-        const text = (encounterResponse as any).content[0].text;
-        const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = match ? match[1] : 'unknown';
+        const { encounterId, tokenIds } = await createEncounterWithTokens(`test-encounter-9.3-${Date.now()}`, [
+            { id: wizard.id!, characterId: wizard.id!, name: 'Wizard', hp: 20, maxHp: 20, ac: 10, initiativeBonus: 0, isEnemy: false, positionX: 0, positionY: 0 },
+            { id: 'dummy-target', characterId: 'char-dummy-target', name: 'Dummy', hp: 100, maxHp: 100, ac: 10, initiativeBonus: 0, isEnemy: true, positionX: 5, positionY: 5 }
+        ], true);
+        const wizardTokenId = tokenIds.get(wizard.id!)!;
 
         await expect(castSpell(wizard.id!, 'Fireball', {
             targetPoint: { x: 40, y: 0 }, // 200 feet (40 * 5ft grid)
-            encounterId
+            encounterId,
+            tokenId: wizardTokenId
         })).rejects.toThrow(/fireball has range 150 feet/i);
     });
 
@@ -1125,21 +1242,16 @@ describe('Category 9: Targeting & Range', () => {
             position: { x: 0, y: 0 }
         });
 
-        const encounterResponse = await handleCreateEncounter({
-            seed: 'test-encounter-9.4',
-            participants: [
-                { id: wizard.id!, name: 'Wizard', hp: 20, maxHp: 20, initiativeBonus: 0, position: { x: 0, y: 0 } },
-                { id: 'dummy-target', name: 'Dummy', hp: 100, maxHp: 100, initiativeBonus: 0, position: { x: 5, y: 5 } }
-            ]
-        }, getTestContext() as any);
-
-        const text = (encounterResponse as any).content[0].text;
-        const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = match ? match[1] : 'unknown';
+        const { encounterId, tokenIds } = await createEncounterWithTokens(`test-encounter-9.4-${Date.now()}`, [
+            { id: wizard.id!, characterId: wizard.id!, name: 'Wizard', hp: 20, maxHp: 20, ac: 10, initiativeBonus: 0, isEnemy: false, positionX: 0, positionY: 0 },
+            { id: 'dummy-target', characterId: 'char-dummy-target', name: 'Dummy', hp: 100, maxHp: 100, ac: 10, initiativeBonus: 0, isEnemy: true, positionX: 5, positionY: 5 }
+        ], true);
+        const wizardTokenId = tokenIds.get(wizard.id!)!;
 
         const result = await castSpell(wizard.id!, 'Fireball', {
             targetPoint: { x: 20, y: 0 }, // 100 feet
-            encounterId
+            encounterId,
+            tokenId: wizardTokenId
         });
 
         expect(result.success).toBe(true);
@@ -1165,20 +1277,16 @@ describe('Category 10: Spell Save DC & Attack Rolls', () => {
             position: { x: 5, y: 5 } // 35 ft
         });
 
-        const encounterResponse = await handleCreateEncounter({
-            seed: 'test-encounter-10.1',
-            participants: [
-                { id: wizard.id!, name: 'Wizard', hp: 20, maxHp: 20, initiativeBonus: 0, position: { x: 0, y: 0 } },
-                { id: target.id, name: 'Target', hp: 20, maxHp: 20, initiativeBonus: 0, position: { x: 5, y: 5 } }
-            ]
-        }, getTestContext() as any);
-        const text = (encounterResponse as any).content[0].text;
-        const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = match ? match[1] : 'unknown';
+        const { encounterId, tokenIds } = await createEncounterWithTokens(`test-encounter-10.1-${Date.now()}`, [
+            { id: wizard.id!, characterId: wizard.id!, name: 'Wizard', hp: 20, maxHp: 20, ac: 10, initiativeBonus: 0, isEnemy: false, positionX: 0, positionY: 0 },
+            { id: target.id!, characterId: target.id!, name: 'Target', hp: 20, maxHp: 20, ac: 10, initiativeBonus: 0, isEnemy: true, positionX: 5, positionY: 5 }
+        ], true);
+        const wizardTokenId = tokenIds.get(wizard.id!)!;
 
         const result = await castSpell(wizard.id!, 'Fireball', {
             targetPoint: { x: 5, y: 5 }, // On target
-            encounterId
+            encounterId,
+            tokenId: wizardTokenId
         });
 
         // Current text output: "🛡️ Save DC 15: ..."
@@ -1197,20 +1305,17 @@ describe('Category 10: Spell Save DC & Attack Rolls', () => {
             position: { x: 1, y: 0 } // Adjacent
         });
 
-         const encounterResponse = await handleCreateEncounter({
-            seed: 'test-encounter-10.2',
-            participants: [
-                { id: cleric.id!, name: 'Cleric', hp: 20, maxHp: 20, initiativeBonus: 0, position: { x: 0, y: 0 } },
-                 { id: target.id, name: 'Target', hp: 20, maxHp: 20, initiativeBonus: 0, position: { x: 1, y: 0 } }
-            ]
-        }, getTestContext() as any);
-        const text = (encounterResponse as any).content[0].text;
-        const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = match ? match[1] : 'unknown';
+         const { encounterId, tokenIds } = await createEncounterWithTokens(`test-encounter-10.2-${Date.now()}`, [
+            { id: cleric.id!, characterId: cleric.id!, name: 'Cleric', hp: 20, maxHp: 20, ac: 10, initiativeBonus: 0, isEnemy: false, positionX: 0, positionY: 0 },
+            { id: target.id!, characterId: target.id!, name: 'Target', hp: 20, maxHp: 20, ac: 10, initiativeBonus: 0, isEnemy: true, positionX: 1, positionY: 0 }
+        ], true);
+        const clericTokenId = tokenIds.get(cleric.id!)!;
+        const targetTokenId = tokenIds.get(target.id!)!;
 
         const result = await castSpell(cleric.id!, 'Guiding Bolt', {
-            targetId: target.id,
-            encounterId
+            targetId: targetTokenId,
+            encounterId,
+            tokenId: clericTokenId
         });
 
         // Verify output matches updated format: "⚔️ Attack Roll: 15 (d20) +7 = 22 → HIT"
@@ -1230,21 +1335,18 @@ describe('Category 10: Spell Save DC & Attack Rolls', () => {
             maxHp: 50
         });
 
-        const encounterResponse = await handleCreateEncounter({
-            seed: 'test-encounter-10.3',
-            participants: [
-                { id: wizard.id!, name: 'Wizard', hp: 20, maxHp: 20, initiativeBonus: 0, position: { x: 0, y: 0 } },
-                 { id: target.id, name: 'Target', hp: 50, maxHp: 50, initiativeBonus: 0, position: { x: 1, y: 0 } }
-            ]
-        }, getTestContext() as any);
-        const text = (encounterResponse as any).content[0].text;
-        const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = match ? match[1] : 'unknown';
+        const { encounterId, tokenIds } = await createEncounterWithTokens(`test-encounter-10.3-${Date.now()}`, [
+            { id: wizard.id!, characterId: wizard.id!, name: 'Wizard', hp: 20, maxHp: 20, ac: 10, initiativeBonus: 0, isEnemy: false, positionX: 0, positionY: 0 },
+            { id: target.id!, characterId: target.id!, name: 'Target', hp: 50, maxHp: 50, ac: 10, initiativeBonus: 0, isEnemy: true, positionX: 1, positionY: 0 }
+        ], true);
+        const wizardTokenId = tokenIds.get(wizard.id!)!;
+        const targetTokenId = tokenIds.get(target.id!)!;
 
         // Test that damage is applied (actual save mechanics will vary)
         const result = await castSpell(wizard.id!, 'Fireball', {
-            targetId: target.id,
-            encounterId
+            targetId: targetTokenId,
+            encounterId,
+            tokenId: wizardTokenId
         });
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
@@ -1269,16 +1371,11 @@ describe('Category 10: Spell Save DC & Attack Rolls', () => {
             position: { x: 5, y: 5 }
         });
 
-        const encounterResponse = await handleCreateEncounter({
-            seed: `test-encounter-10.4-${Date.now()}`, // Unique seed per retry for different RNG
-            participants: [
-                { id: wizard.id!, name: 'Wizard', hp: 20, maxHp: 20, initiativeBonus: 0, position: { x: 0, y: 0 } },
-                { id: target.id, name: 'Target', hp: 100, maxHp: 100, initiativeBonus: 0, position: { x: 5, y: 5 } }
-            ]
-        }, getTestContext() as any);
-        const text = (encounterResponse as any).content[0].text;
-        const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = match ? match[1] : 'unknown';
+        const { encounterId, tokenIds } = await createEncounterWithTokens(`test-encounter-10.4-${Date.now()}`, [
+            { id: wizard.id!, characterId: wizard.id!, name: 'Wizard', hp: 20, maxHp: 20, ac: 10, initiativeBonus: 0, isEnemy: false, positionX: 0, positionY: 0 },
+            { id: target.id!, characterId: target.id!, name: 'Target', hp: 100, maxHp: 100, ac: 10, initiativeBonus: 0, isEnemy: true, positionX: 5, positionY: 5 }
+        ], true);
+        const wizardTokenId = tokenIds.get(wizard.id!)!;
 
         // Cast up to 2 Fireballs (SRD limit for level 5 wizard's 3rd-level slots)
         let foundPassed = false;
@@ -1286,7 +1383,8 @@ describe('Category 10: Spell Save DC & Attack Rolls', () => {
         for (let i = 0; i < 2; i++) {
             const result = await castSpell(wizard.id!, 'Fireball', {
                 targetPoint: { x: 5, y: 5 },
-                encounterId
+                encounterId,
+                tokenId: wizardTokenId
             });
             await handleAdvanceTurn({ encounterId }, getTestContext() as any);
             await handleAdvanceTurn({ encounterId }, getTestContext() as any);
@@ -1432,13 +1530,13 @@ describe('Category 12: Edge Cases & Exploits', () => {
     // 12.5 - Reaction spells don't consume action
     test('12.5 - casting shield doesnt consume action', async () => {
         const wizard = await createWizard(3, { knownSpells: ['Shield', 'Magic Missile'] });
-        const encounterId = await setupCombatEncounter(wizard.id!);
+        const { encounterId, tokenId: wizardTokenId } = await setupCombatEncounter(wizard.id!);
 
         // Cast shield as reaction
         await handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId,
             spellName: 'Shield',
             asReaction: true
         }, getTestContext() as any);
@@ -1447,7 +1545,7 @@ describe('Category 12: Edge Cases & Exploits', () => {
         const mmResponse = await handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId,
             spellName: 'Magic Missile',
             targetId: 'dummy-target'
         }, getTestContext() as any);
@@ -1462,13 +1560,13 @@ describe('Category 12: Edge Cases & Exploits', () => {
     // TODO: Implement bonus action spell tracking in Wave 5
     test('12.6 - cannot cast two leveled spells in same turn', async () => {
         const wizard = await createWizard(5, { knownSpells: ['Misty Step', 'Fireball'] });
-        const encounterId = await setupCombatEncounter(wizard.id!);
+        const { encounterId, tokenId: wizardTokenId } = await setupCombatEncounter(wizard.id!);
 
         // Cast Misty Step (bonus action)
         await handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId,
             spellName: 'Misty Step'
         }, getTestContext() as any);
 
@@ -1476,7 +1574,7 @@ describe('Category 12: Edge Cases & Exploits', () => {
         await expect(handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId,
             spellName: 'Fireball',
             targetId: 'dummy-target'
         }, getTestContext() as any)).rejects.toThrow(
@@ -1497,28 +1595,28 @@ describe('Integration: Full Combat Spell Scenarios', () => {
             preparedSpells: ['Magic Missile', 'Fireball']
         });
 
-        const response = await handleCreateEncounter({
-            seed: `integration-test-${uuid()}`,
-            participants: [
-                { id: wizard.id!, name: wizard.name!, hp: 30, maxHp: 30, initiativeBonus: 3 },
-                { id: 'goblin-1', name: 'Goblin 1', hp: 7, maxHp: 7, initiativeBonus: 2 },
-                { id: 'goblin-2', name: 'Goblin 2', hp: 7, maxHp: 7, initiativeBonus: 1 }
-            ]
-        }, getTestContext() as any);
+        // Create encounter using the helper with token ID mapping
+        const { encounterId, tokenIds } = await createEncounterWithTokens(
+            `integration-test-${uuid()}`,
+            [
+                { id: 'wizard', characterId: wizard.id!, name: wizard.name!, hp: 30, maxHp: 30, ac: 12, initiativeBonus: 3, isEnemy: false },
+                { id: 'goblin-1', characterId: 'char-goblin-1', name: 'Goblin 1', hp: 7, maxHp: 7, ac: 13, initiativeBonus: 2, isEnemy: true },
+                { id: 'goblin-2', characterId: 'char-goblin-2', name: 'Goblin 2', hp: 7, maxHp: 7, ac: 13, initiativeBonus: 1, isEnemy: true }
+            ],
+            true
+        );
 
-        // Extract encounter ID from response
-        const responseObj = response as { content: Array<{ type: string; text: string }> };
-        const text = responseObj?.content?.[0]?.text || '';
-        const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = match?.[1] || 'test-encounter';
+        const wizardTokenId = tokenIds.get('wizard')!;
+        const goblin1TokenId = tokenIds.get('goblin-1')!;
+        const goblin2TokenId = tokenIds.get('goblin-2')!;
 
         // Cast Magic Missile at goblin 1
         const mmResponse = await handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId,
             spellName: 'Magic Missile',
-            targetId: 'goblin-1'
+            targetId: goblin1TokenId
         }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
@@ -1536,9 +1634,9 @@ describe('Integration: Full Combat Spell Scenarios', () => {
         await handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId,
             spellName: 'Fireball',
-            targetId: 'goblin-1'
+            targetId: goblin1TokenId
         }, getTestContext() as any);
 
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
@@ -1549,9 +1647,9 @@ describe('Integration: Full Combat Spell Scenarios', () => {
         const fbResponse = await handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId,
             spellName: 'Fire Bolt',
-            targetId: 'goblin-2'
+            targetId: goblin2TokenId
         }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
         await handleAdvanceTurn({ encounterId }, getTestContext() as any);
@@ -1579,54 +1677,52 @@ describe('Integration: Full Combat Spell Scenarios', () => {
             preparedSpells: ['Magic Missile', 'Shield', 'Meteor Swarm', 'Power Word Kill']
         });
 
-        const response = await handleCreateEncounter({
-            seed: `tpk-test-${uuid()}`,
-            participants: [
-                { id: wizard.id!, name: 'Desperate Wizard', hp: 5, maxHp: 30, initiativeBonus: 3 },
-                { id: 'archlich', name: 'Archlich Malachara', hp: 200, maxHp: 200, initiativeBonus: 5 }
-            ]
-        }, getTestContext() as any);
-
-        // Extract encounter ID from response
-        const responseObj = response as { content: Array<{ type: string; text: string }> };
-        const text = responseObj?.content?.[0]?.text || '';
-        const match = text.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = match?.[1] || 'test-encounter';
+        // Create encounter using the helper - get actual token IDs
+        const { encounterId, tokenIds } = await createEncounterWithTokens(
+            `tpk-test-${uuid()}`,
+            [
+                { id: 'wizard', characterId: wizard.id!, name: 'Desperate Wizard', hp: 5, maxHp: 30, ac: 12, initiativeBonus: 3, isEnemy: false },
+                { id: 'archlich', characterId: 'char-archlich', name: 'Archlich Malachara', hp: 200, maxHp: 200, ac: 18, initiativeBonus: 5, isEnemy: true }
+            ],
+            true
+        );
+        const wizardTokenId = tokenIds.get('wizard')!;
+        const archlichTokenId = tokenIds.get('archlich')!;
 
         // Wizard is desperate - tries to cast Meteor Swarm
         await expect(handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId,
             spellName: 'Meteor Swarm', // 9th level - impossible for level 5
-            targetId: 'archlich'
+            targetId: archlichTokenId
         }, getTestContext() as any)).rejects.toThrow(/cannot cast level 9 spells/i);
 
         // Wizard tries Power Word Kill
         await expect(handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId,
             spellName: 'Power Word Kill', // 9th level
-            targetId: 'archlich'
+            targetId: archlichTokenId
         }, getTestContext() as any)).rejects.toThrow(/cannot cast level 9 spells/i);
 
         // Wizard tries fake spell
         await expect(handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId,
             spellName: 'Instant Death Touch of Doom',
-            targetId: 'archlich'
+            targetId: archlichTokenId
         }, getTestContext() as any)).rejects.toThrow(/unknown spell/i);
 
         // Wizard accepts fate and casts Magic Missile (works)
         const mmResponse = await handleExecuteCombatAction({
             encounterId,
             action: 'cast_spell',
-            actorId: wizard.id!,
+            actorId: wizardTokenId,
             spellName: 'Magic Missile',
-            targetId: 'archlich'
+            targetId: archlichTokenId
         }, getTestContext() as any);
 
         // Parse MCP response to verify spell was cast

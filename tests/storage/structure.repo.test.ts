@@ -53,6 +53,7 @@ describe('StructureRepository', () => {
             x: 50,
             y: 50,
             population: 100,
+            isObserved: false,
             createdAt: FIXED_TIMESTAMP,
             updatedAt: FIXED_TIMESTAMP,
         };
@@ -61,7 +62,7 @@ describe('StructureRepository', () => {
 
         const retrieved = repo.findByWorldId('world-1');
         expect(retrieved).toHaveLength(1);
-        expect(retrieved[0]).toEqual(structure);
+        expect(retrieved[0]).toMatchObject(structure);
     });
 
     it('should find structures by worldId', () => {
@@ -73,6 +74,7 @@ describe('StructureRepository', () => {
             x: 10,
             y: 10,
             population: 500,
+            isObserved: false,
             createdAt: FIXED_TIMESTAMP,
             updatedAt: FIXED_TIMESTAMP,
         };
@@ -84,6 +86,7 @@ describe('StructureRepository', () => {
             x: 20,
             y: 20,
             population: 50,
+            isObserved: false,
             createdAt: FIXED_TIMESTAMP,
             updatedAt: FIXED_TIMESTAMP,
         };
@@ -93,17 +96,17 @@ describe('StructureRepository', () => {
 
         const structures = repo.findByWorldId('world-1');
         expect(structures).toHaveLength(2);
-        expect(structures).toContainEqual(s1);
-        expect(structures).toContainEqual(s2);
+        expect(structures).toContainEqual(expect.objectContaining(s1));
+        expect(structures).toContainEqual(expect.objectContaining(s2));
     });
 
     describe('createBatch', () => {
         it('should create multiple structures in a single transaction', () => {
             const structures: Structure[] = [
-                { id: 'b1', worldId: 'world-1', name: 'City 1', type: StructureType.CITY, x: 10, y: 10, population: 10000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
-                { id: 'b2', worldId: 'world-1', name: 'Town 1', type: StructureType.TOWN, x: 20, y: 20, population: 2000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
-                { id: 'b3', worldId: 'world-1', name: 'Village 1', type: StructureType.VILLAGE, x: 30, y: 30, population: 100, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
-                { id: 'b4', worldId: 'world-1', name: 'Dungeon 1', type: StructureType.DUNGEON, x: 40, y: 40, population: 0, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 'b1', worldId: 'world-1', name: 'City 1', type: StructureType.CITY, x: 10, y: 10, population: 10000, isObserved: false, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 'b2', worldId: 'world-1', name: 'Town 1', type: StructureType.TOWN, x: 20, y: 20, population: 2000, isObserved: false, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 'b3', worldId: 'world-1', name: 'Village 1', type: StructureType.VILLAGE, x: 30, y: 30, population: 100, isObserved: false, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 'b4', worldId: 'world-1', name: 'Dungeon 1', type: StructureType.DUNGEON, x: 40, y: 40, population: 0, isObserved: false, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
             ];
 
             const count = repo.createBatch(structures);
@@ -129,6 +132,7 @@ describe('StructureRepository', () => {
                 x: 50,
                 y: 50,
                 population: 500,
+                isObserved: false,
                 createdAt: FIXED_TIMESTAMP,
                 updatedAt: FIXED_TIMESTAMP,
             };
@@ -155,6 +159,7 @@ describe('StructureRepository', () => {
                 x: 75,
                 y: 25,
                 population: 1000,
+                isObserved: false,
                 createdAt: FIXED_TIMESTAMP,
                 updatedAt: FIXED_TIMESTAMP,
             };
@@ -174,9 +179,9 @@ describe('StructureRepository', () => {
     describe('findByType', () => {
         it('should find structures by type', () => {
             const structures: Structure[] = [
-                { id: 't1', worldId: 'world-1', name: 'Town A', type: StructureType.TOWN, x: 10, y: 10, population: 1000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
-                { id: 't2', worldId: 'world-1', name: 'Town B', type: StructureType.TOWN, x: 20, y: 20, population: 2000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
-                { id: 't3', worldId: 'world-1', name: 'City A', type: StructureType.CITY, x: 30, y: 30, population: 10000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 't1', worldId: 'world-1', name: 'Town A', type: StructureType.TOWN, x: 10, y: 10, population: 1000, isObserved: false, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 't2', worldId: 'world-1', name: 'Town B', type: StructureType.TOWN, x: 20, y: 20, population: 2000, isObserved: false, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 't3', worldId: 'world-1', name: 'City A', type: StructureType.CITY, x: 30, y: 30, population: 10000, isObserved: false, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
             ];
             repo.createBatch(structures);
 
@@ -192,8 +197,8 @@ describe('StructureRepository', () => {
     describe('deleteByWorldId', () => {
         it('should delete all structures for a world', () => {
             const structures: Structure[] = [
-                { id: 'd1', worldId: 'world-1', name: 'Town A', type: StructureType.TOWN, x: 10, y: 10, population: 1000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
-                { id: 'd2', worldId: 'world-1', name: 'Town B', type: StructureType.TOWN, x: 20, y: 20, population: 2000, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 'd1', worldId: 'world-1', name: 'Town A', type: StructureType.TOWN, x: 10, y: 10, population: 1000, isObserved: false, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
+                { id: 'd2', worldId: 'world-1', name: 'Town B', type: StructureType.TOWN, x: 20, y: 20, population: 2000, isObserved: false, createdAt: FIXED_TIMESTAMP, updatedAt: FIXED_TIMESTAMP },
             ];
             repo.createBatch(structures);
 

@@ -1,0 +1,2513 @@
+
+> rpg-mcp@1.0.0 test
+> vitest run tests/server/spatial-combat.test.ts tests/engine/concentration.test.ts tests/replay-engine.test.ts
+
+
+ RUN  v1.6.1 /Users/rafaelaguilherdacosta/Documents/sources/games/portals/rpg-mcp
+
+stdout | tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Movement with Positions > should support position data on participants
+[Migration 001] Starting database architecture migration...
+[Migration 001] Adding world_id column to event_inbox
+[Migration 001] Adding process_after column to event_inbox
+[Migration 001] Adding status column to event_inbox
+[Migration 001] Creating event_inbox indexes
+[Migration 001] Adding environment column to worlds
+[Migration 001] Existing structures columns: id, world_id, region_id, name, type, x, y, population, created_at, updated_at, metadata
+[Migration 001] Renaming x/y to tile_x/tile_y in structures
+[Migration 001] Renaming metadata to metadata_json in structures
+[Migration 001] Adding entrance_room_id to structures
+[Migration 001] Adding is_observed column to structures
+[Migration 001] Creating structures indexes
+[Migration 001] Adding region_id column to tiles
+[Migration 001] Adding terrain column to tiles
+[Migration 001] Adding features_json column to tiles
+[Migration 001] Adding structure_id column to tiles
+[Migration 001] Adding is_explored column to tiles
+[Migration 001] Adding structure_id column to room_nodes
+[Migration 001] Adding lighting column to room_nodes
+[Migration 001] Adding room_type column to room_nodes
+[Migration 001] Adding contents_json column to room_nodes
+[Migration 001] Adding state_json column to room_nodes
+[Migration 001] Adding is_observed column to room_nodes
+[Migration 001] Processing room_exits...
+[Migration 001] Processing npcs...
+[Migration 001] Processing monsters...
+[Migration 001] Monsters table exists: false
+[Migration 001] Creating monsters table
+[Migration 001] Creating monsters indexes
+[Migration 001] Corpses table exists: true
+[Migration 001] Existing corpses columns: id, character_id, character_name, character_type, creature_type, cr, world_id, region_id, position_x, position_y, encounter_id, state, state_updated_at, loot_generated, looted, looted_by, looted_at, harvestable, harvestable_resources, created_at, updated_at, currency, currency_looted
+[Migration 001] Adding location_room_id to corpses
+[Migration 001] Adding loot_json to corpses
+[Migration 001] Creating corpses indexes
+[Migration 001] Adding rarity column to items
+[Migration 001] Renaming metadata to metadata_json in narrative_notes
+[Migration 001] Renaming tags to tags_json in narrative_notes
+[Migration 001] Database architecture migration completed successfully.
+
+stderr | tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Movement with Positions > should support position data on participants
+[Database] Initializing database at: :memory:
+[Database] Opening database: :memory:
+[Database] Integrity check passed
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[Database] Checking for pending migrations...
+[Database] Applying migration: 001-database-architecture
+[Database] Migration applied successfully: 001-database-architecture
+[Database] Applied 1 migration(s)
+
+stdout | tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Movement with Positions > should execute move action to new position
+[Migration 001] Starting database architecture migration...
+[Migration 001] Adding world_id column to event_inbox
+[Migration 001] Adding process_after column to event_inbox
+[Migration 001] Adding status column to event_inbox
+[Migration 001] Creating event_inbox indexes
+[Migration 001] Adding environment column to worlds
+[Migration 001] Existing structures columns: id, world_id, region_id, name, type, x, y, population, created_at, updated_at, metadata
+[Migration 001] Renaming x/y to tile_x/tile_y in structures
+[Migration 001] Renaming metadata to metadata_json in structures
+[Migration 001] Adding entrance_room_id to structures
+[Migration 001] Adding is_observed column to structures
+[Migration 001] Creating structures indexes
+[Migration 001] Adding region_id column to tiles
+[Migration 001] Adding terrain column to tiles
+[Migration 001] Adding features_json column to tiles
+[Migration 001] Adding structure_id column to tiles
+[Migration 001] Adding is_explored column to tiles
+[Migration 001] Adding structure_id column to room_nodes
+[Migration 001] Adding lighting column to room_nodes
+[Migration 001] Adding room_type column to room_nodes
+[Migration 001] Adding contents_json column to room_nodes
+[Migration 001] Adding state_json column to room_nodes
+[Migration 001] Adding is_observed column to room_nodes
+[Migration 001] Processing room_exits...
+[Migration 001] Processing npcs...
+[Migration 001] Processing monsters...
+[Migration 001] Monsters table exists: false
+[Migration 001] Creating monsters table
+[Migration 001] Creating monsters indexes
+[Migration 001] Corpses table exists: true
+[Migration 001] Existing corpses columns: id, character_id, character_name, character_type, creature_type, cr, world_id, region_id, position_x, position_y, encounter_id, state, state_updated_at, loot_generated, looted, looted_by, looted_at, harvestable, harvestable_resources, created_at, updated_at, currency, currency_looted
+[Migration 001] Adding location_room_id to corpses
+[Migration 001] Adding loot_json to corpses
+[Migration 001] Creating corpses indexes
+[Migration 001] Adding rarity column to items
+[Migration 001] Renaming metadata to metadata_json in narrative_notes
+[Migration 001] Renaming tags to tags_json in narrative_notes
+[Migration 001] Database architecture migration completed successfully.
+
+stderr | tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Movement with Positions > should execute move action to new position
+[Database] WAL checkpoint completed
+[Database] Database closed
+[Database] Initializing database at: :memory:
+[Database] Opening database: :memory:
+[Database] Integrity check passed
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[Database] Checking for pending migrations...
+[Database] Applying migration: 001-database-architecture
+[Database] Migration applied successfully: 001-database-architecture
+[Database] Applied 1 migration(s)
+
+stdout | tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Movement with Positions > should block movement onto occupied squares
+[Migration 001] Starting database architecture migration...
+[Migration 001] Adding world_id column to event_inbox
+[Migration 001] Adding process_after column to event_inbox
+[Migration 001] Adding status column to event_inbox
+[Migration 001] Creating event_inbox indexes
+[Migration 001] Adding environment column to worlds
+[Migration 001] Existing structures columns: id, world_id, region_id, name, type, x, y, population, created_at, updated_at, metadata
+[Migration 001] Renaming x/y to tile_x/tile_y in structures
+[Migration 001] Renaming metadata to metadata_json in structures
+[Migration 001] Adding entrance_room_id to structures
+[Migration 001] Adding is_observed column to structures
+[Migration 001] Creating structures indexes
+[Migration 001] Adding region_id column to tiles
+[Migration 001] Adding terrain column to tiles
+[Migration 001] Adding features_json column to tiles
+[Migration 001] Adding structure_id column to tiles
+[Migration 001] Adding is_explored column to tiles
+[Migration 001] Adding structure_id column to room_nodes
+[Migration 001] Adding lighting column to room_nodes
+[Migration 001] Adding room_type column to room_nodes
+[Migration 001] Adding contents_json column to room_nodes
+[Migration 001] Adding state_json column to room_nodes
+[Migration 001] Adding is_observed column to room_nodes
+[Migration 001] Processing room_exits...
+[Migration 001] Processing npcs...
+[Migration 001] Processing monsters...
+[Migration 001] Monsters table exists: false
+[Migration 001] Creating monsters table
+[Migration 001] Creating monsters indexes
+[Migration 001] Corpses table exists: true
+[Migration 001] Existing corpses columns: id, character_id, character_name, character_type, creature_type, cr, world_id, region_id, position_x, position_y, encounter_id, state, state_updated_at, loot_generated, looted, looted_by, looted_at, harvestable, harvestable_resources, created_at, updated_at, currency, currency_looted
+[Migration 001] Adding location_room_id to corpses
+[Migration 001] Adding loot_json to corpses
+[Migration 001] Creating corpses indexes
+[Migration 001] Adding rarity column to items
+[Migration 001] Renaming metadata to metadata_json in narrative_notes
+[Migration 001] Renaming tags to tags_json in narrative_notes
+[Migration 001] Database architecture migration completed successfully.
+
+stderr | tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Movement with Positions > should block movement onto occupied squares
+[Database] WAL checkpoint completed
+[Database] Database closed
+[Database] Initializing database at: :memory:
+[Database] Opening database: :memory:
+[Database] Integrity check passed
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[Database] Checking for pending migrations...
+[Database] Applying migration: 001-database-architecture
+[Database] Migration applied successfully: 001-database-architecture
+[Database] Applied 1 migration(s)
+
+stdout | tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Terrain Obstacles > should block movement onto terrain obstacles
+[Migration 001] Starting database architecture migration...
+[Migration 001] Adding world_id column to event_inbox
+[Migration 001] Adding process_after column to event_inbox
+[Migration 001] Adding status column to event_inbox
+[Migration 001] Creating event_inbox indexes
+[Migration 001] Adding environment column to worlds
+[Migration 001] Existing structures columns: id, world_id, region_id, name, type, x, y, population, created_at, updated_at, metadata
+[Migration 001] Renaming x/y to tile_x/tile_y in structures
+[Migration 001] Renaming metadata to metadata_json in structures
+[Migration 001] Adding entrance_room_id to structures
+[Migration 001] Adding is_observed column to structures
+[Migration 001] Creating structures indexes
+[Migration 001] Adding region_id column to tiles
+[Migration 001] Adding terrain column to tiles
+[Migration 001] Adding features_json column to tiles
+[Migration 001] Adding structure_id column to tiles
+[Migration 001] Adding is_explored column to tiles
+[Migration 001] Adding structure_id column to room_nodes
+[Migration 001] Adding lighting column to room_nodes
+[Migration 001] Adding room_type column to room_nodes
+[Migration 001] Adding contents_json column to room_nodes
+[Migration 001] Adding state_json column to room_nodes
+[Migration 001] Adding is_observed column to room_nodes
+[Migration 001] Processing room_exits...
+[Migration 001] Processing npcs...
+[Migration 001] Processing monsters...
+[Migration 001] Monsters table exists: false
+[Migration 001] Creating monsters table
+[Migration 001] Creating monsters indexes
+[Migration 001] Corpses table exists: true
+[Migration 001] Existing corpses columns: id, character_id, character_name, character_type, creature_type, cr, world_id, region_id, position_x, position_y, encounter_id, state, state_updated_at, loot_generated, looted, looted_by, looted_at, harvestable, harvestable_resources, created_at, updated_at, currency, currency_looted
+[Migration 001] Adding location_room_id to corpses
+[Migration 001] Adding loot_json to corpses
+[Migration 001] Creating corpses indexes
+[Migration 001] Adding rarity column to items
+[Migration 001] Renaming metadata to metadata_json in narrative_notes
+[Migration 001] Renaming tags to tags_json in narrative_notes
+[Migration 001] Database architecture migration completed successfully.
+
+stderr | tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Terrain Obstacles > should block movement onto terrain obstacles
+[Database] WAL checkpoint completed
+[Database] Database closed
+[Database] Initializing database at: :memory:
+[Database] Opening database: :memory:
+[Database] Integrity check passed
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[Database] Checking for pending migrations...
+[Database] Applying migration: 001-database-architecture
+[Database] Migration applied successfully: 001-database-architecture
+[Database] Applied 1 migration(s)
+
+ ❯ tests/server/spatial-combat.test.ts  (4 tests | 4 failed) 164ms
+   ❯ tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Movement with Positions > should support position data on participants
+     → expected 'Encounter created successfully!\nID: …' to contain 'hero-1'
+   ❯ tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Movement with Positions > should execute move action to new position
+     → Actor hero-1 not found
+   ❯ tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Movement with Positions > should block movement onto occupied squares
+     → Actor hero-1 not found
+   ❯ tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Terrain Obstacles > should block movement onto terrain obstacles
+     → Actor hero-1 not found
+stderr | tests/engine/concentration.test.ts > Concentration System > Concentration DC Calculation > should use DC 10 for damage less than 20
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Concentration DC Calculation > should use half damage for damage 20 or more
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Starting Concentration > should create concentration record
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Starting Concentration > should update character concentrating_on field
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Starting Concentration > should break existing concentration when starting new spell
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Concentration Checks > should succeed on high constitution save
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Concentration Checks > should handle high damage requiring higher DC
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Concentration Checks > should return no check if not concentrating
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Concentration Checks > should handle high damage requiring higher DC
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Concentration Checks > should return no check if not concentrating
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Breaking Concentration > should break concentration on voluntary end
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Breaking Concentration > should break concentration on death
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Breaking Concentration > should break concentration on new spell
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Breaking Concentration > should clear character concentrating_on field
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Duration Checks > should not break concentration within duration
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Duration Checks > should break concentration when duration exceeded
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Duration Checks > should not break concentration with no duration limit
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Automatic Concentration Breaks > should break concentration on death (hp <= 0)
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Automatic Concentration Breaks > should break concentration when unconscious
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Automatic Concentration Breaks > should break concentration when stunned
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Automatic Concentration Breaks > should not break concentration for non-incapacitating conditions
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Automatic Concentration Breaks > should not break if not concentrating
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Get Concentration State > should return active concentration
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Get Concentration State > should return null if not concentrating
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/engine/concentration.test.ts > Concentration System > Integration: Full Concentration Flow > should handle complete concentration lifecycle
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+ ✓ tests/engine/concentration.test.ts  (25 tests) 343ms
+stderr | tests/replay-engine.test.ts > ReplayEngine > replayFromGenesis > should replay an empty event log successfully
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ?
+[event_logs] Query complete: 1 rows in 0.08ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 0 rows in 0.04ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > replayFromGenesis > should replay combat events and update state
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 0 rows in 0.03ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Transaction COMMIT (0.50ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.11ms)
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 2 rows in 0.05ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > replayFromGenesis > should replay movement events and track positions
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 0 rows in 0.03ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Transaction COMMIT (0.21ms)
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ?
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 1 rows in 0.04ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > replayFromGenesis > should verify hash chain when requested
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 0 rows in 0.04ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Transaction COMMIT (0.23ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.11ms)
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 2 rows in 0.04ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > replayFromGenesis > should detect broken hash chain during verification
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 0 rows in 0.03ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Transaction COMMIT (0.19ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.04ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.16ms)
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ?
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 2 rows in 0.04ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > replayFromGenesis > should support dry_run mode without modifying state
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 0 rows in 0.03ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.19ms)
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ?
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 1 rows in 0.04ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > replayFromSnapshot > should replay from a snapshot
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 0 rows in 0.11ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.08ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.06ms
+[event_logs] Transaction COMMIT (0.61ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.05ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.06ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Transaction COMMIT (0.31ms)
+[snapshots] Query: INSERT INTO snapshots ( id, world_id, event_id, created_at, description, state_json, checksum, size_bytes, is_auto ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[snapshots] Query complete: 1 rows in 0.10ms
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.05ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.10ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Transaction COMMIT (0.33ms)
+[snapshots] Query: SELECT * FROM snapshots WHERE id = ?
+[snapshots] Query complete: 1 rows in 0.05ms
+[event_logs] Query: SELECT * FROM event_logs WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.06ms
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ?
+[event_logs] Query complete: 1 rows in 0.06ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 1 rows in 0.09ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > replayFromSnapshot > should fail if snapshot not found
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[snapshots] Query: SELECT * FROM snapshots WHERE id = ?
+[snapshots] Query complete: 0 rows in 0.02ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > replayFromSnapshot > should fail if snapshot belongs to different world
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[snapshots] Query: INSERT INTO snapshots ( id, world_id, event_id, created_at, description, state_json, checksum, size_bytes, is_auto ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[snapshots] Query complete: 1 rows in 0.03ms
+[snapshots] Query: SELECT * FROM snapshots WHERE id = ?
+[snapshots] Query complete: 1 rows in 0.02ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > replayToEvent > should find nearest snapshot and replay to specific event
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 0 rows in 0.03ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.04ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.17ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.13ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.13ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.06ms
+[event_logs] Transaction COMMIT (0.49ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.05ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.09ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.04ms
+[event_logs] Transaction COMMIT (0.30ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.51ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.61ms)
+[snapshots] Query: INSERT INTO snapshots ( id, world_id, event_id, created_at, description, state_json, checksum, size_bytes, is_auto ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[snapshots] Query complete: 1 rows in 0.02ms
+[snapshots] Query: SELECT id, world_id, event_id, created_at, description, state_json, checksum, size_bytes, is_auto FROM snapshots WHERE world_id = ? AND event_id <= ? ORDER BY event_id DESC LIMIT 1
+[snapshots] Query complete: 1 rows in 0.03ms
+[snapshots] Query: SELECT * FROM snapshots WHERE id = ?
+[snapshots] Query complete: 1 rows in 0.02ms
+[event_logs] Query: SELECT * FROM event_logs WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ? AND id <= ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? AND id <= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 2 rows in 0.04ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > replayToEvent > should replay from genesis if no snapshot found
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 0 rows in 0.02ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.13ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.07ms)
+[snapshots] Query: SELECT id, world_id, event_id, created_at, description, state_json, checksum, size_bytes, is_auto FROM snapshots WHERE world_id = ? AND event_id <= ? ORDER BY event_id DESC LIMIT 1
+[snapshots] Query complete: 0 rows in 0.02ms
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ? AND id <= ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? AND id <= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 2 rows in 0.04ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > verifyReplay > should verify matching state
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 0 rows in 0.02ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.12ms)
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 1 rows in 0.03ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > verifyReplay > should detect state differences
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 0 rows in 0.02ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.12ms)
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 1 rows in 0.03ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > registerHandler > should allow registering custom event handlers
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > RNG state management > should load RNG states from database
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[rng_state] Query: SELECT id, world_id, context, seed, call_index, last_value, updated_at FROM rng_state WHERE world_id = ? AND context = ?
+[rng_state] Query complete: 0 rows in 0.03ms
+[rng_state] Query: INSERT INTO rng_state (id, world_id, context, seed, call_index, last_value, updated_at) VALUES (?, ?, ?, ?, 0, NULL, ?)
+[rng_state] Query complete: 1 rows in 0.02ms
+[rng_state] Query: UPDATE rng_state SET call_index = call_index + 1, last_value = ?, updated_at = ? WHERE world_id = ? AND context = ?
+[rng_state] Query complete: 1 rows in 0.02ms
+[rng_state] Query: SELECT id, world_id, context, seed, call_index, last_value, updated_at FROM rng_state WHERE world_id = ? AND context = ?
+[rng_state] Query complete: 1 rows in 0.02ms
+[rng_state] Query: SELECT id, world_id, context, seed, call_index, last_value, updated_at FROM rng_state WHERE world_id = ? ORDER BY context ASC
+[rng_state] Query complete: 1 rows in 0.02ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > RNG state management > should persist RNG states to database
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[rng_state] Transaction BEGIN
+[rng_state] Query: DELETE FROM rng_state WHERE world_id = ?
+[rng_state] Query complete: 0 rows in 0.02ms
+[rng_state] Query: INSERT INTO rng_state (id, world_id, context, seed, call_index, last_value, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+[rng_state] Query complete: 1 rows in 0.02ms
+[rng_state] Transaction COMMIT (0.11ms)
+[rng_state] Query: SELECT id, world_id, context, seed, call_index, last_value, updated_at FROM rng_state WHERE world_id = ? ORDER BY context ASC
+[rng_state] Query complete: 1 rows in 0.03ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > RNG state management > should restore RNG states from snapshot during replay
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[snapshots] Query: INSERT INTO snapshots ( id, world_id, event_id, created_at, description, state_json, checksum, size_bytes, is_auto ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[snapshots] Query complete: 1 rows in 0.03ms
+[snapshots] Query: SELECT id, world_id, event_id, created_at, description, state_json, checksum, size_bytes, is_auto FROM snapshots WHERE world_id = ? ORDER BY event_id DESC LIMIT 1
+[snapshots] Query complete: 1 rows in 0.03ms
+[snapshots] Query: SELECT * FROM snapshots WHERE id = ?
+[snapshots] Query complete: 1 rows in 0.02ms
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 0 rows in 0.03ms
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > repository access > should provide access to snapshot repository
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > repository access > should provide access to RNG state repository
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+
+stderr | tests/replay-engine.test.ts > ReplayEngine > to_event_id option > should stop replay at specified event
+[Migration] Adding character_type column to characters table
+[Migration] Adding owner_nation_id column to regions table
+[Migration] Adding control_level column to regions table
+[Migration] Adding character_class column to characters table
+[Migration] Adding spell_slots column to characters table
+[Migration] Adding pact_magic_slots column to characters table
+[Migration] Adding known_spells column to characters table
+[Migration] Adding prepared_spells column to characters table
+[Migration] Adding cantrips_known column to characters table
+[Migration] Adding max_spell_level column to characters table
+[Migration] Adding concentrating_on column to characters table
+[Migration] Adding conditions column to characters table
+[Migration] Adding race column to characters table
+[Migration] Adding legendary_actions column to characters table
+[Migration] Adding legendary_actions_remaining column to characters table
+[Migration] Adding legendary_resistances column to characters table
+[Migration] Adding legendary_resistances_remaining column to characters table
+[Migration] Adding has_lair_actions column to characters table
+[Migration] Adding resistances column to characters table
+[Migration] Adding vulnerabilities column to characters table
+[Migration] Adding immunities column to characters table
+[Migration] Adding currency column to characters table
+[Migration] Adding currency column to corpses table
+[Migration] Adding currency_looted column to corpses table
+[Migration] Adding current_room_id column to characters table
+[Migration] Adding perception_bonus column to characters table
+[Migration] Adding stealth_bonus column to characters table
+[Migration] Adding xp column to characters table
+[Migration] Adding local_x column to room_nodes table
+[Migration] Adding local_y column to room_nodes table
+[Migration] Adding network_id column to room_nodes table
+[Migration] Adding world_id column to event_logs table
+[Migration] Adding event_type column to event_logs table
+[Migration] Adding actor_id column to event_logs table
+[Migration] Adding target_id column to event_logs table
+[Migration] Adding prev_hash column to event_logs table
+[Migration] Adding hash column to event_logs table
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 0 rows in 0.04ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.03ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Transaction COMMIT (0.36ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Transaction COMMIT (0.11ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.06ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.06ms)
+[event_logs] Transaction BEGIN
+[event_logs] Query: SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Query: INSERT INTO event_logs (world_id, timestamp, type, event_type, actor_id, target_id, payload, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Query: UPDATE event_logs SET hash = ? WHERE id = ?
+[event_logs] Query complete: 1 rows in 0.01ms
+[event_logs] Transaction COMMIT (0.05ms)
+[event_logs] Query: SELECT COUNT(*) as count FROM event_logs WHERE world_id = ? AND id >= ? AND id <= ?
+[event_logs] Query complete: 1 rows in 0.02ms
+[event_logs] Query: SELECT id, world_id, timestamp, event_type, actor_id, target_id, payload, prev_hash, hash FROM event_logs WHERE world_id = ? AND id >= ? AND id <= ? ORDER BY id ASC LIMIT ?
+[event_logs] Query complete: 3 rows in 0.04ms
+
+ ✓ tests/replay-engine.test.ts  (20 tests) 276ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Movement with Positions > should support position data on participants
+AssertionError: expected 'Encounter created successfully!\nID: …' to contain 'hero-1'
+
+- Expected
++ Received
+
+- hero-1
++ Encounter created successfully!
++ ID: encounter-pos-test-1-15712149505654694000
++ World: 123e4567-e89b-12d3-a456-426614174001
++ Status: active
++
++ <!-- STATE_JSON
++ {
++   "encounter": {
++     "id": "encounter-pos-test-1-15712149505654694000",
++     "world_id": "123e4567-e89b-12d3-a456-426614174001",
++     "region_id": "123e4567-e89b-12d3-a456-426614174002",
++     "room_id": "123e4567-e89b-12d3-a456-426614174003",
++     "round": 1,
++     "status": "active",
++     "grid_min_x": 0,
++     "grid_max_x": 20,
++     "grid_min_y": 0,
++     "grid_max_y": 20,
++     "seed": "pos-test-1",
++     "created_at": "2026-01-04T15:32:36.339Z"
++   }
++ }
++ STATE_JSON -->
+
+ ❯ tests/server/spatial-combat.test.ts:99:26
+     97|             const text = result.content[0].text;
+     98|             // Encounter created successfully with positions
+     99|             expect(text).toContain('hero-1');
+       |                          ^
+    100|             expect(text).toContain('goblin-1');
+    101|         });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Movement with Positions > should execute move action to new position
+Error: Actor hero-1 not found
+ ❯ Module.handleExecuteCombatAction src/server/combat-tools.ts:1394:19
+    1392|         const actor = currentState.participants.find(p => p.id === par…
+    1393|         if (!actor) {
+    1394|             throw new Error(`Actor ${parsed.actorId} not found`);
+       |                   ^
+    1395|         }
+    1396| 
+ ❯ tests/server/spatial-combat.test.ts:134:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Movement with Positions > should block movement onto occupied squares
+Error: Actor hero-1 not found
+ ❯ Module.handleExecuteCombatAction src/server/combat-tools.ts:1394:19
+    1392|         const actor = currentState.participants.find(p => p.id === par…
+    1393|         if (!actor) {
+    1394|             throw new Error(`Actor ${parsed.actorId} not found`);
+       |                   ^
+    1395|         }
+    1396| 
+ ❯ tests/server/spatial-combat.test.ts:178:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/server/spatial-combat.test.ts > CRIT-003: Spatial Combat Movement > Terrain Obstacles > should block movement onto terrain obstacles
+Error: Actor hero-1 not found
+ ❯ Module.handleExecuteCombatAction src/server/combat-tools.ts:1394:19
+    1392|         const actor = currentState.participants.find(p => p.id === par…
+    1393|         if (!actor) {
+    1394|             throw new Error(`Actor ${parsed.actorId} not found`);
+       |                   ^
+    1395|         }
+    1396| 
+ ❯ tests/server/spatial-combat.test.ts:217:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  4 failed | 45 passed (49)
+   Start at  12:32:35
+   Duration  786ms (transform 437ms, setup 32ms, collect 710ms, tests 783ms, environment 0ms, prepare 174ms)
+

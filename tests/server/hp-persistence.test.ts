@@ -5,16 +5,28 @@ import {
     handleEndEncounter,
     handleGetEncounterState,
     handleAdvanceTurn,
+    handleAddToken,
+    handleRollInitiative,
     clearCombatState
 } from '../../src/server/combat-tools';
 import {
     handleCreateCharacter,
     handleGetCharacter,
-    closeTestDb
+    handleCreateWorld
 } from '../../src/server/crud-tools';
-import { closeDb, getDb } from '../../src/storage';
+import { closeDb, initDB } from '../../src/storage';
 
 const mockCtx = { sessionId: 'test-session' };
+
+// Helper to extract JSON from formatted response
+function extractJson(text: string, tag: string): any {
+    const regex = new RegExp(`<!-- ${tag}_JSON\\n([\\s\\S]*?)\\n${tag}_JSON -->`);
+    const match = text.match(regex);
+    if (match) return JSON.parse(match[1]);
+    return JSON.parse(text);
+}
+
+let testWorldId: string;
 
 /**
  * CRIT-001: HP Desynchronization After Combat
@@ -29,15 +41,72 @@ const mockCtx = { sessionId: 'test-session' };
  * isn't synced back to the character table when the encounter ends.
  */
 describe('CRIT-001: HP Persistence After Combat', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         closeDb();
-        getDb(':memory:');
+        initDB(':memory:');
         clearCombatState();
+        
+        // Create a world for encounters
+        const worldResult = await handleCreateWorld({
+            name: 'HP Test World',
+            seed: 'hp-test',
+            width: 50,
+            height: 50
+        }, mockCtx);
+        const world = extractJson(worldResult.content[0].text, 'WORLD');
+        testWorldId = world.id;
     });
 
     afterEach(() => {
-        closeTestDb();
+        closeDb();
     });
+
+    // Helper to create encounter with tokens
+    async function createEncounterWithTokens(seed: string, tokens: Array<{
+        id: string;
+        characterId: string;
+        name: string;
+        hp: number;
+        maxHp: number;
+        ac: number;
+        initiativeBonus: number;
+        isEnemy: boolean;
+        x: number;
+        y: number;
+    }>): Promise<{ encounterId: string; tokenIds: Map<string, string> }> {
+        // Create empty encounter
+        const encounterResult = await handleCreateEncounter({
+            worldId: testWorldId,
+            seed
+        }, mockCtx);
+        const encounterData = extractJson(encounterResult.content[0].text, 'STATE');
+        const encounterId = encounterData.encounter?.id || encounterData.encounterId;
+        
+        // Add tokens and track their IDs
+        const tokenIds = new Map<string, string>();
+        for (const token of tokens) {
+            const tokenResult = await handleAddToken({
+                encounterId,
+                name: token.name,
+                hp: token.hp,
+                maxHp: token.maxHp,
+                ac: token.ac,
+                initiativeBonus: token.initiativeBonus,
+                isEnemy: token.isEnemy,
+                positionX: token.x,
+                positionY: token.y,
+                characterId: token.characterId
+            }, mockCtx);
+            const tokenData = extractJson(tokenResult.content[0].text, 'STATE');
+            const actualTokenId = tokenData.token?.id || tokenData.id;
+            tokenIds.set(token.id, actualTokenId);
+        }
+        
+        // Roll initiative
+        await handleRollInitiative({ encounterId }, mockCtx);
+        
+        return { encounterId, tokenIds };
+    }
 
     it('should persist HP changes after encounter ends', async () => {
         // 1. Create a character with 50 HP
@@ -49,46 +118,47 @@ describe('CRIT-001: HP Persistence After Combat', () => {
             ac: 16,
             level: 3
         }, mockCtx);
-        const character = JSON.parse(charResult.content[0].text);
+        const charData = extractJson(charResult.content[0].text, 'CHARACTER');
+        const character = charData.character || charData;
         expect(character.hp).toBe(50);
 
         // 2. Create an encounter with this character and an enemy
-        const encounterResult = await handleCreateEncounter({
-            seed: 'hp-persistence-test',
-            participants: [
-                {
-                    id: character.id,
-                    name: character.name,
-                    initiativeBonus: 2,
-                    hp: character.hp,
-                    maxHp: character.maxHp,
-                    conditions: []
-                },
-                {
-                    id: 'enemy-goblin',
-                    name: 'Goblin',
-                    initiativeBonus: 1,
-                    hp: 10,
-                    maxHp: 10,
-                    isEnemy: true,
-                    conditions: []
-                }
-            ]
-        }, mockCtx);
+        const { encounterId, tokenIds } = await createEncounterWithTokens('hp-persistence-test', [
+            {
+                id: 'hero',
+                characterId: character.id,
+                name: character.name,
+                hp: character.hp,
+                maxHp: character.maxHp,
+                ac: 16,
+                initiativeBonus: 2,
+                isEnemy: false,
+                x: 5,
+                y: 5
+            },
+            {
+                id: 'goblin',
+                characterId: 'enemy-goblin',
+                name: 'Goblin',
+                hp: 10,
+                maxHp: 10,
+                ac: 13,
+                initiativeBonus: 1,
+                isEnemy: true,
+                x: 7,
+                y: 5
+            }
+        ]);
 
-        // Extract encounter ID from the response
-        const encounterText = encounterResult.content[0].text;
-        const encounterIdMatch = encounterText.match(/Encounter ID: (encounter-[^\n]+)/);
-        expect(encounterIdMatch).toBeTruthy();
-        const encounterId = encounterIdMatch![1];
+        const heroTokenId = tokenIds.get('hero')!;
+        const goblinTokenId = tokenIds.get('goblin')!;
 
         // 3. Execute an attack that deals damage to the character
-        // Use very high attack bonus to guarantee a hit
         const attackResult = await handleExecuteCombatAction({
             encounterId,
             action: 'attack',
-            actorId: 'enemy-goblin',
-            targetId: character.id,
+            actorId: goblinTokenId,
+            targetId: heroTokenId,
             attackBonus: 20,  // Very high bonus to guarantee hit
             dc: 10,          // Low DC to ensure hit
             damage: 20       // Base damage (may be doubled on crit)
@@ -99,9 +169,10 @@ describe('CRIT-001: HP Persistence After Combat', () => {
         expect(attackText).toContain('HIT');
 
         // 4. Verify HP changed in encounter state
-        const stateResult = await handleGetEncounterState({ encounterId }, mockCtx);
-        const heroInEncounter = stateResult.participants.find(
-            (p: any) => p.id === character.id
+        const stateResponse = await handleGetEncounterState({ encounterId }, mockCtx);
+        const stateResult = extractJson(stateResponse.content[0].text, 'STATE');
+        const heroInEncounter = stateResult.tokens?.find(
+            (p: any) => p.character_id === heroTokenId || p.id === heroTokenId
         );
 
         expect(heroInEncounter).toBeDefined();
@@ -114,7 +185,8 @@ describe('CRIT-001: HP Persistence After Combat', () => {
 
         // 6. CRITICAL TEST: Check if HP persisted back to character record
         const reloadedResult = await handleGetCharacter({ id: character.id }, mockCtx);
-        const reloadedCharacter = JSON.parse(reloadedResult.content[0].text);
+        const reloadedData = extractJson(reloadedResult.content[0].text, 'CHARACTER');
+        const reloadedCharacter = reloadedData.character || reloadedData;
 
         // HP in character record should match the HP at end of combat
         expect(reloadedCharacter.hp).toBe(hpAfterCombat);
@@ -130,7 +202,8 @@ describe('CRIT-001: HP Persistence After Combat', () => {
             ac: 18,
             level: 3
         }, mockCtx);
-        const hero1 = JSON.parse(hero1Result.content[0].text);
+        const hero1Data = extractJson(hero1Result.content[0].text, 'CHARACTER');
+        const hero1 = hero1Data.character || hero1Data;
 
         const hero2Result = await handleCreateCharacter({
             name: 'Wizard',
@@ -140,51 +213,59 @@ describe('CRIT-001: HP Persistence After Combat', () => {
             ac: 12,
             level: 3
         }, mockCtx);
-        const hero2 = JSON.parse(hero2Result.content[0].text);
+        const hero2Data = extractJson(hero2Result.content[0].text, 'CHARACTER');
+        const hero2 = hero2Data.character || hero2Data;
 
         // Create encounter
-        const encounterResult = await handleCreateEncounter({
-            seed: 'multi-hp-test',
-            participants: [
-                {
-                    id: hero1.id,
-                    name: hero1.name,
-                    initiativeBonus: 2,
-                    hp: hero1.hp,
-                    maxHp: hero1.maxHp,
-                    conditions: []
-                },
-                {
-                    id: hero2.id,
-                    name: hero2.name,
-                    initiativeBonus: 1,
-                    hp: hero2.hp,
-                    maxHp: hero2.maxHp,
-                    conditions: []
-                },
-                {
-                    id: 'enemy-orc',
-                    name: 'Orc',
-                    initiativeBonus: 0,
-                    hp: 15,
-                    maxHp: 15,
-                    isEnemy: true,
-                    conditions: []
-                }
-            ]
-        }, mockCtx);
+        const { encounterId, tokenIds } = await createEncounterWithTokens('multi-hp-test', [
+            {
+                id: 'hero1',
+                characterId: hero1.id,
+                name: hero1.name,
+                hp: hero1.hp,
+                maxHp: hero1.maxHp,
+                ac: 18,
+                initiativeBonus: 2,
+                isEnemy: false,
+                x: 5,
+                y: 5
+            },
+            {
+                id: 'hero2',
+                characterId: hero2.id,
+                name: hero2.name,
+                hp: hero2.hp,
+                maxHp: hero2.maxHp,
+                ac: 12,
+                initiativeBonus: 1,
+                isEnemy: false,
+                x: 5,
+                y: 7
+            },
+            {
+                id: 'orc',
+                characterId: 'enemy-orc',
+                name: 'Orc',
+                hp: 15,
+                maxHp: 15,
+                ac: 13,
+                initiativeBonus: 0,
+                isEnemy: true,
+                x: 7,
+                y: 6
+            }
+        ]);
 
-        const encounterText = encounterResult.content[0].text;
-        const encounterIdMatch = encounterText.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = encounterIdMatch![1];
+        const hero1TokenId = tokenIds.get('hero1')!;
+        const hero2TokenId = tokenIds.get('hero2')!;
+        const orcTokenId = tokenIds.get('orc')!;
 
         // Damage both heroes (use high bonus to guarantee hits)
-        // Attack hero1
         await handleExecuteCombatAction({
             encounterId,
             action: 'attack',
-            actorId: 'enemy-orc',
-            targetId: hero1.id,
+            actorId: orcTokenId,
+            targetId: hero1TokenId,
             attackBonus: 20,
             dc: 10,
             damage: 15
@@ -199,17 +280,18 @@ describe('CRIT-001: HP Persistence After Combat', () => {
         await handleExecuteCombatAction({
             encounterId,
             action: 'attack',
-            actorId: 'enemy-orc',
-            targetId: hero2.id,
+            actorId: orcTokenId,
+            targetId: hero2TokenId,
             attackBonus: 20,
             dc: 10,
             damage: 10
         }, mockCtx);
 
         // Get HP values after combat (before ending encounter)
-        const stateResult = await handleGetEncounterState({ encounterId }, mockCtx);
-        const hero1InEncounter = stateResult.participants.find((p: any) => p.id === hero1.id);
-        const hero2InEncounter = stateResult.participants.find((p: any) => p.id === hero2.id);
+        const stateResponse = await handleGetEncounterState({ encounterId }, mockCtx);
+        const stateResult = extractJson(stateResponse.content[0].text, 'STATE');
+        const hero1InEncounter = stateResult.tokens?.find((p: any) => p.character_id === hero1TokenId || p.id === hero1TokenId);
+        const hero2InEncounter = stateResult.tokens?.find((p: any) => p.character_id === hero2TokenId || p.id === hero2TokenId);
 
         expect(hero1InEncounter.hp).toBeLessThan(40); // Took damage
         expect(hero2InEncounter.hp).toBeLessThan(25); // Took damage
@@ -221,12 +303,17 @@ describe('CRIT-001: HP Persistence After Combat', () => {
         await handleEndEncounter({ encounterId }, mockCtx);
 
         // Verify both characters have updated HP that matches combat state
-        const reloaded1 = JSON.parse(
-            (await handleGetCharacter({ id: hero1.id }, mockCtx)).content[0].text
+        const reloaded1Data = extractJson(
+            (await handleGetCharacter({ id: hero1.id }, mockCtx)).content[0].text,
+            'CHARACTER'
         );
-        const reloaded2 = JSON.parse(
-            (await handleGetCharacter({ id: hero2.id }, mockCtx)).content[0].text
+        const reloaded1 = reloaded1Data.character || reloaded1Data;
+        
+        const reloaded2Data = extractJson(
+            (await handleGetCharacter({ id: hero2.id }, mockCtx)).content[0].text,
+            'CHARACTER'
         );
+        const reloaded2 = reloaded2Data.character || reloaded2Data;
 
         expect(reloaded1.hp).toBe(hp1AfterCombat);
         expect(reloaded2.hp).toBe(hp2AfterCombat);
@@ -242,50 +329,55 @@ describe('CRIT-001: HP Persistence After Combat', () => {
             ac: 15,
             level: 2
         }, mockCtx);
-        const hero = JSON.parse(heroResult.content[0].text);
+        const heroData = extractJson(heroResult.content[0].text, 'CHARACTER');
+        const hero = heroData.character || heroData;
 
         // Create encounter with ad-hoc enemy (not in character table)
-        const encounterResult = await handleCreateEncounter({
-            seed: 'adhoc-enemy-test',
-            participants: [
-                {
-                    id: hero.id,
-                    name: hero.name,
-                    initiativeBonus: 2,
-                    hp: hero.hp,
-                    maxHp: hero.maxHp,
-                    conditions: []
-                },
-                {
-                    id: 'random-goblin-123',
-                    name: 'Random Goblin',
-                    initiativeBonus: 1,
-                    hp: 7,
-                    maxHp: 7,
-                    isEnemy: true,
-                    conditions: []
-                }
-            ]
-        }, mockCtx);
+        const { encounterId, tokenIds } = await createEncounterWithTokens('adhoc-enemy-test', [
+            {
+                id: 'hero',
+                characterId: hero.id,
+                name: hero.name,
+                hp: hero.hp,
+                maxHp: hero.maxHp,
+                ac: 15,
+                initiativeBonus: 2,
+                isEnemy: false,
+                x: 5,
+                y: 5
+            },
+            {
+                id: 'goblin',
+                characterId: 'random-goblin-123',
+                name: 'Random Goblin',
+                hp: 7,
+                maxHp: 7,
+                ac: 13,
+                initiativeBonus: 1,
+                isEnemy: true,
+                x: 7,
+                y: 5
+            }
+        ]);
 
-        const encounterText = encounterResult.content[0].text;
-        const encounterIdMatch = encounterText.match(/Encounter ID: (encounter-[^\n]+)/);
-        const encounterId = encounterIdMatch![1];
+        const heroTokenId = tokenIds.get('hero')!;
+        const goblinTokenId = tokenIds.get('goblin')!;
 
         // Hero takes damage (use high bonus to guarantee hit)
         await handleExecuteCombatAction({
             encounterId,
             action: 'attack',
-            actorId: 'random-goblin-123',
-            targetId: hero.id,
+            actorId: goblinTokenId,
+            targetId: heroTokenId,
             attackBonus: 20,
             dc: 10,
             damage: 12
         }, mockCtx);
 
         // Get hero HP after combat
-        const stateResult = await handleGetEncounterState({ encounterId }, mockCtx);
-        const heroInEncounter = stateResult.participants.find((p: any) => p.id === hero.id);
+        const stateResponse = await handleGetEncounterState({ encounterId }, mockCtx);
+        const stateResult = extractJson(stateResponse.content[0].text, 'STATE');
+        const heroInEncounter = stateResult.tokens?.find((p: any) => p.character_id === heroTokenId || p.id === heroTokenId);
         expect(heroInEncounter.hp).toBeLessThan(30); // Took damage
         const hpAfterCombat = heroInEncounter.hp;
 
@@ -293,9 +385,11 @@ describe('CRIT-001: HP Persistence After Combat', () => {
         await handleEndEncounter({ encounterId }, mockCtx);
 
         // Hero HP should be synced to match combat state
-        const reloadedHero = JSON.parse(
-            (await handleGetCharacter({ id: hero.id }, mockCtx)).content[0].text
+        const reloadedData = extractJson(
+            (await handleGetCharacter({ id: hero.id }, mockCtx)).content[0].text,
+            'CHARACTER'
         );
+        const reloadedHero = reloadedData.character || reloadedData;
         expect(reloadedHero.hp).toBe(hpAfterCombat);
 
         // Ad-hoc enemy should not cause any errors (it's not in character table)

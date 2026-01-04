@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
     handleCreateEncounter,
     handleGetEncounterState,
@@ -6,11 +6,18 @@ import {
     handleAdvanceTurn,
     handleEndEncounter,
     handleLoadEncounter,
+    handleAddToken,
+    handleRollInitiative,
     clearCombatState
 } from '../../src/server/combat-tools';
 import { getCombatManager } from '../../src/server/state/combat-manager';
+import { handleCreateWorld, closeTestDb } from '../../src/server/crud-tools';
+import { closeDb, initDB } from '../../src/storage';
 
 const mockCtx = { sessionId: 'test-session' };
+
+// Test world ID - created in beforeEach
+let testWorldId: string;
 
 /**
  * Helper to extract JSON state from combat tool responses.
@@ -30,72 +37,143 @@ function extractStateJson(responseText: string): any {
     }
 }
 
+/**
+ * Helper to extract JSON from WORLD_JSON embedded format.
+ */
+function extractWorldJson(responseText: string): any {
+    const match = responseText.match(/<!-- WORLD_JSON\n([\s\S]*?)\nWORLD_JSON -->/);
+    if (match) {
+        return JSON.parse(match[1]);
+    }
+    // Fallback: try parsing directly
+    try {
+        return JSON.parse(responseText);
+    } catch {
+        throw new Error('Could not extract world JSON from response');
+    }
+}
+
+/**
+ * Helper to create an encounter with participants using the new API flow:
+ * 1. Create encounter with worldId
+ * 2. Add tokens via handleAddToken
+ * 3. Roll initiative via handleRollInitiative
+ */
+async function createEncounterWithParticipants(
+    seed: string,
+    participants: Array<{
+        id: string;
+        name: string;
+        initiativeBonus: number;
+        hp: number;
+        maxHp: number;
+        isEnemy?: boolean;
+        conditions?: string[];
+    }>
+): Promise<string> {
+    // Create the encounter
+    const createResult = await handleCreateEncounter({
+        worldId: testWorldId,
+        seed
+    }, mockCtx);
+    
+    const encounterText = createResult.content[0].text;
+    const stateJson = extractStateJson(encounterText);
+    const encounterId = stateJson.encounter.id;
+    
+    // Add each participant as a token
+    for (const p of participants) {
+        await handleAddToken({
+            encounterId,
+            characterId: p.id,
+            name: p.name,
+            initiativeBonus: p.initiativeBonus,
+            isEnemy: p.isEnemy ?? false,
+            hp: p.hp,
+            maxHp: p.maxHp,
+            positionX: 0,
+            positionY: 0
+        }, mockCtx);
+    }
+    
+    // Roll initiative to set up turn order
+    await handleRollInitiative({ encounterId }, mockCtx);
+    
+    return encounterId;
+}
+
 describe('Combat MCP Tools', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
+        // Initialize in-memory database with migrations
+        closeDb();
+        initDB(':memory:');
+        
         // Clear any existing combat state
         clearCombatState();
+        
+        // Create a test world for encounters
+        const worldResult = await handleCreateWorld({
+            name: 'Test World',
+            seed: 'test-world-seed',
+            width: 50,
+            height: 50
+        }, mockCtx);
+        const worldData = extractWorldJson(worldResult.content[0].text);
+        testWorldId = worldData.id;
+    });
+    
+    afterEach(() => {
+        closeTestDb();
     });
 
     describe('create_encounter', () => {
         it('should create a new combat encounter with participants', async () => {
-            const result = await handleCreateEncounter({
-                seed: 'test-combat-1',
-                participants: [
-                    {
-                        id: 'hero-1',
-                        name: 'Fighter',
-                        initiativeBonus: 2,
-                        hp: 30,
-                        maxHp: 30,
-                        conditions: []
-                    },
-                    {
-                        id: 'goblin-1',
-                        name: 'Goblin',
-                        initiativeBonus: 1,
-                        hp: 10,
-                        maxHp: 10,
-                        conditions: []
-                    }
-                ]
-            }, mockCtx);
-
-            expect(result.content).toHaveLength(1);
-            const response = extractStateJson(result.content[0].text);
-
-            expect(response.encounterId).toBeDefined();
-            expect(response.turnOrder).toBeDefined();
-            expect(response.turnOrder.length).toBe(2);
-            expect(response.round).toBe(1);
-            expect(response.currentTurn).toBeDefined();
-        });
-
-        it('should allow multiple concurrent encounters', async () => {
-            const result1 = await handleCreateEncounter({
-                seed: 'test-combat-2',
-                participants: [{
+            const encounterId = await createEncounterWithParticipants('test-combat-1', [
+                {
                     id: 'hero-1',
                     name: 'Fighter',
                     initiativeBonus: 2,
                     hp: 30,
-                    maxHp: 30,
-                    conditions: []
-                }]
-            }, mockCtx);
-            const id1 = extractStateJson(result1.content[0].text).encounterId;
-
-            const result2 = await handleCreateEncounter({
-                seed: 'test-combat-3',
-                participants: [{
-                    id: 'hero-2',
-                    name: 'Wizard',
+                    maxHp: 30
+                },
+                {
+                    id: 'goblin-1',
+                    name: 'Goblin',
                     initiativeBonus: 1,
-                    hp: 20,
-                    maxHp: 20,
-                    conditions: []
-                }]
-            }, mockCtx);
-            const id2 = extractStateJson(result2.content[0].text).encounterId;
+                    hp: 10,
+                    maxHp: 10,
+                    isEnemy: true
+                }
+            ]);
+
+            expect(encounterId).toBeDefined();
+            
+            // Get the encounter state to verify participants
+            const stateResult = await handleGetEncounterState({ encounterId }, mockCtx);
+            const stateText = stateResult.content[0].text;
+            const state = extractStateJson(stateText);
+            
+            expect(state.tokens).toBeDefined();
+            expect(state.tokens.length).toBe(2);
+            expect(state.encounter.round).toBe(1);
+        });
+
+        it('should allow multiple concurrent encounters', async () => {
+            const id1 = await createEncounterWithParticipants('test-combat-2', [{
+                id: 'hero-1',
+                name: 'Fighter',
+                initiativeBonus: 2,
+                hp: 30,
+                maxHp: 30
+            }]);
+
+            const id2 = await createEncounterWithParticipants('test-combat-3', [{
+                id: 'hero-2',
+                name: 'Wizard',
+                initiativeBonus: 1,
+                hp: 20,
+                maxHp: 20
+            }]);
 
             expect(id1).not.toBe(id2);
 
@@ -107,27 +185,22 @@ describe('Combat MCP Tools', () => {
 
     describe('get_encounter_state', () => {
         it('should return current encounter state', async () => {
-            const createResult = await handleCreateEncounter({
-                seed: 'test-state-1',
-                participants: [
-                    {
-                        id: 'hero-1',
-                        name: 'Wizard',
-                        initiativeBonus: 1,
-                        hp: 25,
-                        maxHp: 25,
-                        conditions: []
-                    }
-                ]
-            }, mockCtx);
-            const encounterId = extractStateJson(createResult.content[0].text).encounterId;
+            const encounterId = await createEncounterWithParticipants('test-state-1', [
+                {
+                    id: 'hero-1',
+                    name: 'Wizard',
+                    initiativeBonus: 1,
+                    hp: 25,
+                    maxHp: 25
+                }
+            ]);
 
-            // handleGetEncounterState returns state directly (not wrapped in content)
-            const state = await handleGetEncounterState({ encounterId }, mockCtx);
+            // handleGetEncounterState returns content with embedded state JSON
+            const stateResult = await handleGetEncounterState({ encounterId }, mockCtx);
+            const state = extractStateJson(stateResult.content[0].text);
 
-            expect(state.participants).toBeDefined();
-            expect(state.turnOrder).toBeDefined();
-            expect(state.round).toBe(1);
+            expect(state.tokens).toBeDefined();
+            expect(state.encounter.round).toBe(1);
         });
 
         it('should throw error when no encounter exists', async () => {
@@ -137,28 +210,23 @@ describe('Combat MCP Tools', () => {
 
     describe('execute_combat_action', () => {
         async function createTestEncounter() {
-            const result = await handleCreateEncounter({
-                seed: 'test-actions',
-                participants: [
-                    {
-                        id: 'attacker',
-                        name: 'Fighter',
-                        initiativeBonus: 3,
-                        hp: 30,
-                        maxHp: 30,
-                        conditions: []
-                    },
-                    {
-                        id: 'defender',
-                        name: 'Orc',
-                        initiativeBonus: 1,
-                        hp: 20,
-                        maxHp: 20,
-                        conditions: []
-                    }
-                ]
-            }, mockCtx);
-            return extractStateJson(result.content[0].text).encounterId;
+            return await createEncounterWithParticipants('test-actions', [
+                {
+                    id: 'attacker',
+                    name: 'Fighter',
+                    initiativeBonus: 3,
+                    hp: 30,
+                    maxHp: 30
+                },
+                {
+                    id: 'defender',
+                    name: 'Orc',
+                    initiativeBonus: 1,
+                    hp: 20,
+                    maxHp: 20,
+                    isEnemy: true
+                }
+            ]);
         }
 
         it('should execute attack action and apply damage', async () => {
@@ -184,12 +252,28 @@ describe('Combat MCP Tools', () => {
         });
 
         it('should execute heal action', async () => {
-            const encounterId = await createTestEncounter();
+            // Create a fresh encounter with unique seed for this test
+            const encounterId = await createEncounterWithParticipants('test-heal-action', [
+                {
+                    id: 'healer',
+                    name: 'Cleric',
+                    initiativeBonus: 3,
+                    hp: 30,
+                    maxHp: 30
+                },
+                {
+                    id: 'wounded',
+                    name: 'Fighter',
+                    initiativeBonus: 1,
+                    hp: 15, // Start with reduced HP so heal is meaningful
+                    maxHp: 20
+                }
+            ]);
             const result = await handleExecuteCombatAction({
                 encounterId,
                 action: 'heal',
-                actorId: 'attacker',
-                targetId: 'defender',
+                actorId: 'healer',
+                targetId: 'wounded',
                 amount: 5
             }, mockCtx);
 
@@ -214,28 +298,23 @@ describe('Combat MCP Tools', () => {
 
     describe('advance_turn', () => {
         async function createTestEncounter() {
-            const result = await handleCreateEncounter({
-                seed: 'test-turn',
-                participants: [
-                    {
-                        id: 'p1',
-                        name: 'Hero',
-                        initiativeBonus: 2,
-                        hp: 30,
-                        maxHp: 30,
-                        conditions: []
-                    },
-                    {
-                        id: 'p2',
-                        name: 'Enemy',
-                        initiativeBonus: 1,
-                        hp: 20,
-                        maxHp: 20,
-                        conditions: []
-                    }
-                ]
-            }, mockCtx);
-            return extractStateJson(result.content[0].text).encounterId;
+            return await createEncounterWithParticipants('test-turn', [
+                {
+                    id: 'p1',
+                    name: 'Hero',
+                    initiativeBonus: 2,
+                    hp: 30,
+                    maxHp: 30
+                },
+                {
+                    id: 'p2',
+                    name: 'Enemy',
+                    initiativeBonus: 1,
+                    hp: 20,
+                    maxHp: 20,
+                    isEnemy: true
+                }
+            ]);
         }
 
         it('should advance to next participant turn', async () => {
@@ -266,18 +345,13 @@ describe('Combat MCP Tools', () => {
 
     describe('end_encounter', () => {
         it('should end active encounter', async () => {
-            const createResult = await handleCreateEncounter({
-                seed: 'test-end',
-                participants: [{
-                    id: 'p1',
-                    name: 'Hero',
-                    initiativeBonus: 1,
-                    hp: 30,
-                    maxHp: 30,
-                    conditions: []
-                }]
-            }, mockCtx);
-            const encounterId = extractStateJson(createResult.content[0].text).encounterId;
+            const encounterId = await createEncounterWithParticipants('test-end', [{
+                id: 'p1',
+                name: 'Hero',
+                initiativeBonus: 1,
+                hp: 30,
+                maxHp: 30
+            }]);
 
             const result = await handleEndEncounter({ encounterId }, mockCtx);
 
@@ -298,33 +372,28 @@ describe('Combat MCP Tools', () => {
 
     describe('persistence', () => {
         it('should save and load encounter state', async () => {
-            // 1. Create encounter
-            const createResult = await handleCreateEncounter({
-                seed: 'test-persistence',
-                participants: [{
-                    id: 'p1',
-                    name: 'Hero',
-                    initiativeBonus: 1,
-                    hp: 30,
-                    maxHp: 30,
-                    conditions: []
-                }, {
-                    id: 'p2',
-                    name: 'Enemy',
-                    initiativeBonus: 0,
-                    hp: 30,
-                    maxHp: 30,
-                    conditions: []
-                }]
-            }, mockCtx);
-            const encounterId = extractStateJson(createResult.content[0].text).encounterId;
+            // 1. Create encounter with participants
+            const encounterId = await createEncounterWithParticipants('test-persistence', [{
+                id: 'p1',
+                name: 'Hero',
+                initiativeBonus: 1,
+                hp: 30,
+                maxHp: 30
+            }, {
+                id: 'p2',
+                name: 'Enemy',
+                initiativeBonus: 0,
+                hp: 30,
+                maxHp: 30,
+                isEnemy: true
+            }]);
 
             // 2. Advance turn to change state
             await handleAdvanceTurn({ encounterId }, mockCtx);
 
             // 3. Verify state changed (round might be 1, but turn index changed)
-            // handleGetEncounterState returns state directly (not wrapped in content)
-            const stateBefore = await handleGetEncounterState({ encounterId }, mockCtx);
+            const stateBeforeResult = await handleGetEncounterState({ encounterId }, mockCtx);
+            const stateBefore = extractStateJson(stateBeforeResult.content[0].text);
 
             // 4. "Forget" encounter from memory
             // Note: In the new implementation, we need to delete using the namespaced ID
@@ -338,12 +407,12 @@ describe('Combat MCP Tools', () => {
             expect(loadResult.content[0].text).toContain('ENCOUNTER LOADED');
 
             // 6. Verify state is restored
-            // handleGetEncounterState returns state directly (not wrapped in content)
-            const stateAfter = await handleGetEncounterState({ encounterId }, mockCtx);
+            const stateAfterResult = await handleGetEncounterState({ encounterId }, mockCtx);
+            const stateAfter = extractStateJson(stateAfterResult.content[0].text);
 
-            expect(stateAfter.currentTurn).toEqual(stateBefore.currentTurn);
-            expect(stateAfter.round).toBe(stateBefore.round);
-            expect(stateAfter.participants).toEqual(stateBefore.participants);
+            expect(stateAfter.visualState.currentTurn).toEqual(stateBefore.visualState.currentTurn);
+            expect(stateAfter.encounter.round).toBe(stateBefore.encounter.round);
+            expect(stateAfter.tokens.length).toBe(stateBefore.tokens.length);
         });
     });
 });

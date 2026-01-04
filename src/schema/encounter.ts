@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { CombatTokenSchema } from './combat-token.js';
 
+// Re-export CombatTokenSchema as TokenSchema for backwards compatibility
+export const TokenSchema = CombatTokenSchema;
+
 export const ConditionSchema = z.object({
     id: z.string(),
     type: z.string(),
@@ -88,7 +91,8 @@ export function getSizeFootprint(size: SizeCategory): number {
 // CRIT-003: Terrain schema for blocking obstacles
 export const TerrainSchema = z.object({
     obstacles: z.array(z.string()).default([]), // "x,y" format for blocking tiles
-    difficultTerrain: z.array(z.string()).optional() // Future: 2x movement cost
+    difficultTerrain: z.array(z.string()).default([]), // Future: 2x movement cost
+    water: z.array(z.string()).default([]) // Water tiles
 });
 
 export type Terrain = z.infer<typeof TerrainSchema>;

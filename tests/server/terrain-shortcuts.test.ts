@@ -1,42 +1,75 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
     handleCreateEncounter,
     handleUpdateTerrain,
     handleGenerateTerrainPattern,
+    handleAddToken,
+    handleRollInitiative,
     clearCombatState
 } from '../../src/server/combat-tools';
+import { handleCreateWorld } from '../../src/server/crud-tools';
+import { closeDb, initDB } from '../../src/storage/index.js';
 import { generateMaze, generateMazeWithRooms } from '../../src/server/terrain-patterns';
 
 let testCounter = 0;
 const getMockCtx = () => ({ sessionId: `test-terrain-session-${testCounter++}` });
 
-function extractStateJson(responseText: string): any {
-    const match = responseText.match(/<!-- STATE_JSON\n([\s\S]*?)\nSTATE_JSON -->/);
-    if (match) {
-        return JSON.parse(match[1]);
-    }
-    throw new Error('Could not extract state JSON from response');
+function extractJson(text: string, tag: string): any {
+    const regex = new RegExp(`<!-- ${tag}_JSON\\n([\\s\\S]*?)\\n${tag}_JSON -->`);
+    const match = text.match(regex);
+    if (match) return JSON.parse(match[1]);
+    // Try plain JSON
+    try { return JSON.parse(text); } catch { return {}; }
 }
 
 describe('Terrain Range Shortcuts', () => {
     let encounterId: string;
+    let testWorldId: string;
     let mockCtx: { sessionId: string };
 
     beforeEach(async () => {
+        closeDb();
+        initDB(':memory:');
         clearCombatState();
         mockCtx = getMockCtx();
-        const result = await handleCreateEncounter({
-            seed: `terrain-test-${testCounter}`,
-            participants: [{
-                id: 'p1',
-                name: 'Test',
-                initiativeBonus: 0,
-                hp: 10,
-                maxHp: 10,
-                conditions: []
-            }]
+
+        // Create world first
+        const worldResult = await handleCreateWorld({
+            name: 'Terrain Test World',
+            seed: `terrain-world-${testCounter}`,
+            width: 50,
+            height: 50
         }, mockCtx);
-        encounterId = extractStateJson(result.content[0].text).encounterId;
+        const world = extractJson(worldResult.content[0].text, 'WORLD');
+        testWorldId = world.id;
+
+        // Create encounter
+        const result = await handleCreateEncounter({
+            worldId: testWorldId,
+            seed: `terrain-test-${testCounter}`
+        }, mockCtx);
+        const encounterData = extractJson(result.content[0].text, 'STATE');
+        encounterId = encounterData.encounter?.id || encounterData.encounterId;
+
+        // Add a token - flat parameters, not nested token object
+        await handleAddToken({
+            encounterId,
+            characterId: 'char-p1',
+            name: 'Test',
+            initiativeBonus: 0,
+            isEnemy: false,
+            hp: 10,
+            maxHp: 10,
+            positionX: 5,
+            positionY: 5
+        }, mockCtx);
+
+        await handleRollInitiative({ encounterId, seed: `init-${testCounter}` }, mockCtx);
+    });
+
+    afterEach(() => {
+        clearCombatState();
+        closeDb();
     });
 
     describe('update_terrain with ranges', () => {
@@ -50,7 +83,7 @@ describe('Terrain Range Shortcuts', () => {
                 gridHeight: 10
             }, mockCtx);
 
-            const state = extractStateJson(result.content[0].text);
+            const state = extractJson(result.content[0].text, 'STATE');
             // Row 5 should have tiles from x=0 to x=9
             expect(state.terrain.obstacles).toContain('0,5');
             expect(state.terrain.obstacles).toContain('9,5');
@@ -67,7 +100,7 @@ describe('Terrain Range Shortcuts', () => {
                 gridHeight: 10
             }, mockCtx);
 
-            const state = extractStateJson(result.content[0].text);
+            const state = extractJson(result.content[0].text, 'STATE');
             expect(state.terrain.obstacles).toContain('3,0');
             expect(state.terrain.obstacles).toContain('3,9');
             expect(state.terrain.obstacles.length).toBe(10);
@@ -83,7 +116,7 @@ describe('Terrain Range Shortcuts', () => {
                 gridHeight: 10
             }, mockCtx);
 
-            const state = extractStateJson(result.content[0].text);
+            const state = extractJson(result.content[0].text, 'STATE');
             // x=7 from y=2 to y=5
             expect(state.terrain.obstacles).toContain('7,2');
             expect(state.terrain.obstacles).toContain('7,5');
@@ -101,7 +134,7 @@ describe('Terrain Range Shortcuts', () => {
                 gridHeight: 10
             }, mockCtx);
 
-            const state = extractStateJson(result.content[0].text);
+            const state = extractJson(result.content[0].text, 'STATE');
             // y=3 from x=1 to x=4
             expect(state.terrain.obstacles).toContain('1,3');
             expect(state.terrain.obstacles).toContain('4,3');
@@ -118,7 +151,7 @@ describe('Terrain Range Shortcuts', () => {
                 gridHeight: 10
             }, mockCtx);
 
-            const state = extractStateJson(result.content[0].text);
+            const state = extractJson(result.content[0].text, 'STATE');
             // Diagonal line from (0,0) to (9,9)
             expect(state.terrain.obstacles).toContain('0,0');
             expect(state.terrain.obstacles).toContain('9,9');
@@ -135,7 +168,7 @@ describe('Terrain Range Shortcuts', () => {
                 gridHeight: 10
             }, mockCtx);
 
-            const state = extractStateJson(result.content[0].text);
+            const state = extractJson(result.content[0].text, 'STATE');
             // 3x3 filled rectangle at (2,2)
             expect(state.terrain.obstacles).toContain('2,2');
             expect(state.terrain.obstacles).toContain('4,4');
@@ -152,7 +185,7 @@ describe('Terrain Range Shortcuts', () => {
                 gridHeight: 10
             }, mockCtx);
 
-            const state = extractStateJson(result.content[0].text);
+            const state = extractJson(result.content[0].text, 'STATE');
             // 4x4 hollow box - should have perimeter only
             expect(state.terrain.obstacles).toContain('1,1');
             expect(state.terrain.obstacles).toContain('4,1');
@@ -174,7 +207,7 @@ describe('Terrain Range Shortcuts', () => {
                 gridHeight: 10
             }, mockCtx);
 
-            const state = extractStateJson(result.content[0].text);
+            const state = extractJson(result.content[0].text, 'STATE');
             // Border at margin 0 = outer edge
             expect(state.terrain.obstacles).toContain('0,0');
             expect(state.terrain.obstacles).toContain('9,0');
@@ -196,7 +229,7 @@ describe('Terrain Range Shortcuts', () => {
                 gridHeight: 10
             }, mockCtx);
 
-            const state = extractStateJson(result.content[0].text);
+            const state = extractJson(result.content[0].text, 'STATE');
             // Center should be in circle
             expect(state.terrain.obstacles).toContain('5,5');
             // Should not contain distant points
@@ -213,7 +246,7 @@ describe('Terrain Range Shortcuts', () => {
                 gridHeight: 10
             }, mockCtx);
 
-            const state = extractStateJson(result.content[0].text);
+            const state = extractJson(result.content[0].text, 'STATE');
             // Should form a border (with some overlap at corners)
             expect(state.terrain.obstacles).toContain('0,0');
             expect(state.terrain.obstacles).toContain('9,9');
@@ -231,7 +264,7 @@ describe('Terrain Range Shortcuts', () => {
                 gridHeight: 10
             }, mockCtx);
 
-            const state = extractStateJson(result.content[0].text);
+            const state = extractJson(result.content[0].text, 'STATE');
             // y=x diagonal
             expect(state.terrain.obstacles).toContain('0,0');
             expect(state.terrain.obstacles).toContain('5,5');
@@ -296,24 +329,52 @@ describe('Maze with Rooms Generator', () => {
 
 describe('generate_terrain_pattern tool with maze', () => {
     let encounterId: string;
+    let testWorldId: string;
     let mazeCtx: { sessionId: string };
 
     beforeEach(async () => {
+        closeDb();
+        initDB(':memory:');
         clearCombatState();
         mazeCtx = getMockCtx();
-        const result = await handleCreateEncounter({
-            seed: `maze-pattern-test-${testCounter}`,
-            participants: [{
-                id: 'runner',
-                name: 'Thomas',
-                initiativeBonus: 3,
-                hp: 30,
-                maxHp: 30,
-                conditions: [],
-                position: { x: 50, y: 50, z: 0 }
-            }]
+
+        // Create world first
+        const worldResult = await handleCreateWorld({
+            name: 'Maze Test World',
+            seed: `maze-world-${testCounter}`,
+            width: 100,
+            height: 100
         }, mazeCtx);
-        encounterId = extractStateJson(result.content[0].text).encounterId;
+        const world = extractJson(worldResult.content[0].text, 'WORLD');
+        testWorldId = world.id;
+
+        // Create encounter
+        const result = await handleCreateEncounter({
+            worldId: testWorldId,
+            seed: `maze-pattern-test-${testCounter}`
+        }, mazeCtx);
+        const encounterData = extractJson(result.content[0].text, 'STATE');
+        encounterId = encounterData.encounter?.id || encounterData.encounterId;
+
+        // Add a token - flat parameters, not nested token object
+        await handleAddToken({
+            encounterId,
+            characterId: 'char-runner',
+            name: 'Thomas',
+            initiativeBonus: 0,
+            isEnemy: false,
+            hp: 30,
+            maxHp: 30,
+            positionX: 50,
+            positionY: 50
+        }, mazeCtx);
+
+        await handleRollInitiative({ encounterId, seed: `maze-init-${testCounter}` }, mazeCtx);
+    });
+
+    afterEach(() => {
+        clearCombatState();
+        closeDb();
     });
 
     it('should generate a full 100x100 maze in one call', async () => {

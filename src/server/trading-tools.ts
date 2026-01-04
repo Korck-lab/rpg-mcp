@@ -178,8 +178,8 @@ export async function handleCalculateBuyPrice(args: unknown, _ctx: SessionContex
 
     // Get character for CHA modifier
     const charResult = charRepo.findById(parsed.merchantId); // Using merchantId as character for now
-    const chaMod = charResult.success && charResult.data ?
-        Math.floor((charResult.data.stats.cha - 10) / 2) : 0;
+    const chaMod = charResult ?
+        Math.floor((charResult.stats.cha - 10) / 2) : 0;
 
     // Calculate base price with modifiers
     const basePrice = item.value * parsed.quantity;
@@ -263,15 +263,14 @@ export async function handleCalculateSellPrice(args: unknown, _ctx: SessionConte
 }
 
 export async function handleExecuteBuyTransaction(args: unknown, _ctx: SessionContext) {
-    const { merchantRepo, inventoryRepo, charRepo } = ensureDb();
+    const { inventoryRepo, charRepo } = ensureDb();
     const parsed = TradingTools.EXECUTE_BUY_TRANSACTION.inputSchema.parse(args);
 
     // Get character gold
-    const charResult = charRepo.findById(parsed.characterId);
-    if (!charResult.success || !charResult.data) {
-        throw new Error(charResult.error || `Character not found: ${parsed.characterId}`);
+    const character = charRepo.findById(parsed.characterId);
+    if (!character) {
+        throw new Error(`Character not found: ${parsed.characterId}`);
     }
-    const character = charResult.data;
 
     // Calculate total cost
     let totalCost = 0;
@@ -280,11 +279,11 @@ export async function handleExecuteBuyTransaction(args: unknown, _ctx: SessionCo
     }
 
     // Check if character has enough gold
-    if (character.currency.gold < totalCost) {
+    if (character.currency.gp < totalCost) {
         const response = {
             transaction: {
                 success: false,
-                errorMessage: `Insufficient funds. Required: ${totalCost} gp, Available: ${character.currency.gold} gp`
+                errorMessage: `Insufficient funds. Required: ${totalCost} gp, Available: ${character.currency.gp} gp`
             }
         };
 
@@ -312,7 +311,7 @@ export async function handleExecuteBuyTransaction(args: unknown, _ctx: SessionCo
     charRepo.update(parsed.characterId, {
         currency: {
             ...character.currency,
-            gold: character.currency.gold - totalCost
+            gp: character.currency.gp - totalCost
         }
     });
 
@@ -347,11 +346,10 @@ export async function handleExecuteSellTransaction(args: unknown, _ctx: SessionC
     const parsed = TradingTools.EXECUTE_SELL_TRANSACTION.inputSchema.parse(args);
 
     // Get character
-    const charResult = charRepo.findById(parsed.characterId);
-    if (!charResult.success || !charResult.data) {
-        throw new Error(charResult.error || `Character not found: ${parsed.characterId}`);
+    const character = charRepo.findById(parsed.characterId);
+    if (!character) {
+        throw new Error(`Character not found: ${parsed.characterId}`);
     }
-    const character = charResult.data;
 
     // Calculate total earnings
     let totalEarnings = 0;
@@ -396,7 +394,7 @@ export async function handleExecuteSellTransaction(args: unknown, _ctx: SessionC
     charRepo.update(parsed.characterId, {
         currency: {
             ...character.currency,
-            gold: character.currency.gold + totalEarnings
+            gp: character.currency.gp + totalEarnings
         }
     });
 
@@ -430,12 +428,12 @@ export async function handleGetCharacterGold(args: unknown, _ctx: SessionContext
     const { charRepo } = ensureDb();
     const parsed = TradingTools.GET_CHARACTER_GOLD.inputSchema.parse(args);
 
-    const charResult = charRepo.findById(parsed.characterId);
-    if (!charResult.success || !charResult.data) {
-        throw new Error(charResult.error || `Character not found: ${parsed.characterId}`);
+    const character = charRepo.findById(parsed.characterId);
+    if (!character) {
+        throw new Error(`Character not found: ${parsed.characterId}`);
     }
 
-    const gold = charResult.data.currency.gold;
+    const gold = character.currency.gp;
 
     let output = RichFormatter.header('Character Gold', '💰');
     output += RichFormatter.keyValue({
@@ -457,12 +455,12 @@ export async function handleUpdateCharacterGold(args: unknown, _ctx: SessionCont
     const { charRepo } = ensureDb();
     const parsed = TradingTools.UPDATE_CHARACTER_GOLD.inputSchema.parse(args);
 
-    const updateResult = charRepo.update(parsed.characterId, {
-        currency: { gold: parsed.goldAmount, silver: 0, copper: 0 }
+    const updatedChar = charRepo.update(parsed.characterId, {
+        currency: { cp: 0, sp: 0, ep: 0, gp: parsed.goldAmount, pp: 0 }
     });
 
-    if (!updateResult.success) {
-        throw new Error(updateResult.error || 'Failed to update character gold');
+    if (!updatedChar) {
+        throw new Error('Failed to update character gold');
     }
 
     let output = RichFormatter.header('Gold Updated', '💰');

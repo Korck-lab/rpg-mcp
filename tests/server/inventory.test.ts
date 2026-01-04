@@ -1,25 +1,29 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { handleCreateItemTemplate, handleGiveItem, handleRemoveItem, handleEquipItem, handleUnequipItem, handleGetInventory } from '../../src/server/inventory-tools';
 import { handleCreateCharacter } from '../../src/server/crud-tools';
-import { closeTestDb } from '../../src/server/crud-tools';
+import { closeDb, initDB, getDb } from '../../src/storage';
+
+// Helper to extract JSON from formatted response
+function extractJson(text: string, tag: string): any {
+    const regex = new RegExp(`<!-- ${tag}_JSON\\n([\\s\\S]*?)\\n${tag}_JSON -->`);
+    const match = text.match(regex);
+    if (match) return JSON.parse(match[1]);
+    return JSON.parse(text);
+}
 
 describe('Inventory System', () => {
     const mockCtx = { sessionId: 'test-session' };
 
+    beforeEach(() => {
+        closeDb();
+        getDb(':memory:'); // Use getDb which both creates AND sets the singleton
+    });
+
     afterEach(() => {
-        closeTestDb();
+        closeDb();
     });
 
-    beforeEach(async () => {
-        closeTestDb();
-        // Force DB init
-        const { getDb } = await import('../../src/storage');
-        const db = getDb(':memory:');
-        const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-        console.log('Tables in test:', tables.map((t: any) => t.name));
-    });
-
-    // Helper to create a test character
+    // Helper to create a test character without starting equipment
     async function createTestCharacter(): Promise<string> {
         const charResult = await handleCreateCharacter({
             name: 'Inventory Tester',
@@ -27,9 +31,12 @@ describe('Inventory System', () => {
             maxHp: 10,
             ac: 10,
             level: 1,
-            stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }
+            stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+            provisionEquipment: false  // Disable starting equipment for clean tests
         }, mockCtx);
-        return JSON.parse(charResult.content[0].text).id;
+        const data = extractJson(charResult.content[0].text, 'CHARACTER');
+        const character = data.character || data;
+        return character.id;
     }
 
     // Helper to create a test item
@@ -41,7 +48,9 @@ describe('Inventory System', () => {
             value: 10,
             properties: props
         }, mockCtx);
-        return JSON.parse(result.content[0].text).id;
+        const data = extractJson(result.content[0].text, 'STATE');
+        const item = data.item || data;
+        return item.id;
     }
 
     it('should create item templates', async () => {
@@ -53,7 +62,8 @@ describe('Inventory System', () => {
             properties: { damage: '1d8' }
         }, mockCtx);
 
-        const item = JSON.parse(result.content[0].text);
+        const data = extractJson(result.content[0].text, 'STATE');
+        const item = data.item || data;
         expect(item.name).toBe('Iron Sword');
         expect(item.id).toBeDefined();
 
@@ -64,7 +74,8 @@ describe('Inventory System', () => {
             weight: 3,
             value: 5
         }, mockCtx);
-        const shield = JSON.parse(shieldResult.content[0].text);
+        const shieldData = extractJson(shieldResult.content[0].text, 'STATE');
+        const shield = shieldData.item || shieldData;
         expect(shield.name).toBe('Wooden Shield');
         expect(shield.id).toBeDefined();
     });
@@ -83,7 +94,8 @@ describe('Inventory System', () => {
 
         // Verify inventory
         const invResult = await handleGetInventory({ characterId }, mockCtx);
-        const inventory = JSON.parse(invResult.content[0].text);
+        const invData = extractJson(invResult.content[0].text, 'STATE');
+        const inventory = invData.inventory || invData;
 
         expect(inventory.items).toHaveLength(1);
         expect(inventory.items[0].itemId).toBe(swordId);
@@ -106,13 +118,14 @@ describe('Inventory System', () => {
         await handleEquipItem({
             characterId,
             itemId: swordId,
-            slot: 'mainhand'
+            slot: 'main_hand'
         }, mockCtx);
 
         let invResult = await handleGetInventory({ characterId }, mockCtx);
-        let inventory = JSON.parse(invResult.content[0].text);
+        let invData = extractJson(invResult.content[0].text, 'STATE');
+        let inventory = invData.inventory || invData;
         expect(inventory.items[0].equipped).toBe(true);
-        expect(inventory.items[0].slot).toBe('mainhand');
+        expect(inventory.items[0].slot).toBe('main_hand');
 
         // Unequip sword
         await handleUnequipItem({
@@ -121,7 +134,8 @@ describe('Inventory System', () => {
         }, mockCtx);
 
         invResult = await handleGetInventory({ characterId }, mockCtx);
-        inventory = JSON.parse(invResult.content[0].text);
+        invData = extractJson(invResult.content[0].text, 'STATE');
+        inventory = invData.inventory || invData;
         expect(inventory.items[0].equipped).toBe(false);
         expect(inventory.items[0].slot).toBeUndefined();
     });
@@ -146,7 +160,8 @@ describe('Inventory System', () => {
         }, mockCtx);
 
         const invResult = await handleGetInventory({ characterId }, mockCtx);
-        const inventory = JSON.parse(invResult.content[0].text);
+        const invData = extractJson(invResult.content[0].text, 'STATE');
+        const inventory = invData.inventory || invData;
         expect(inventory.items).toHaveLength(0);
     });
 
@@ -161,7 +176,8 @@ describe('Inventory System', () => {
             weight: 0.5,
             value: 5
         }, mockCtx);
-        const potionId = JSON.parse(potionResult.content[0].text).id;
+        const potionData = extractJson(potionResult.content[0].text, 'STATE');
+        const potionId = (potionData.item || potionData).id;
 
         // Give 5 potions
         await handleGiveItem({ characterId, itemId: potionId, quantity: 5 }, mockCtx);
@@ -170,7 +186,8 @@ describe('Inventory System', () => {
         await handleGiveItem({ characterId, itemId: potionId, quantity: 3 }, mockCtx);
 
         const invResult = await handleGetInventory({ characterId }, mockCtx);
-        const inventory = JSON.parse(invResult.content[0].text);
+        const invData = extractJson(invResult.content[0].text, 'STATE');
+        const inventory = invData.inventory || invData;
 
         expect(inventory.items[0].quantity).toBe(8);
     });

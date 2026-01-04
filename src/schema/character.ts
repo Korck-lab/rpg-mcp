@@ -84,6 +84,16 @@ export const CharacterSchema = z.object({
     immunities: z.array(z.string()).optional().default([])
         .describe('Damage types that deal no damage'),
 
+    // Currency (D&D 5e standard coins)
+    currency: z.object({
+        cp: z.number().int().min(0).default(0).describe('Copper pieces'),
+        sp: z.number().int().min(0).default(0).describe('Silver pieces'),
+        ep: z.number().int().min(0).default(0).describe('Electrum pieces'),
+        gp: z.number().int().min(0).default(0).describe('Gold pieces'),
+        pp: z.number().int().min(0).default(0).describe('Platinum pieces'),
+    }).optional().default({ cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 })
+        .describe('Character currency in D&D 5e standard coins'),
+
     // Skill and Save Proficiencies
     skillProficiencies: z.array(z.enum([
         'acrobatics', 'animal_handling', 'arcana', 'athletics', 'deception',

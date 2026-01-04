@@ -284,6 +284,7 @@ export async function handleCreatePOI(args: unknown, _ctx: SessionContext) {
         population: parsed.population,
         level: parsed.level,
         tags: parsed.tags,
+        isObserved: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
     };
@@ -512,6 +513,7 @@ export async function handleSyncStructuresToPOIs(args: unknown, _ctx: SessionCon
             childPOIIds: [],
             population: structure.population,
             tags: [structure.type],
+            isObserved: true,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };

@@ -71,13 +71,22 @@ export class InventoryRepository extends BaseRepository<InventoryItemRow> {
     }
 
     addItem(characterId: string, itemId: string, quantity: number = 1): void {
-        const stmt = this.db.prepare(`
-            INSERT INTO inventory_items (character_id, item_id, quantity)
-            VALUES (?, ?, ?)
-            ON CONFLICT(character_id, item_id) DO UPDATE SET
-            quantity = quantity + excluded.quantity
-        `);
-        stmt.run(characterId, itemId, quantity);
+        // First check if item exists
+        const existing = this.db.prepare(
+            'SELECT quantity FROM inventory_items WHERE character_id = ? AND item_id = ?'
+        ).get(characterId, itemId) as { quantity: number } | undefined;
+
+        if (existing) {
+            // Update existing quantity
+            this.db.prepare(
+                'UPDATE inventory_items SET quantity = ? WHERE character_id = ? AND item_id = ?'
+            ).run(existing.quantity + quantity, characterId, itemId);
+        } else {
+            // Insert new item
+            this.db.prepare(
+                'INSERT INTO inventory_items (character_id, item_id, quantity) VALUES (?, ?, ?)'
+            ).run(characterId, itemId, quantity);
+        }
     }
 
     removeItem(characterId: string, itemId: string, quantity: number = 1): boolean {

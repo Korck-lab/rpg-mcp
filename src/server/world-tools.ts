@@ -711,6 +711,7 @@ export async function handleStructureCreate(
     population: args.population,
     createdAt: now,
     updatedAt: now,
+    isObserved: false,
   };
 
   structureRepo.create(structure);
@@ -794,6 +795,7 @@ export async function handleRoomCreate(
     networkId: args.network_id,
     localX: args.local_x,
     localY: args.local_y,
+    isObserved: false,
   };
 
   spatialRepo.create(room);

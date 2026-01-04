@@ -24,15 +24,10 @@ export async function generateDeterministicEncounterId(seed: string, context: st
         new TextEncoder().encode(context)
     );
 
-    // Convert first 8 bytes to a number for the suffix
+    // Convert first 8 bytes to a hex string for the suffix
+    // Using hex avoids JavaScript number precision issues with large integers
     const bytes = new Uint8Array(signature.slice(0, 8));
-    let suffix = 0;
-    for (let i = 0; i < 8; i++) {
-        suffix = (suffix * 256) + bytes[i];
-    }
-
-    // Ensure it's positive and format as string
-    suffix = Math.abs(suffix);
+    const suffix = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
     return `encounter-${seed}-${suffix}`;
 }

@@ -4,7 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getDb } from '../../src/storage/index.js';
+import Database from 'better-sqlite3';
+import { initDB } from '../../src/storage/db.js';
 import { AuraRepository } from '../../src/storage/repos/aura.repo.js';
 import { CharacterRepository } from '../../src/storage/repos/character.repo.js';
 import { ConcentrationRepository } from '../../src/storage/repos/concentration.repo.js';
@@ -23,20 +24,36 @@ import {
 } from '../../src/engine/magic/aura.js';
 import { startConcentration } from '../../src/engine/magic/concentration.js';
 import { AuraState, AuraEffect, CreateAuraRequest } from '../../src/schema/aura.js';
-import { Token, Position } from '../../src/schema/encounter.js';
+import { Position } from '../../src/schema/encounter.js';
+import { CombatToken } from '../../src/schema/combat-token.js';
 import { Character } from '../../src/schema/character.js';
+import { CombatRNG } from '../../src/engine/combat/rng.js';
+
+/**
+ * Create a test RNG adapter that matches the interface expected by aura functions
+ */
+function createTestRng(seed: string = 'test-seed') {
+    const combatRng = new CombatRNG(seed);
+    return {
+        d20: () => combatRng.rollDie(20),
+        roll: (notation: string) => combatRng.roll(notation),
+    };
+}
 
 describe('Aura System', () => {
-    let db: any;
+    let db: Database.Database;
     let auraRepo: AuraRepository;
     let characterRepo: CharacterRepository;
     let concentrationRepo: ConcentrationRepository;
+    let rng: ReturnType<typeof createTestRng>;
 
     beforeEach(() => {
-        db = getDb(':memory:');
+        // Create fresh in-memory database for each test
+        db = initDB(':memory:');
         auraRepo = new AuraRepository(db);
         characterRepo = new CharacterRepository(db);
         concentrationRepo = new ConcentrationRepository(db);
+        rng = createTestRng('test-seed');
 
         // Clean up any existing auras from previous tests
         const existingAuras = auraRepo.findAll();
@@ -297,7 +314,7 @@ describe('Aura System', () => {
                 requiresConcentration: false,
             };
 
-            const enemy: Token = {
+            const enemy: CombatToken = {
                 id: 'enemy-1',
                 name: 'Goblin',
                 hp: 10,
@@ -305,7 +322,7 @@ describe('Aura System', () => {
                 ac: 12,
                 initiative: 10,
                 isEnemy: true,
-            };
+            } as CombatToken;
 
             const ownerIsAlly = false; // Enemy of the owner
             const shouldAffect = shouldAffectTarget(aura, enemy, ownerIsAlly);
@@ -327,7 +344,7 @@ describe('Aura System', () => {
                 requiresConcentration: false,
             };
 
-            const ally: Token = {
+            const ally: CombatToken = {
                 id: 'ally-1',
                 name: 'Fighter',
                 hp: 40,
@@ -335,7 +352,7 @@ describe('Aura System', () => {
                 ac: 18,
                 initiative: 15,
                 isEnemy: false,
-            };
+            } as CombatToken;
 
             const ownerIsAlly = true; // Ally of the owner
             const shouldAffect = shouldAffectTarget(aura, ally, ownerIsAlly);
@@ -357,7 +374,7 @@ describe('Aura System', () => {
                 requiresConcentration: false,
             };
 
-            const self: Token = {
+            const self: CombatToken = {
                 id: 'owner-1',
                 name: 'Paladin',
                 hp: 40,
@@ -365,7 +382,7 @@ describe('Aura System', () => {
                 ac: 18,
                 initiative: 12,
                 isEnemy: false,
-            };
+            } as CombatToken;
 
             const ownerIsAlly = true;
             const shouldAffect = shouldAffectTarget(aura, self, ownerIsAlly);
@@ -387,7 +404,7 @@ describe('Aura System', () => {
                 requiresConcentration: false,
             };
 
-            const self: Token = {
+            const self: CombatToken = {
                 id: 'owner-1',
                 name: 'Cleric',
                 hp: 30,
@@ -395,7 +412,7 @@ describe('Aura System', () => {
                 ac: 16,
                 initiative: 10,
                 isEnemy: false,
-            };
+            } as CombatToken;
 
             const ownerIsAlly = true;
             const shouldAffect = shouldAffectTarget(aura, self, ownerIsAlly);
@@ -428,7 +445,7 @@ describe('Aura System', () => {
                 saveDC: 14,
             };
 
-            const target: Token = {
+            const target: CombatToken = {
                 id: 'goblin-1',
                 name: 'Goblin',
                 hp: 20,
@@ -444,9 +461,9 @@ describe('Aura System', () => {
                     wisdom: 8, // -1 modifier
                     charisma: 8,
                 },
-            };
+            } as CombatToken;
 
-            const result = applyAuraEffect(aura, effect, target, 'start_of_turn');
+            const result = applyAuraEffect(aura, effect, target, 'start_of_turn', rng);
 
             expect(result.auraId).toBe('aura-1');
             expect(result.targetId).toBe('goblin-1');
@@ -482,7 +499,7 @@ describe('Aura System', () => {
                 dice: '2d6',
             };
 
-            const target: Token = {
+            const target: CombatToken = {
                 id: 'fighter-1',
                 name: 'Fighter',
                 hp: 25,
@@ -490,9 +507,9 @@ describe('Aura System', () => {
                 ac: 18,
                 initiative: 15,
                 isEnemy: false,
-            };
+            } as CombatToken;
 
-            const result = applyAuraEffect(aura, effect, target, 'start_of_turn');
+            const result = applyAuraEffect(aura, effect, target, 'start_of_turn', rng);
 
             expect(result.succeeded).toBe(true); // No save required
             expect(result.healingDone).toBeGreaterThan(0);
@@ -522,7 +539,7 @@ describe('Aura System', () => {
                 description: '+2 to all saving throws',
             };
 
-            const target: Token = {
+            const target: CombatToken = {
                 id: 'cleric-1',
                 name: 'Cleric',
                 hp: 30,
@@ -530,9 +547,9 @@ describe('Aura System', () => {
                 ac: 16,
                 initiative: 12,
                 isEnemy: false,
-            };
+            } as CombatToken;
 
-            const result = applyAuraEffect(aura, effect, target, 'start_of_turn');
+            const result = applyAuraEffect(aura, effect, target, 'start_of_turn', rng);
 
             expect(result.succeeded).toBe(true);
             expect(result.description).toBe('+2 to all saving throws');
@@ -859,7 +876,7 @@ describe('Aura System', () => {
             createAura(request1, auraRepo);
             createAura(request2, auraRepo);
 
-            const tokens: Token[] = [
+            const tokens: CombatToken[] = [
                 {
                     id: 'char-1',
                     name: 'Character 1',
@@ -868,8 +885,10 @@ describe('Aura System', () => {
                     ac: 15,
                     initiative: 15,
                     isEnemy: false,
-                    position: { x: 0, y: 0 },
-                },
+                    positionX: 0,
+                    positionY: 0,
+                    positionZ: 0,
+                } as CombatToken,
                 {
                     id: 'enemy-1',
                     name: 'Enemy',
@@ -878,11 +897,13 @@ describe('Aura System', () => {
                     ac: 12,
                     initiative: 10,
                     isEnemy: true,
-                    position: { x: 1, y: 0 }, // 5 feet away
-                },
+                    positionX: 1,
+                    positionY: 0,
+                    positionZ: 0, // 5 feet away
+                } as CombatToken,
             ];
 
-            const results = checkAuraEffectsForTarget(tokens, 'enemy-1', 'start_of_turn', auraRepo);
+            const results = checkAuraEffectsForTarget(tokens, 'enemy-1', 'start_of_turn', auraRepo, rng);
 
             // Should have 2 effects (one from each aura)
             expect(results).toHaveLength(2);

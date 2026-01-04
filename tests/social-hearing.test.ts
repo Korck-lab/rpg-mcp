@@ -19,6 +19,7 @@ import { rollStealthVsPerception, getModifier } from '../src/engine/social/steal
 import { Character } from '../src/schema/character.js';
 import { RoomNode } from '../src/schema/spatial.js';
 import { closeDb, getDb } from '../src/storage/index.js';
+import { CombatRNG } from '../src/engine/combat/rng.js';
 
 const mockCtx = { sessionId: 'test-session' };
 
@@ -163,7 +164,8 @@ describe('PHASE-2: Social Hearing Mechanics', () => {
             const speaker = createChar({ stats: { str: 10, dex: 16, con: 10, int: 10, wis: 10, cha: 10 }, stealthBonus: 2 });
             const listener = createChar({ stats: { str: 10, dex: 10, con: 10, int: 10, wis: 14, cha: 10 }, perceptionBonus: 3 });
 
-            const result = rollStealthVsPerception(speaker, listener, 0);
+            const rng = new CombatRNG('test-seed-2.2');
+            const result = rollStealthVsPerception(speaker, listener, rng, 0);
 
             // Speaker: DEX 16 (+3) + stealthBonus 2 = +5
             expect(result.speakerModifier).toBe(5);
@@ -187,7 +189,8 @@ describe('PHASE-2: Social Hearing Mechanics', () => {
             const trials = 100;
 
             for (let i = 0; i < trials; i++) {
-                const result = rollStealthVsPerception(lowStealthSpeaker, highPerceptionListener, 0);
+                const rng = new CombatRNG(`test-seed-2.3-${i}`);
+                const result = rollStealthVsPerception(lowStealthSpeaker, highPerceptionListener, rng, 0);
                 if (result.success) successCount++;
             }
 
@@ -211,7 +214,8 @@ describe('PHASE-2: Social Hearing Mechanics', () => {
             const trials = 100;
 
             for (let i = 0; i < trials; i++) {
-                const result = rollStealthVsPerception(avgStealthSpeaker, lowPerceptionListener, 0);
+                const rng = new CombatRNG(`test-seed-2.4-${i}`);
+                const result = rollStealthVsPerception(avgStealthSpeaker, lowPerceptionListener, rng, 0);
                 if (result.success) successCount++;
             }
 
@@ -223,8 +227,10 @@ describe('PHASE-2: Social Hearing Mechanics', () => {
             const speaker = createChar({ stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }, stealthBonus: 0 });
             const listener = createChar({ stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }, perceptionBonus: 0 });
 
-            const normalResult = rollStealthVsPerception(speaker, listener, 0);
-            const bonusResult = rollStealthVsPerception(speaker, listener, 5); // +5 from SILENCE
+            const rng1 = new CombatRNG('test-seed-2.5-normal');
+            const rng2 = new CombatRNG('test-seed-2.5-bonus');
+            const normalResult = rollStealthVsPerception(speaker, listener, rng1, 0);
+            const bonusResult = rollStealthVsPerception(speaker, listener, rng2, 5); // +5 from SILENCE
 
             expect(bonusResult.listenerModifier).toBe(normalResult.listenerModifier + 5);
         });

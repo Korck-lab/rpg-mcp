@@ -56,16 +56,15 @@ describe('Tool Metadata & Schema Validation', () => {
     it('should validate combat tool inputs', () => {
         const schema = CombatTools.CREATE_ENCOUNTER.inputSchema;
 
-        // Valid
+        // Valid - worldId is required
         expect(() => schema.parse({
-            seed: 'test',
-            participants: [{ id: '1', name: 'p1', initiativeBonus: 0, hp: 10, maxHp: 10 }]
+            worldId: 'world-123',
+            seed: 'test'
         })).not.toThrow();
 
-        // Invalid (empty participants)
+        // Invalid (missing required worldId)
         expect(() => schema.parse({
-            seed: 'test',
-            participants: []
+            seed: 'test'
         })).toThrow();
     });
 });

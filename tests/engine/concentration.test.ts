@@ -15,11 +15,24 @@ import {
 } from '../../src/engine/magic/concentration.js';
 import type { Character } from '../../src/schema/character.js';
 
+// Simple seeded RNG for tests - always returns predictable values
+function createTestRng(seed: number = 42) {
+    let state = seed;
+    return {
+        d20: () => {
+            // Simple LCG for predictable test values
+            state = (state * 1103515245 + 12345) & 0x7fffffff;
+            return (state % 20) + 1;
+        }
+    };
+}
+
 describe('Concentration System', () => {
     let db: Database.Database;
     let characterRepo: CharacterRepository;
     let concentrationRepo: ConcentrationRepository;
     let testCharacter: Character;
+    let testRng: { d20: () => number };
 
     beforeEach(() => {
         // Create in-memory database for tests
@@ -28,6 +41,7 @@ describe('Concentration System', () => {
 
         characterRepo = new CharacterRepository(db);
         concentrationRepo = new ConcentrationRepository(db);
+        testRng = createTestRng();
 
         // Create test character
         testCharacter = {
@@ -171,8 +185,8 @@ describe('Concentration System', () => {
 
         it('should succeed on high constitution save', () => {
             // Character has CON +3, so roll of 7+ passes DC 10
-            // We can't easily mock the random roll, so we test the logic
-            const result = checkConcentration(testCharacter, 10, concentrationRepo);
+            // We use a seeded RNG for predictable test results
+            const result = checkConcentration(testCharacter, 10, concentrationRepo, testRng);
 
             expect(result.characterId).toBe(testCharacter.id);
             expect(result.spell).toBe('Haste');
@@ -182,7 +196,7 @@ describe('Concentration System', () => {
         });
 
         it('should handle high damage requiring higher DC', () => {
-            const result = checkConcentration(testCharacter, 40, concentrationRepo);
+            const result = checkConcentration(testCharacter, 40, concentrationRepo, testRng);
 
             expect(result.saveDC).toBe(20); // Half of 40
             expect(result.damageAmount).toBe(40);
@@ -195,7 +209,26 @@ describe('Concentration System', () => {
             };
             characterRepo.create(otherCharacter);
 
-            const result = checkConcentration(otherCharacter, 10, concentrationRepo);
+            const result = checkConcentration(otherCharacter, 10, concentrationRepo, testRng);
+            expect(result.spell).toBe('none');
+            expect(result.broken).toBe(false);
+        });
+
+        it('should handle high damage requiring higher DC', () => {
+            const result = checkConcentration(testCharacter, 40, concentrationRepo, testRng);
+
+            expect(result.saveDC).toBe(20); // Half of 40
+            expect(result.damageAmount).toBe(40);
+        });
+
+        it('should return no check if not concentrating', () => {
+            const otherCharacter: Character = {
+                ...testCharacter,
+                id: 'other-wizard',
+            };
+            characterRepo.create(otherCharacter);
+
+            const result = checkConcentration(otherCharacter, 10, concentrationRepo, testRng);
             expect(result.spell).toBe('none');
             expect(result.broken).toBe(false);
         });
@@ -470,11 +503,11 @@ describe('Concentration System', () => {
             expect(concentration?.activeSpell).toBe('Haste');
 
             // Take minor damage - should maintain
-            let checkResult = checkConcentration(testCharacter, 5, concentrationRepo);
+            let checkResult = checkConcentration(testCharacter, 5, concentrationRepo, testRng);
             expect(checkResult.saveDC).toBe(10);
 
             // Take major damage - requires high save
-            checkResult = checkConcentration(testCharacter, 40, concentrationRepo);
+            checkResult = checkConcentration(testCharacter, 40, concentrationRepo, testRng);
             expect(checkResult.saveDC).toBe(20);
 
             // Check duration (still within)

@@ -211,6 +211,7 @@ export async function handleGenerateRoomNode(args: unknown, _ctx: SessionContext
         atmospherics: parsed.atmospherics,
         exits: [],
         entityIds: [],
+        isObserved: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         visitedCount: 0,

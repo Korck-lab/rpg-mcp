@@ -98,6 +98,7 @@ function buildCharacter(data: {
         saveProficiencies: [],
         expertise: [],
         hasLairActions: false,
+        currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
         position: data.position,
         currentRoomId: data.currentRoomId,
         createdAt: data.createdAt,
@@ -1230,6 +1231,7 @@ export async function handleSpawnPopulatedLocation(args: unknown, _ctx: SessionC
                 localX: i % 5, // Simple grid layout
                 localY: Math.floor(i / 5),
                 visitedCount: 0,
+                isObserved: false,
                 createdAt: now,
                 updatedAt: now
             });
@@ -1276,6 +1278,7 @@ export async function handleSpawnPopulatedLocation(args: unknown, _ctx: SessionC
         discoveryDC: parsed.discoveryDC,
         childPOIIds: [],
         population: parsed.population || 0,
+        isObserved: false,
         level: parsed.level,
         tags: parsed.tags || [],
         createdAt: now,
@@ -2386,7 +2389,8 @@ export async function handleSpawnPresetLocation(args: unknown, _ctx: SessionCont
             entityIds: [],
             createdAt: now,
             updatedAt: now,
-            visitedCount: 0
+            visitedCount: 0,
+            isObserved: false
         });
 
         createdRooms.push({
@@ -2432,6 +2436,7 @@ export async function handleSpawnPresetLocation(args: unknown, _ctx: SessionCont
         discoveredBy: [],
         childPOIIds: [],
         population: 0,
+        isObserved: false,
         networkId: networkId,
         entranceRoomId: entranceRoomId,
         tags: preset.tags,

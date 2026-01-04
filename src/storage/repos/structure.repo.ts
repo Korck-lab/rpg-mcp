@@ -7,8 +7,8 @@ export class StructureRepository {
     create(structure: Structure): void {
         const validStructure = StructureSchema.parse(structure);
         const stmt = this.db.prepare(`
-      INSERT INTO structures (id, world_id, region_id, name, type, x, y, population, is_observed, created_at, updated_at)
-      VALUES (@id, @worldId, @regionId, @name, @type, @x, @y, @population, @isObserved, @createdAt, @updatedAt)
+      INSERT INTO structures (id, world_id, region_id, name, type, tile_x, tile_y, population, is_observed, created_at, updated_at)
+      VALUES (@id, @worldId, @regionId, @name, @type, @tileX, @tileY, @population, @isObserved, @createdAt, @updatedAt)
     `);
         stmt.run({
             id: validStructure.id,
@@ -16,8 +16,8 @@ export class StructureRepository {
             regionId: validStructure.regionId || null,
             name: validStructure.name,
             type: validStructure.type,
-            x: validStructure.x,
-            y: validStructure.y,
+            tileX: validStructure.x,
+            tileY: validStructure.y,
             population: validStructure.population,
             isObserved: validStructure.isObserved ? 1 : 0,
             createdAt: validStructure.createdAt,
@@ -43,8 +43,8 @@ export class StructureRepository {
         if (structures.length === 0) return 0;
 
         const stmt = this.db.prepare(`
-            INSERT INTO structures (id, world_id, region_id, name, type, x, y, population, is_observed, created_at, updated_at)
-            VALUES (@id, @worldId, @regionId, @name, @type, @x, @y, @population, @isObserved, @createdAt, @updatedAt)
+            INSERT INTO structures (id, world_id, region_id, name, type, tile_x, tile_y, population, is_observed, created_at, updated_at)
+            VALUES (@id, @worldId, @regionId, @name, @type, @tileX, @tileY, @population, @isObserved, @createdAt, @updatedAt)
         `);
 
         const insertMany = this.db.transaction((toInsert: Structure[]) => {
@@ -57,8 +57,8 @@ export class StructureRepository {
                     regionId: valid.regionId || null,
                     name: valid.name,
                     type: valid.type,
-                    x: valid.x,
-                    y: valid.y,
+                    tileX: valid.x,
+                    tileY: valid.y,
                     population: valid.population,
                     isObserved: valid.isObserved ? 1 : 0,
                     createdAt: valid.createdAt,
@@ -87,8 +87,8 @@ export class StructureRepository {
             regionId: row.region_id || undefined,
             name: row.name,
             type: row.type,
-            x: row.x,
-            y: row.y,
+            x: row.tile_x,
+            y: row.tile_y,
             population: row.population,
             isObserved: Boolean(row.is_observed),
             createdAt: row.created_at,
@@ -100,7 +100,7 @@ export class StructureRepository {
      * Find structures by coordinates
      */
     findByCoordinates(worldId: string, x: number, y: number): Structure | null {
-        const stmt = this.db.prepare('SELECT * FROM structures WHERE world_id = ? AND x = ? AND y = ?');
+        const stmt = this.db.prepare('SELECT * FROM structures WHERE world_id = ? AND tile_x = ? AND tile_y = ?');
         const row = stmt.get(worldId, x, y) as StructureRow | undefined;
 
         if (!row) return null;
@@ -111,8 +111,8 @@ export class StructureRepository {
             regionId: row.region_id || undefined,
             name: row.name,
             type: row.type,
-            x: row.x,
-            y: row.y,
+            x: row.tile_x,
+            y: row.tile_y,
             population: row.population,
             isObserved: Boolean(row.is_observed),
             createdAt: row.created_at,
@@ -134,8 +134,8 @@ export class StructureRepository {
                 regionId: row.region_id || undefined,
                 name: row.name,
                 type: row.type,
-                x: row.x,
-                y: row.y,
+                x: row.tile_x,
+                y: row.tile_y,
                 population: row.population,
                 isObserved: Boolean(row.is_observed),
                 createdAt: row.created_at,
@@ -164,8 +164,8 @@ export class StructureRepository {
                 regionId: row.region_id || undefined,
                 name: row.name,
                 type: row.type,
-                x: row.x,
-                y: row.y,
+                x: row.tile_x,
+                y: row.tile_y,
                 population: row.population,
                 isObserved: Boolean(row.is_observed),
                 createdAt: row.created_at,
@@ -188,7 +188,7 @@ export class StructureRepository {
 
         const stmt = this.db.prepare(`
             UPDATE structures
-            SET world_id = ?, region_id = ?, name = ?, type = ?, x = ?, y = ?,
+            SET world_id = ?, region_id = ?, name = ?, type = ?, tile_x = ?, tile_y = ?,
                 population = ?, is_observed = ?, updated_at = ?
             WHERE id = ?
         `);
@@ -216,8 +216,8 @@ interface StructureRow {
     region_id: string | null;
     name: string;
     type: string;
-    x: number;
-    y: number;
+    tile_x: number;
+    tile_y: number;
     population: number;
     created_at: string;
     updated_at: string;

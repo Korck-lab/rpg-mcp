@@ -5,6 +5,30 @@ import { closeDb, getDb } from '../../src/storage/index.js';
 
 const mockCtx = { sessionId: 'test-session' };
 
+function extractJson(text: string, tag: string): any {
+    // Try tagged format first
+    const regex = new RegExp(`<!-- ${tag}_JSON\\n([\\s\\S]*?)\\n${tag}_JSON -->`);
+    const match = text.match(regex);
+    if (match) return JSON.parse(match[1]);
+    
+    // Try to find any JSON object in the text
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+        try {
+            return JSON.parse(jsonMatch[0]);
+        } catch {
+            // Fall through to error
+        }
+    }
+    
+    // Try to parse as plain JSON
+    try {
+        return JSON.parse(text);
+    } catch {
+        throw new Error(`Could not extract JSON with tag ${tag} from: ${text.substring(0, 100)}...`);
+    }
+}
+
 /**
  * CRIT-002: Spell Slots Never Recover
  *
@@ -31,7 +55,7 @@ describe('CRIT-002: Rest Mechanics', () => {
                 ac: 15,
                 level: 5
             }, mockCtx);
-            const character = JSON.parse(createResult.content[0].text);
+            const character = extractJson(createResult.content[0].text, 'STATE');
             expect(character.hp).toBe(20);
             expect(character.maxHp).toBe(50);
 
@@ -39,7 +63,7 @@ describe('CRIT-002: Rest Mechanics', () => {
             const restResult = await handleTakeLongRest({
                 characterId: character.id
             }, mockCtx);
-            const restData = JSON.parse(restResult.content[0].text);
+            const restData = extractJson(restResult.content[0].text, 'STATE');
 
             // Verify HP restored
             expect(restData.hpRestored).toBe(30);
@@ -47,7 +71,7 @@ describe('CRIT-002: Rest Mechanics', () => {
 
             // Verify character record updated
             const reloadedResult = await handleGetCharacter({ id: character.id }, mockCtx);
-            const reloaded = JSON.parse(reloadedResult.content[0].text);
+            const reloaded = extractJson(reloadedResult.content[0].text, 'STATE');
             expect(reloaded.hp).toBe(50);
         });
 
@@ -61,13 +85,13 @@ describe('CRIT-002: Rest Mechanics', () => {
                 ac: 15,
                 level: 5
             }, mockCtx);
-            const character = JSON.parse(createResult.content[0].text);
+            const character = extractJson(createResult.content[0].text, 'STATE');
 
             // Take long rest
             const restResult = await handleTakeLongRest({
                 characterId: character.id
             }, mockCtx);
-            const restData = JSON.parse(restResult.content[0].text);
+            const restData = extractJson(restResult.content[0].text, 'STATE');
 
             expect(restData.hpRestored).toBe(0);
             expect(restData.newHp).toBe(50);
@@ -91,14 +115,14 @@ describe('CRIT-002: Rest Mechanics', () => {
                 ac: 15,
                 level: 5
             }, mockCtx);
-            const character = JSON.parse(createResult.content[0].text);
+            const character = extractJson(createResult.content[0].text, 'STATE');
 
             // Take short rest spending 2 hit dice
             const restResult = await handleTakeShortRest({
                 characterId: character.id,
                 hitDiceToSpend: 2
             }, mockCtx);
-            const restData = JSON.parse(restResult.content[0].text);
+            const restData = extractJson(restResult.content[0].text, 'STATE');
 
             // Should heal some HP (hit dice roll + CON modifier per die)
             expect(restData.hpRestored).toBeGreaterThan(0);
@@ -116,14 +140,14 @@ describe('CRIT-002: Rest Mechanics', () => {
                 ac: 15,
                 level: 5
             }, mockCtx);
-            const character = JSON.parse(createResult.content[0].text);
+            const character = extractJson(createResult.content[0].text, 'STATE');
 
             // Take short rest
             const restResult = await handleTakeShortRest({
                 characterId: character.id,
                 hitDiceToSpend: 5 // Try to spend many dice
             }, mockCtx);
-            const restData = JSON.parse(restResult.content[0].text);
+            const restData = extractJson(restResult.content[0].text, 'STATE');
 
             // Should cap at maxHp
             expect(restData.newHp).toBe(50);
@@ -138,13 +162,13 @@ describe('CRIT-002: Rest Mechanics', () => {
                 ac: 15,
                 level: 5
             }, mockCtx);
-            const character = JSON.parse(createResult.content[0].text);
+            const character = extractJson(createResult.content[0].text, 'STATE');
 
             // Take short rest without specifying dice
             const restResult = await handleTakeShortRest({
                 characterId: character.id
             }, mockCtx);
-            const restData = JSON.parse(restResult.content[0].text);
+            const restData = extractJson(restResult.content[0].text, 'STATE');
 
             expect(restData.hitDiceSpent).toBe(1);
         });
