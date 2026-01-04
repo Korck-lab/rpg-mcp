@@ -1498,35 +1498,6 @@ describe('Category 12: Edge Cases & Exploits', () => {
         expect(result.success).toBe(true);
     });
 
-    // 12.3 - Counterspell level check
-    // TODO: Wave 6 - Implement counterspell mechanics
-    test.skip('12.3 - counterspell automatically counters equal or lower level', async () => {
-        const wizard = await createWizard(9, { knownSpells: ['Counterspell'] });
-
-        // Counterspell at 3rd level auto-counters 3rd level or lower
-        const result = await castSpell(wizard.id!, 'Counterspell', {
-            targetSpellLevel: 3,
-            slotLevel: 3
-        });
-
-        expect(result.autoCounter).toBe(true);
-    });
-
-    // 12.4 - Counterspell needs check for higher level spells
-    // TODO: Wave 6 - Implement counterspell ability check mechanics
-    test.skip('12.4 - counterspell requires check for higher level spells', async () => {
-        const wizard = await createWizard(9, { knownSpells: ['Counterspell'] });
-
-        // Counterspell at 3rd level vs 5th level spell needs ability check
-        const result = await castSpell(wizard.id!, 'Counterspell', {
-            targetSpellLevel: 5,
-            slotLevel: 3
-        });
-
-        expect(result.abilityCheckRequired).toBe(true);
-        expect(result.abilityCheckDC).toBe(15); // 10 + spell level
-    });
-
     // 12.5 - Reaction spells don't consume action
     test('12.5 - casting shield doesnt consume action', async () => {
         const wizard = await createWizard(3, { knownSpells: ['Shield', 'Magic Missile'] });
