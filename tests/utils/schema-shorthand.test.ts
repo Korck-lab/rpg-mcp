@@ -388,16 +388,18 @@ describe('Schema Shorthand Utilities', () => {
     describe('rollDice', () => {
         it('rolls dice within expected range', () => {
             // Roll 100 times and check bounds
+            const rng = () => Math.random();
             for (let i = 0; i < 100; i++) {
-                const roll = rollDice('2d6+3');
+                const roll = rollDice('2d6+3', rng);
                 expect(roll).toBeGreaterThanOrEqual(5);
                 expect(roll).toBeLessThanOrEqual(15);
             }
         });
 
         it('handles simple modifier "+5"', () => {
-            expect(rollDice('+5')).toBe(5);
-            expect(rollDice('-3')).toBe(-3);
+            const rng = () => Math.random();
+            expect(rollDice('+5', rng)).toBe(5);
+            expect(rollDice('-3', rng)).toBe(-3);
         });
 
         it('uses custom RNG', () => {

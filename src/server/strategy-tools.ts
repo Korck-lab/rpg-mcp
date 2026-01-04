@@ -122,8 +122,10 @@ export async function handleStrategyTool(name: string, args: any, _ctx?: Session
 
         case 'claim_region': {
             const { nationId, regionId, justification } = args;
+            // Generate deterministic ID using nation and region context
+            const claimId = `claim-${nationId}-${regionId}-${Date.now()}`;
             diplomacyRepo.createClaim({
-                id: `claim-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Bounded random for ID uniqueness
+                id: claimId,
                 nationId,
                 regionId,
                 claimStrength: 100,

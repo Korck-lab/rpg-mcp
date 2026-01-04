@@ -8,21 +8,25 @@ export enum BiomeType {
   OCEAN = 'ocean',
   DEEP_OCEAN = 'deep_ocean',
   LAKE = 'lake',
+  CORAL_REEF = 'coral_reef',
 
   // Hot biomes
   DESERT = 'hot_desert',
   SAVANNA = 'savanna',
   RAINFOREST = 'tropical_rainforest',
+  VOLCANIC = 'volcanic',
 
   // Temperate biomes
   GRASSLAND = 'grassland',
   FOREST = 'temperate_deciduous_forest',
-  SWAMP = 'wetland',
+  SWAMP = 'swamp',
+  MOUNTAIN = 'mountain',
 
   // Cold biomes
   TAIGA = 'taiga',
   TUNDRA = 'tundra',
   GLACIER = 'glacier',
+  ICE_SHELF = 'ice_shelf',
 }
 
 export const BiomeSchema = z.object({

@@ -11,12 +11,12 @@ export class SpatialRepository {
             INSERT INTO room_nodes (
                 id, name, base_description, biome_context, atmospherics,
                 exits, entity_ids, created_at, updated_at, visited_count, last_visited_at,
-                network_id, local_x, local_y
+                network_id, local_x, local_y, is_observed
             )
             VALUES (
                 @id, @name, @baseDescription, @biomeContext, @atmospherics,
                 @exits, @entityIds, @createdAt, @updatedAt, @visitedCount, @lastVisitedAt,
-                @networkId, @localX, @localY
+                @networkId, @localX, @localY, @isObserved
             )
         `);
 
@@ -35,6 +35,7 @@ export class SpatialRepository {
             networkId: validRoom.networkId || null,
             localX: validRoom.localX !== undefined ? validRoom.localX : null,
             localY: validRoom.localY !== undefined ? validRoom.localY : null,
+            isObserved: validRoom.isObserved ? 1 : 0,
         });
     }
 
@@ -76,7 +77,7 @@ export class SpatialRepository {
             SET name = ?, base_description = ?, biome_context = ?,
                 atmospherics = ?, exits = ?, entity_ids = ?,
                 visited_count = ?, last_visited_at = ?, updated_at = ?,
-                network_id = ?, local_x = ?, local_y = ?
+                network_id = ?, local_x = ?, local_y = ?, is_observed = ?
             WHERE id = ?
         `);
 
@@ -93,6 +94,7 @@ export class SpatialRepository {
             validRoom.networkId || null,
             validRoom.localX !== undefined ? validRoom.localX : null,
             validRoom.localY !== undefined ? validRoom.localY : null,
+            validRoom.isObserved ? 1 : 0,
             id
         );
 
@@ -298,6 +300,7 @@ export class SpatialRepository {
             networkId: row.network_id || undefined,
             localX: row.local_x !== null ? row.local_x : undefined,
             localY: row.local_y !== null ? row.local_y : undefined,
+            isObserved: Boolean(row.is_observed),
         });
     }
 
@@ -331,6 +334,7 @@ interface RoomNodeRow {
     network_id: string | null;
     local_x: number | null;
     local_y: number | null;
+    is_observed: number; // SQLite boolean stored as integer
 }
 
 interface NodeNetworkRow {

@@ -119,6 +119,10 @@ export const POISchema = z.object({
     childPOIIds: z.array(z.string().uuid()).default([])
         .describe('Child POIs (sub-levels, annexes)'),
 
+    // Canonicalization
+    isObserved: z.boolean().default(false)
+        .describe('Whether this POI has been observed by players - blocks regeneration'),
+
     // Metadata
     population: z.number().int().min(0).default(0)
         .describe('Population for settlements'),

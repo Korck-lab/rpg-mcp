@@ -183,9 +183,10 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
         tile_x INTEGER NOT NULL,
         tile_y INTEGER NOT NULL,
         entrance_room_id TEXT,
+        is_observed INTEGER NOT NULL DEFAULT 0,  -- boolean: 1 = observed/canonical, 0 = procedural
         metadata_json TEXT DEFAULT '{}',
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        
+
         FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE CASCADE,
         FOREIGN KEY (entrance_room_id) REFERENCES room_nodes(id)
       );
@@ -201,6 +202,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     const hasMetadata = colNames.includes('metadata');
     const hasMetadataJson = colNames.includes('metadata_json');
     const hasEntrance = colNames.includes('entrance_room_id');
+    const hasIsObserved = colNames.includes('is_observed');
 
     if (hasX && !hasTileX) {
       console.log('[Migration 001] Renaming x/y to tile_x/tile_y in structures');
@@ -227,6 +229,15 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
          db.exec(`ALTER TABLE structures ADD COLUMN entrance_room_id TEXT REFERENCES room_nodes(id);`);
        } catch (e) {
          console.error('[Migration 001] Failed to add entrance column:', (e as Error).message);
+       }
+    }
+
+    if (!hasIsObserved) {
+       console.log('[Migration 001] Adding is_observed column to structures');
+       try {
+         db.exec(`ALTER TABLE structures ADD COLUMN is_observed INTEGER NOT NULL DEFAULT 0;`);
+       } catch (e) {
+         console.error('[Migration 001] Failed to add is_observed column:', (e as Error).message);
        }
     }
   }
@@ -341,11 +352,11 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
         room_type TEXT,
         contents_json TEXT DEFAULT '{}',
         state_json TEXT DEFAULT '{}',
+        is_observed INTEGER NOT NULL DEFAULT 0,  -- boolean: 1 = observed/canonical, 0 = procedural
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        
+
         FOREIGN KEY (structure_id) REFERENCES structures(id) ON DELETE CASCADE
       );
-      CREATE INDEX IF NOT EXISTS idx_room_nodes_structure ON room_nodes(structure_id);
     `);
   } else {
     // Table exists - add missing columns if needed
@@ -356,6 +367,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     const hasRoomType = roomNodeColumns.some(col => col.name === 'room_type');
     const hasRoomContentsJson = roomNodeColumns.some(col => col.name === 'contents_json');
     const hasRoomStateJson = roomNodeColumns.some(col => col.name === 'state_json');
+    const hasRoomIsObserved = roomNodeColumns.some(col => col.name === 'is_observed');
 
     if (!hasRoomStructureId) {
       console.log('[Migration 001] Adding structure_id column to room_nodes');
@@ -380,6 +392,10 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     if (!hasRoomStateJson) {
       console.log('[Migration 001] Adding state_json column to room_nodes');
       db.exec(`ALTER TABLE room_nodes ADD COLUMN state_json TEXT DEFAULT '{}';`);
+    }
+    if (!hasRoomIsObserved) {
+      console.log('[Migration 001] Adding is_observed column to room_nodes');
+      db.exec(`ALTER TABLE room_nodes ADD COLUMN is_observed INTEGER NOT NULL DEFAULT 0;`);
     }
   }
 

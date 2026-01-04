@@ -111,6 +111,10 @@ export const RoomNodeSchema = z.object({
         .default([])
         .describe('Foreign keys to characters/NPCs/items in this room'),
 
+    // Canonicalization
+    isObserved: z.boolean().default(false)
+        .describe('Whether this room has been observed by players - blocks regeneration'),
+
     // Metadata
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),

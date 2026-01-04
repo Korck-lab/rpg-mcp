@@ -242,30 +242,47 @@ Returns full room data including exits, entities, and atmospherics.`,
     })
   },
 
-  ROOM_UPDATE: {
-    name: 'room_update',
-    description: `Update a room's state, contents, or description.
+   ROOM_UPDATE: {
+     name: 'room_update',
+     description: `Update a room's state, contents, or description.
 
-Can modify atmospherics, exits, entities, or mark as visited.
+ Can modify atmospherics, exits, entities, or mark as visited.
 
-Atmospheric values: DARKNESS, FOG, ANTIMAGIC, SILENCE, BRIGHT, MAGICAL`,
-    inputSchema: z.object({
-      room_id: z.string().min(1).describe('Room ID to update'),
-      name: z.string().optional().describe('New room name'),
-      description: z.string().optional().describe('New base description'),
-      atmospherics: z.array(z.enum(['DARKNESS', 'FOG', 'ANTIMAGIC', 'SILENCE', 'BRIGHT', 'MAGICAL'])).optional().describe('Replace atmospherics'),
-      add_entity_ids: z.array(z.string()).optional().describe('Entity IDs to add'),
-      remove_entity_ids: z.array(z.string()).optional().describe('Entity IDs to remove'),
-      add_exits: z.array(z.object({
-        direction: z.enum(['north', 'south', 'east', 'west', 'up', 'down', 'northeast', 'northwest', 'southeast', 'southwest']),
-        targetNodeId: z.string().uuid(),
-        type: z.enum(['OPEN', 'LOCKED', 'HIDDEN']).default('OPEN'),
-        description: z.string().optional(),
-        dc: z.number().int().min(5).max(30).optional(),
-      })).optional().describe('Exits to add'),
-      mark_visited: z.boolean().optional().describe('Mark the room as visited'),
-    })
-  },
+ Atmospheric values: DARKNESS, FOG, ANTIMAGIC, SILENCE, BRIGHT, MAGICAL`,
+     inputSchema: z.object({
+       room_id: z.string().min(1).describe('Room ID to update'),
+       name: z.string().optional().describe('New room name'),
+       description: z.string().optional().describe('New base description'),
+       atmospherics: z.array(z.enum(['DARKNESS', 'FOG', 'ANTIMAGIC', 'SILENCE', 'BRIGHT', 'MAGICAL'])).optional().describe('Replace atmospherics'),
+       add_entity_ids: z.array(z.string()).optional().describe('Entity IDs to add'),
+       remove_entity_ids: z.array(z.string()).optional().describe('Entity IDs to remove'),
+       add_exits: z.array(z.object({
+         direction: z.enum(['north', 'south', 'east', 'west', 'up', 'down', 'northeast', 'northwest', 'southeast', 'southwest']),
+         targetNodeId: z.string().uuid(),
+         type: z.enum(['OPEN', 'LOCKED', 'HIDDEN']).default('OPEN'),
+         description: z.string().optional(),
+         dc: z.number().int().min(5).max(30).optional(),
+       })).optional().describe('Exits to add'),
+       mark_visited: z.boolean().optional().describe('Mark the room as visited'),
+     })
+   },
+
+   CANONIZE_ENTITY: {
+     name: 'canonize_entity',
+     description: `Mark an entity as observed/canonical, preventing future regeneration.
+
+ This permanently marks rooms, structures, or POIs as "observed" by players,
+ making them immutable to procedural regeneration. Used when players have
+ discovered and interacted with world content.
+
+ Returns success/error and logs CONTENT_CANONIZED event.`,
+     inputSchema: z.object({
+       entity_type: z.enum(['room', 'structure', 'poi']).describe('Type of entity to canonize'),
+       entity_id: z.string().min(1).describe('ID of the entity to canonize'),
+       world_id: z.string().min(1).describe('World ID containing the entity'),
+       observer_id: z.string().optional().describe('ID of the character/entity that observed it'),
+     })
+   },
 } as const;
 
 // ============================================================
@@ -906,4 +923,136 @@ export async function handleRoomUpdate(
       text: output
     }]
   };
+}
+
+export async function handleCanonizeEntity(
+  args: z.infer<typeof WorldTools.CANONIZE_ENTITY.inputSchema>,
+  _ctx: SessionContext
+) {
+  const { db, spatialRepo, structureRepo } = ensureDb();
+
+  try {
+    let entityName = '';
+    let entityType = '';
+
+    if (args.entity_type === 'room') {
+      const room = spatialRepo.findById(args.entity_id);
+      if (!room) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ success: false, error: `Room not found: ${args.entity_id}` })
+          }]
+        };
+      }
+
+      if (room.isObserved) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ success: false, error: `Room ${args.entity_id} is already canonicalized` })
+          }]
+        };
+      }
+
+      spatialRepo.update(args.entity_id, { isObserved: true });
+      entityName = room.name;
+      entityType = 'room';
+
+    } else if (args.entity_type === 'structure') {
+      const structure = structureRepo.findById(args.entity_id);
+      if (!structure) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ success: false, error: `Structure not found: ${args.entity_id}` })
+          }]
+        };
+      }
+
+      if (structure.isObserved) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ success: false, error: `Structure ${args.entity_id} is already canonicalized` })
+          }]
+        };
+      }
+
+      structureRepo.update(args.entity_id, { isObserved: true });
+      entityName = structure.name;
+      entityType = 'structure';
+
+    } else if (args.entity_type === 'poi') {
+      // POI canonization would require POI repository - for now, return not implemented
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ success: false, error: `POI canonization not yet implemented` })
+        }]
+      };
+    }
+
+    // Log the canonicalization event
+    const eventStmt = db.prepare(`
+      INSERT INTO event_logs (world_id, event_type, actor_id, target_id, payload, created_at, prev_hash, hash)
+      VALUES (?, 'system', ?, ?, ?, ?, (SELECT hash FROM event_logs WHERE world_id = ? ORDER BY id DESC LIMIT 1), ?)
+    `);
+
+    const now = new Date().toISOString();
+    const payload = {
+      event_type: 'CONTENT_CANONIZED',
+      entity_type: args.entity_type,
+      entity_id: args.entity_id,
+      entity_name: entityName,
+      observer_id: args.observer_id || null,
+      timestamp: now
+    };
+
+    // Compute hash (simplified - in real implementation would use proper crypto)
+    const hashInput = JSON.stringify({
+      world_id: args.world_id,
+      event_type: 'system',
+      actor_id: args.observer_id || null,
+      target_id: args.entity_id,
+      payload: payload,
+      created_at: now
+    });
+    const hash = require('crypto').createHash('sha256').update(hashInput).digest('hex');
+
+    eventStmt.run(
+      args.world_id,
+      args.observer_id || null,
+      args.entity_id,
+      JSON.stringify(payload),
+      now,
+      args.world_id,
+      hash
+    );
+
+    let output = RichFormatter.header('Entity Canonicalized', '');
+    output += RichFormatter.keyValue({
+      'Entity Type': entityType,
+      'Entity ID': `\`${args.entity_id}\``,
+      'Entity Name': entityName,
+      'Observer': args.observer_id || 'Unknown',
+    });
+    output += RichFormatter.success(`Entity marked as observed/canonical. Future regeneration blocked.`);
+    output += RichFormatter.embedJson(payload, 'CANONICALIZATION_EVENT');
+
+    return {
+      content: [{
+        type: 'text' as const,
+        text: output
+      }]
+    };
+
+  } catch (error) {
+    return {
+      content: [{
+        type: 'text' as const,
+        text: JSON.stringify({ success: false, error: `Canonization failed: ${error}` })
+      }]
+    };
+  }
 }

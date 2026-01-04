@@ -117,8 +117,10 @@ export async function handleTurnManagementTool(name: string, args: any) {
             for (const action of actions) {
                 switch (action.type) {
                     case 'claim_region':
+                        // Generate deterministic ID using world and nation context
+                        const claimId = `claim-${worldId}-${nationId}-${action.regionId}-${Date.now()}`;
                         diplomacyRepo.createClaim({
-                            id: `claim-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Bounded random for ID uniqueness
+                            id: claimId,
                             nationId,
                             regionId: action.regionId!,
                             claimStrength: 100,

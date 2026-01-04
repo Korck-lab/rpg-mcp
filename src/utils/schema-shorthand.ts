@@ -473,10 +473,10 @@ export function formatAreaOfEffect(aoe: AreaOfEffect): string {
  * Roll dice based on notation string
  *
  * @param notation Dice notation like "2d6+3" or "1d20"
- * @param rng Optional random function (default: Math.random)
+ * @param rng Required seeded random function for deterministic results
  * @returns Total rolled value
  */
-export function rollDice(notation: string, rng: () => number = Math.random): number {
+export function rollDice(notation: string, rng: () => number): number {
     const damage = parseDamage(notation);
     if (!damage) {
         // Try simple modifier like "+5"

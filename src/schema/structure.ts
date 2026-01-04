@@ -19,6 +19,11 @@ export const StructureSchema = z.object({
   x: z.number(),
   y: z.number(),
   population: z.number().nonnegative(),
+
+  // Canonicalization
+  isObserved: z.boolean().default(false)
+    .describe('Whether this structure has been observed by players - blocks regeneration'),
+
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

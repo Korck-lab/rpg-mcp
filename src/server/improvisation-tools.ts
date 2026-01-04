@@ -49,7 +49,7 @@ function ensureDb() {
 /**
  * Roll dice from notation like "2d6+3"
  */
-function rollDice(notation: string, rng?: seedrandom.PRNG): { total: number; rolls: number[]; notation: string } {
+function rollDice(notation: string, rng: seedrandom.PRNG): { total: number; rolls: number[]; notation: string } {
     const match = notation.match(/^(\d+)d(\d+)([+-]\d+)?$/i);
     if (!match) {
         throw new Error(`Invalid dice notation: ${notation}`);
@@ -60,10 +60,9 @@ function rollDice(notation: string, rng?: seedrandom.PRNG): { total: number; rol
     const modifier = match[3] ? parseInt(match[3], 10) : 0;
 
     const rolls: number[] = [];
-    const random = rng || Math.random;
 
     for (let i = 0; i < count; i++) {
-        rolls.push(Math.floor(random() * sides) + 1);
+        rolls.push(Math.floor(rng() * sides) + 1);
     }
 
     const sum = rolls.reduce((a, b) => a + b, 0);
@@ -77,15 +76,14 @@ function rollDice(notation: string, rng?: seedrandom.PRNG): { total: number; rol
 /**
  * Roll a d20 with optional advantage/disadvantage
  */
-function rollD20(advantage?: boolean, disadvantage?: boolean, rng?: seedrandom.PRNG): { roll: number; rolls: number[] } {
-    const random = rng || Math.random;
-    const roll1 = Math.floor(random() * 20) + 1;
+function rollD20(advantage: boolean | undefined, disadvantage: boolean | undefined, rng: seedrandom.PRNG): { roll: number; rolls: number[] } {
+    const roll1 = Math.floor(rng() * 20) + 1;
 
     if (!advantage && !disadvantage) {
         return { roll: roll1, rolls: [roll1] };
     }
 
-    const roll2 = Math.floor(random() * 20) + 1;
+    const roll2 = Math.floor(rng() * 20) + 1;
 
     if (advantage && !disadvantage) {
         return { roll: Math.max(roll1, roll2), rolls: [roll1, roll2] };

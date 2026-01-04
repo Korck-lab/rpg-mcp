@@ -13,6 +13,7 @@ import { Tools, handleGenerateWorld, handleGetWorldState, handleApplyMapPatch, h
 import { CombatTools, handleCreateEncounter, handleGetEncounterState, handleExecuteCombatAction, handleAdvanceTurn, handleEndEncounter, handleLoadEncounter, handleRollDeathSave, handleExecuteLairAction, handleRenderMap, handleCalculateAoe, handleUpdateTerrain, handlePlaceProp, handleMeasureDistance, handleGenerateTerrainPatch, handleGenerateTerrainPattern, handleListEncounters, handleUpdateEncounter, handleDeleteEncounter, handleAddToken, handleUpdateToken, handleRemoveToken, handleRollInitiative, handleListTokens, handleGetToken } from './combat-tools.js';
 import { CRUDTools, handleCreateWorld, handleGetWorld, handleListWorlds, handleDeleteWorld, handleCreateCharacter, handleGetCharacter, handleUpdateCharacter, handleListCharacters, handleDeleteCharacter, handleUpdateWorldEnvironment } from './crud-tools.js';
 import { InventoryTools, handleCreateItemTemplate, handleGiveItem, handleRemoveItem, handleEquipItem, handleUnequipItem, handleGetInventory, handleGetItem, handleListItems, handleSearchItems, handleUpdateItem, handleDeleteItem, handleTransferItem, handleUseItem, handleGetInventoryDetailed, handleAttuneItem, handleUnattuneItem } from './inventory-tools.js';
+import { TradingTools, handleGetMerchantInventory, handleCalculateBuyPrice, handleCalculateSellPrice, handleExecuteBuyTransaction, handleExecuteSellTransaction, handleGetCharacterGold, handleUpdateCharacterGold } from './trading-tools.js';
 import { QuestTools, handleCreateQuest, handleGetQuest, handleListQuests, handleAssignQuest, handleUpdateObjective, handleCompleteObjective, handleCompleteQuest, handleGetQuestLog } from './quest-tools.js';
 import { MathTools, handleDiceRoll, handleProbabilityCalculate, handleAlgebraSolve, handleAlgebraSimplify, handlePhysicsProjectile } from './math-tools.js';
 import { StrategyTools, handleStrategyTool } from './strategy-tools.js';
@@ -24,7 +25,7 @@ import { ConcentrationTools, handleCheckConcentrationSave, handleBreakConcentrat
 import { handleSetConcentration, handleBreakConcentration as handleBreakConcentrationCombat, handleGetConcentration } from './combat-tools.js';
 import { ScrollTools, handleUseSpellScroll, handleCreateSpellScroll, handleIdentifyScroll, handleGetScrollUseDC, handleGetScrollDetails, handleCheckScrollUsability } from './scroll-tools.js';
 import { AuraTools, handleCreateAura, handleGetActiveAuras, handleGetAurasAffectingCharacter, handleProcessAuraEffects, handleRemoveAura, handleRemoveCharacterAuras, handleExpireAuras } from './aura-tools.js';
-import { NpcMemoryTools, handleGetNpcRelationship, handleUpdateNpcRelationship, handleRecordConversationMemory, handleGetConversationHistory, handleGetRecentInteractions, handleGetNpcContext, handleInteractSocially } from './npc-memory-tools.js';
+import { NpcMemoryTools, handleGetNpcRelationship, handleUpdateNpcRelationship, handleRecordConversationMemory, handleGetConversationHistory, handleGetRecentInteractions, handleGetNpcContext, handleInteractSocially, handleGetFactionMembers } from './npc-memory-tools.js';
 import { TheftTools, handleStealItem, handleCheckItemStolen, handleCheckStolenItemsOnCharacter, handleCheckItemRecognition, handleSellToFence, handleRegisterFence, handleReportTheft, handleAdvanceHeatDecay, handleGetFence, handleListFences } from './theft-tools.js';
 import { CorpseTools, handleGetCorpse, handleGetCorpseByCharacter, handleListCorpsesInEncounter, handleListCorpsesNearby, handleLootCorpse, handleHarvestCorpse, handleCreateCorpse, handleGenerateLoot, handleGetCorpseInventory, handleCreateLootTable, handleGetLootTable, handleListLootTables, handleAdvanceCorpseDecay, handleCleanupCorpses } from './corpse-tools.js';
 import { ImprovisationTools, handleResolveImprovisedStunt, handleApplyCustomEffect, handleGetCustomEffects, handleRemoveCustomEffect, handleProcessEffectTriggers, handleAdvanceEffectDurations, handleAttemptArcaneSynthesis, handleGetSynthesizedSpells } from './improvisation-tools.js';
@@ -41,7 +42,7 @@ import { CompositeTools, handleSetupTacticalEncounter, handleSpawnEquippedCharac
 import { TraceTools, handleTraceTools, handleTraceDependencies } from './trace-tools.js';
 import { EventLogTools, AuditLogTools, EventInboxExtendedTools, handleEventLogAppend, handleEventLogQuery, handleEventLogVerifyChain, handleEventLogGetLast, handleAuditLogCreate, handleAuditLogQuery, handleEventInboxEnqueue, handleEventInboxProcess, handleEventInboxComplete, handleEventInboxFail } from './event-log-tools.js';
 import { SnapshotTools, handleSnapshotCreate, handleSnapshotList, handleSnapshotGet, handleSnapshotDelete, handleRollbackToSnapshot, handleRollbackToEvent, handleReplayEvents, handleRngStateGet, handleRngStateReset } from './snapshot-tools.js';
-import { WorldTools, handleWorldCreate, handleWorldGet, handleWorldList, handleWorldDelete, handleRegionCreate, handleRegionGet, handleRegionList, handleTileGet, handleTileSet, handleTileExplore, handleStructureCreate, handleStructureGet, handleRoomCreate, handleRoomGet, handleRoomUpdate } from './world-tools.js';
+import { WorldTools, handleWorldCreate, handleWorldGet, handleWorldList, handleWorldDelete, handleRegionCreate, handleRegionGet, handleRegionList, handleTileGet, handleTileSet, handleTileExplore, handleStructureCreate, handleStructureGet, handleRoomCreate, handleRoomGet, handleRoomUpdate, handleCanonizeEntity } from './world-tools.js';
 import { EntityTools, handleCharacterMove, handleCharacterAddCondition, handleCharacterRemoveCondition, handleCharacterUpdateSpellSlots, handleMonsterSpawn, handleMonsterGet, handleMonsterDamage, handleMonsterKill, handleMonsterListInRoom, handleMonsterListAlive, handleCorpseCreateFromMonster, handleCorpseLoot, handleCorpseAdvanceDecay } from './entity-tools.js';
 
 // Helper to create metadata
@@ -682,6 +683,57 @@ export function buildToolRegistry(): ToolRegistry {
       handler: handleGetInventoryDetailed
     },
 
+    // === TRADING TOOLS ===
+    [TradingTools.GET_MERCHANT_INVENTORY.name]: {
+      metadata: meta(TradingTools.GET_MERCHANT_INVENTORY.name, TradingTools.GET_MERCHANT_INVENTORY.description, 'trading',
+        ['merchant', 'inventory', 'shop', 'store', 'goods', 'items'],
+        ['Merchant inventory retrieval', 'Item availability'], true, 'medium'),
+      schema: TradingTools.GET_MERCHANT_INVENTORY.inputSchema,
+      handler: handleGetMerchantInventory
+    },
+    [TradingTools.CALCULATE_BUY_PRICE.name]: {
+      metadata: meta(TradingTools.CALCULATE_BUY_PRICE.name, TradingTools.CALCULATE_BUY_PRICE.description, 'trading',
+        ['price', 'buy', 'cost', 'merchant', 'purchase', 'calculate'],
+        ['Price calculation with modifiers', 'CHA/disposition effects'], true, 'low'),
+      schema: TradingTools.CALCULATE_BUY_PRICE.inputSchema,
+      handler: handleCalculateBuyPrice
+    },
+    [TradingTools.CALCULATE_SELL_PRICE.name]: {
+      metadata: meta(TradingTools.CALCULATE_SELL_PRICE.name, TradingTools.CALCULATE_SELL_PRICE.description, 'trading',
+        ['price', 'sell', 'value', 'merchant', 'sale', 'calculate'],
+        ['Sell price calculation (50% of base)'], true, 'low'),
+      schema: TradingTools.CALCULATE_SELL_PRICE.inputSchema,
+      handler: handleCalculateSellPrice
+    },
+    [TradingTools.EXECUTE_BUY_TRANSACTION.name]: {
+      metadata: meta(TradingTools.EXECUTE_BUY_TRANSACTION.name, TradingTools.EXECUTE_BUY_TRANSACTION.description, 'trading',
+        ['buy', 'purchase', 'transaction', 'merchant', 'gold', 'execute'],
+        ['Purchase transaction execution', 'Gold deduction'], true, 'medium'),
+      schema: TradingTools.EXECUTE_BUY_TRANSACTION.inputSchema,
+      handler: handleExecuteBuyTransaction
+    },
+    [TradingTools.EXECUTE_SELL_TRANSACTION.name]: {
+      metadata: meta(TradingTools.EXECUTE_SELL_TRANSACTION.name, TradingTools.EXECUTE_SELL_TRANSACTION.description, 'trading',
+        ['sell', 'sale', 'transaction', 'merchant', 'gold', 'execute'],
+        ['Sale transaction execution', 'Gold addition'], true, 'medium'),
+      schema: TradingTools.EXECUTE_SELL_TRANSACTION.inputSchema,
+      handler: handleExecuteSellTransaction
+    },
+    [TradingTools.GET_CHARACTER_GOLD.name]: {
+      metadata: meta(TradingTools.GET_CHARACTER_GOLD.name, TradingTools.GET_CHARACTER_GOLD.description, 'trading',
+        ['gold', 'currency', 'character', 'wealth', 'money'],
+        ['Character gold retrieval'], true, 'low'),
+      schema: TradingTools.GET_CHARACTER_GOLD.inputSchema,
+      handler: handleGetCharacterGold
+    },
+    [TradingTools.UPDATE_CHARACTER_GOLD.name]: {
+      metadata: meta(TradingTools.UPDATE_CHARACTER_GOLD.name, TradingTools.UPDATE_CHARACTER_GOLD.description, 'trading',
+        ['gold', 'currency', 'character', 'wealth', 'money', 'update'],
+        ['Character gold modification'], true, 'low'),
+      schema: TradingTools.UPDATE_CHARACTER_GOLD.inputSchema,
+      handler: handleUpdateCharacterGold
+    },
+
     // === QUEST TOOLS ===
     [QuestTools.CREATE_QUEST.name]: {
       metadata: meta(QuestTools.CREATE_QUEST.name, QuestTools.CREATE_QUEST.description, 'quest',
@@ -1142,6 +1194,13 @@ export function buildToolRegistry(): ToolRegistry {
         ['Social interaction', 'Stealth vs Perception'], false, 'medium'),
       schema: NpcMemoryTools.INTERACT_SOCIALLY.inputSchema,
       handler: handleInteractSocially
+    },
+    [NpcMemoryTools.GET_FACTION_MEMBERS.name]: {
+      metadata: meta(NpcMemoryTools.GET_FACTION_MEMBERS.name, NpcMemoryTools.GET_FACTION_MEMBERS.description, 'npc',
+        ['npc', 'faction', 'members', 'group', 'social'],
+        ['Faction member listing', 'Social group queries'], false, 'low'),
+      schema: NpcMemoryTools.GET_FACTION_MEMBERS.inputSchema,
+      handler: handleGetFactionMembers
     },
 
     // === SPATIAL TOOLS ===
@@ -1883,6 +1942,13 @@ export function buildToolRegistry(): ToolRegistry {
         ['Room modification', 'State update'], false, 'low'),
       schema: WorldTools.ROOM_UPDATE.inputSchema,
       handler: handleRoomUpdate
+    },
+    [WorldTools.CANONIZE_ENTITY.name]: {
+      metadata: meta(WorldTools.CANONIZE_ENTITY.name, WorldTools.CANONIZE_ENTITY.description, 'canonicalization',
+        ['canonize', 'observed', 'immutable', 'lock', 'preserve'],
+        ['Content canonicalization', 'Observation locking'], false, 'high'),
+      schema: WorldTools.CANONIZE_ENTITY.inputSchema,
+      handler: handleCanonizeEntity
     },
 
     // === ENTITY TOOLS (T065-T066) ===

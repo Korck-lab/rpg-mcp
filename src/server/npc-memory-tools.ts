@@ -91,6 +91,14 @@ export const NpcMemoryTools = {
         })
     },
 
+    GET_FACTION_MEMBERS: {
+        name: 'get_faction_members',
+        description: 'Get all NPCs that belong to a specific faction.',
+        inputSchema: z.object({
+            factionId: z.string().describe('ID of the faction')
+        })
+    },
+
     // PHASE-2: Social Hearing Mechanics
     INTERACT_SOCIALLY: {
         name: 'interact_socially',
@@ -440,6 +448,28 @@ export async function handleInteractSocially(args: unknown, _ctx: SessionContext
                 totalListeners: hearingResults.length,
                 whoHeard: hearingResults.filter(r => r.heardFully || r.opposedRoll?.success).length,
                 whoMissed: hearingResults.filter(r => !r.heardFully && !r.opposedRoll?.success).length
+            }, null, 2)
+        }]
+    };
+}
+
+export async function handleGetFactionMembers(args: unknown, _ctx: SessionContext) {
+    const parsed = NpcMemoryTools.GET_FACTION_MEMBERS.inputSchema.parse(args);
+    const charRepo = new CharacterRepository(getDb(process.env.NODE_ENV === 'test' ? ':memory:' : 'rpg.db'));
+
+    // Get all characters with the specified faction_id
+    const allCharacters = charRepo.findAll();
+    const factionMembers = allCharacters
+        .filter(char => char.factionId === parsed.factionId)
+        .map(char => char.id);
+
+    return {
+        content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+                factionId: parsed.factionId,
+                members: factionMembers,
+                count: factionMembers.length
             }, null, 2)
         }]
     };

@@ -7,8 +7,8 @@ export class StructureRepository {
     create(structure: Structure): void {
         const validStructure = StructureSchema.parse(structure);
         const stmt = this.db.prepare(`
-      INSERT INTO structures (id, world_id, region_id, name, type, x, y, population, created_at, updated_at)
-      VALUES (@id, @worldId, @regionId, @name, @type, @x, @y, @population, @createdAt, @updatedAt)
+      INSERT INTO structures (id, world_id, region_id, name, type, x, y, population, is_observed, created_at, updated_at)
+      VALUES (@id, @worldId, @regionId, @name, @type, @x, @y, @population, @isObserved, @createdAt, @updatedAt)
     `);
         stmt.run({
             id: validStructure.id,
@@ -19,6 +19,7 @@ export class StructureRepository {
             x: validStructure.x,
             y: validStructure.y,
             population: validStructure.population,
+            isObserved: validStructure.isObserved ? 1 : 0,
             createdAt: validStructure.createdAt,
             updatedAt: validStructure.updatedAt,
         });
@@ -42,8 +43,8 @@ export class StructureRepository {
         if (structures.length === 0) return 0;
 
         const stmt = this.db.prepare(`
-            INSERT INTO structures (id, world_id, region_id, name, type, x, y, population, created_at, updated_at)
-            VALUES (@id, @worldId, @regionId, @name, @type, @x, @y, @population, @createdAt, @updatedAt)
+            INSERT INTO structures (id, world_id, region_id, name, type, x, y, population, is_observed, created_at, updated_at)
+            VALUES (@id, @worldId, @regionId, @name, @type, @x, @y, @population, @isObserved, @createdAt, @updatedAt)
         `);
 
         const insertMany = this.db.transaction((toInsert: Structure[]) => {
@@ -59,6 +60,7 @@ export class StructureRepository {
                     x: valid.x,
                     y: valid.y,
                     population: valid.population,
+                    isObserved: valid.isObserved ? 1 : 0,
                     createdAt: valid.createdAt,
                     updatedAt: valid.updatedAt,
                 });
@@ -88,6 +90,7 @@ export class StructureRepository {
             x: row.x,
             y: row.y,
             population: row.population,
+            isObserved: Boolean(row.is_observed),
             createdAt: row.created_at,
             updatedAt: row.updated_at,
         });
@@ -111,6 +114,7 @@ export class StructureRepository {
             x: row.x,
             y: row.y,
             population: row.population,
+            isObserved: Boolean(row.is_observed),
             createdAt: row.created_at,
             updatedAt: row.updated_at,
         });
@@ -133,6 +137,7 @@ export class StructureRepository {
                 x: row.x,
                 y: row.y,
                 population: row.population,
+                isObserved: Boolean(row.is_observed),
                 createdAt: row.created_at,
                 updatedAt: row.updated_at,
             })
@@ -162,10 +167,46 @@ export class StructureRepository {
                 x: row.x,
                 y: row.y,
                 population: row.population,
+                isObserved: Boolean(row.is_observed),
                 createdAt: row.created_at,
                 updatedAt: row.updated_at,
             })
         );
+    }
+
+    update(id: string, updates: Partial<Structure>): Structure | null {
+        const existing = this.findById(id);
+        if (!existing) return null;
+
+        const updated = {
+            ...existing,
+            ...updates,
+            updatedAt: new Date().toISOString()
+        };
+
+        const validStructure = StructureSchema.parse(updated);
+
+        const stmt = this.db.prepare(`
+            UPDATE structures
+            SET world_id = ?, region_id = ?, name = ?, type = ?, x = ?, y = ?,
+                population = ?, is_observed = ?, updated_at = ?
+            WHERE id = ?
+        `);
+
+        stmt.run(
+            validStructure.worldId,
+            validStructure.regionId || null,
+            validStructure.name,
+            validStructure.type,
+            validStructure.x,
+            validStructure.y,
+            validStructure.population,
+            validStructure.isObserved ? 1 : 0,
+            validStructure.updatedAt,
+            id
+        );
+
+        return validStructure;
     }
 }
 
@@ -180,4 +221,5 @@ interface StructureRow {
     population: number;
     created_at: string;
     updated_at: string;
+    is_observed: number; // SQLite boolean stored as integer
 }
