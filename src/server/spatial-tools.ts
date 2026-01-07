@@ -19,7 +19,7 @@ export const SpatialTools = {
         name: 'look_at_surroundings',
         description: 'Get filtered room description accounting for darkness, fog, and perception. Returns exits and entities.',
         inputSchema: z.object({
-            observerId: z.string().uuid().describe('ID of the character observing their surroundings')
+            observerId: z.string().describe('ID of the character observing their surroundings')
         })
     },
 
