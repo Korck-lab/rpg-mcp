@@ -30,7 +30,7 @@ export const GENESIS_HASH = 'a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d
  * This function is idempotent - safe to run multiple times.
  */
 export function migrate001DatabaseArchitecture(db: Database.Database): void {
-  console.log('[Migration 001] Starting database architecture migration...');
+  console.error('[Migration 001] Starting database architecture migration...');
 
   // ============================================================
   // DOMAIN 1: Event Sourcing Layer
@@ -86,7 +86,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
   const inboxExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='event_inbox'").get();
   
   if (!inboxExists) {
-    console.log('[Migration 001] Creating event_inbox table');
+    console.error('[Migration 001] Creating event_inbox table');
     db.exec(`
       CREATE TABLE IF NOT EXISTS event_inbox (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -109,7 +109,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     const hasWorldId = inboxColumns.some(col => col.name === 'world_id');
     
     if (!hasWorldId) {
-      console.log('[Migration 001] Adding world_id column to event_inbox');
+      console.error('[Migration 001] Adding world_id column to event_inbox');
       db.exec(`ALTER TABLE event_inbox ADD COLUMN world_id TEXT NOT NULL DEFAULT 'default';`);
     }
     
@@ -119,21 +119,21 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     const hasExpiresAt = inboxColumns.some(col => col.name === 'expires_at');
     
     if (!hasProcessAfter) {
-      console.log('[Migration 001] Adding process_after column to event_inbox');
+      console.error('[Migration 001] Adding process_after column to event_inbox');
       db.exec(`ALTER TABLE event_inbox ADD COLUMN process_after TEXT;`);
     }
     if (!hasStatus) {
-      console.log('[Migration 001] Adding status column to event_inbox');
+      console.error('[Migration 001] Adding status column to event_inbox');
       db.exec(`ALTER TABLE event_inbox ADD COLUMN status TEXT NOT NULL DEFAULT 'pending';`);
     }
     if (!hasExpiresAt) {
-      console.log('[Migration 001] Adding expires_at column to event_inbox');
+      console.error('[Migration 001] Adding expires_at column to event_inbox');
       db.exec(`ALTER TABLE event_inbox ADD COLUMN expires_at TEXT;`);
     }
   }
 
   // Create indexes (safe to run even if table existed)
-  console.log('[Migration 001] Creating event_inbox indexes');
+  console.error('[Migration 001] Creating event_inbox indexes');
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_event_inbox_pending ON event_inbox(world_id, status, process_after);
     CREATE INDEX IF NOT EXISTS idx_event_inbox_expires ON event_inbox(expires_at) WHERE status = 'pending';
@@ -147,7 +147,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
   const worldColumns = db.prepare("PRAGMA table_info(worlds)").all() as { name: string }[];
   const hasEnvironment = worldColumns.some(col => col.name === 'environment');
   if (!hasEnvironment) {
-    console.log('[Migration 001] Adding environment column to worlds');
+    console.error('[Migration 001] Adding environment column to worlds');
     db.exec(`ALTER TABLE worlds ADD COLUMN environment TEXT NOT NULL DEFAULT '{"timeOfDay":"morning","season":"summer","weather":"clear","temperature":"mild","lighting":"bright"}';`);
   }
 
@@ -173,7 +173,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
   const structuresExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='structures'").get();
 
   if (!structuresExists) {
-    console.log('[Migration 001] Creating structures table');
+    console.error('[Migration 001] Creating structures table');
     db.exec(`
       CREATE TABLE IF NOT EXISTS structures (
         id TEXT PRIMARY KEY,
@@ -195,7 +195,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     // Migrate existing table
     const structCols = db.prepare("PRAGMA table_info(structures)").all() as { name: string }[];
     const colNames = structCols.map(c => c.name);
-    console.log('[Migration 001] Existing structures columns:', colNames.join(', '));
+    console.error('[Migration 001] Existing structures columns:', colNames.join(', '));
 
     const hasX = colNames.includes('x');
     const hasTileX = colNames.includes('tile_x');
@@ -205,7 +205,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     const hasIsObserved = colNames.includes('is_observed');
 
     if (hasX && !hasTileX) {
-      console.log('[Migration 001] Renaming x/y to tile_x/tile_y in structures');
+      console.error('[Migration 001] Renaming x/y to tile_x/tile_y in structures');
       try {
         db.exec(`ALTER TABLE structures RENAME COLUMN x TO tile_x;`);
         db.exec(`ALTER TABLE structures RENAME COLUMN y TO tile_y;`);
@@ -215,7 +215,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     }
     
     if (hasMetadata && !hasMetadataJson) {
-       console.log('[Migration 001] Renaming metadata to metadata_json in structures');
+       console.error('[Migration 001] Renaming metadata to metadata_json in structures');
        try {
          db.exec(`ALTER TABLE structures RENAME COLUMN metadata TO metadata_json;`);
        } catch (e) {
@@ -224,7 +224,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     }
 
     if (!hasEntrance) {
-       console.log('[Migration 001] Adding entrance_room_id to structures');
+       console.error('[Migration 001] Adding entrance_room_id to structures');
        try {
          db.exec(`ALTER TABLE structures ADD COLUMN entrance_room_id TEXT REFERENCES room_nodes(id);`);
        } catch (e) {
@@ -247,7 +247,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     const checkCols = db.prepare("PRAGMA table_info(structures)").all() as { name: string }[];
     const currentCols = checkCols.map(c => c.name);
     if (currentCols.includes('tile_x') && currentCols.includes('tile_y')) {
-      console.log('[Migration 001] Creating structures indexes');
+      console.error('[Migration 001] Creating structures indexes');
       db.exec(`
         CREATE INDEX IF NOT EXISTS idx_structures_region ON structures(region_id);
         CREATE INDEX IF NOT EXISTS idx_structures_tile ON structures(region_id, tile_x, tile_y);
@@ -266,7 +266,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
   ).get();
 
   if (!tilesExists) {
-    console.log('[Migration 001] Creating tiles table');
+    console.error('[Migration 001] Creating tiles table');
     db.exec(`
       CREATE TABLE IF NOT EXISTS tiles (
         id TEXT PRIMARY KEY,
@@ -298,31 +298,31 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     const hasTileIsExplored = tileColumns.some(col => col.name === 'is_explored');
 
     if (!hasTileRegionId) {
-      console.log('[Migration 001] Adding region_id column to tiles');
+      console.error('[Migration 001] Adding region_id column to tiles');
       db.exec(`ALTER TABLE tiles ADD COLUMN region_id TEXT REFERENCES regions(id) ON DELETE CASCADE;`);
     }
     if (!hasTileTerrain) {
-      console.log('[Migration 001] Adding terrain column to tiles');
+      console.error('[Migration 001] Adding terrain column to tiles');
       db.exec(`ALTER TABLE tiles ADD COLUMN terrain TEXT NOT NULL DEFAULT 'normal';`);
     }
     if (!hasTileBiome) {
-      console.log('[Migration 001] Adding biome column to tiles');
+      console.error('[Migration 001] Adding biome column to tiles');
       db.exec(`ALTER TABLE tiles ADD COLUMN biome TEXT;`);
     }
     if (!hasTileElevation) {
-      console.log('[Migration 001] Adding elevation column to tiles');
+      console.error('[Migration 001] Adding elevation column to tiles');
       db.exec(`ALTER TABLE tiles ADD COLUMN elevation INTEGER DEFAULT 0;`);
     }
     if (!hasTileFeaturesJson) {
-      console.log('[Migration 001] Adding features_json column to tiles');
+      console.error('[Migration 001] Adding features_json column to tiles');
       db.exec(`ALTER TABLE tiles ADD COLUMN features_json TEXT DEFAULT '[]';`);
     }
     if (!hasTileStructureId) {
-      console.log('[Migration 001] Adding structure_id column to tiles');
+      console.error('[Migration 001] Adding structure_id column to tiles');
       db.exec(`ALTER TABLE tiles ADD COLUMN structure_id TEXT REFERENCES structures(id);`);
     }
     if (!hasTileIsExplored) {
-      console.log('[Migration 001] Adding is_explored column to tiles');
+      console.error('[Migration 001] Adding is_explored column to tiles');
       db.exec(`ALTER TABLE tiles ADD COLUMN is_explored INTEGER DEFAULT 0;`);
     }
   }
@@ -340,7 +340,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
   ).get();
 
   if (!roomNodesExists) {
-    console.log('[Migration 001] Creating room_nodes table');
+    console.error('[Migration 001] Creating room_nodes table');
     db.exec(`
       CREATE TABLE IF NOT EXISTS room_nodes (
         id TEXT PRIMARY KEY,
@@ -370,27 +370,27 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     const hasRoomIsObserved = roomNodeColumns.some(col => col.name === 'is_observed');
 
     if (!hasRoomStructureId) {
-      console.log('[Migration 001] Adding structure_id column to room_nodes');
+      console.error('[Migration 001] Adding structure_id column to room_nodes');
       db.exec(`ALTER TABLE room_nodes ADD COLUMN structure_id TEXT REFERENCES structures(id) ON DELETE CASCADE;`);
     }
     if (!hasRoomBiomeContext) {
-      console.log('[Migration 001] Adding biome_context column to room_nodes');
+      console.error('[Migration 001] Adding biome_context column to room_nodes');
       db.exec(`ALTER TABLE room_nodes ADD COLUMN biome_context TEXT;`);
     }
     if (!hasRoomLighting) {
-      console.log('[Migration 001] Adding lighting column to room_nodes');
+      console.error('[Migration 001] Adding lighting column to room_nodes');
       db.exec(`ALTER TABLE room_nodes ADD COLUMN lighting TEXT DEFAULT 'normal';`);
     }
     if (!hasRoomType) {
-      console.log('[Migration 001] Adding room_type column to room_nodes');
+      console.error('[Migration 001] Adding room_type column to room_nodes');
       db.exec(`ALTER TABLE room_nodes ADD COLUMN room_type TEXT;`);
     }
     if (!hasRoomContentsJson) {
-      console.log('[Migration 001] Adding contents_json column to room_nodes');
+      console.error('[Migration 001] Adding contents_json column to room_nodes');
       db.exec(`ALTER TABLE room_nodes ADD COLUMN contents_json TEXT DEFAULT '{}';`);
     }
     if (!hasRoomStateJson) {
-      console.log('[Migration 001] Adding state_json column to room_nodes');
+      console.error('[Migration 001] Adding state_json column to room_nodes');
       db.exec(`ALTER TABLE room_nodes ADD COLUMN state_json TEXT DEFAULT '{}';`);
     }
     if (!hasRoomIsObserved) {
@@ -402,7 +402,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
   // Ensure room_nodes index exists
   db.exec(`CREATE INDEX IF NOT EXISTS idx_room_nodes_structure ON room_nodes(structure_id);`);
 
-  console.log('[Migration 001] Processing room_exits...');
+  console.error('[Migration 001] Processing room_exits...');
   // 2.6 Room exits table (separate from embedded JSON)
   db.exec(`
     CREATE TABLE IF NOT EXISTS room_exits (
@@ -432,7 +432,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
   // 3.1 Characters table (T059)
   // Commented out - handled by main migrate
 
-  console.log('[Migration 001] Processing npcs...');
+  console.error('[Migration 001] Processing npcs...');
   // 3.2 NPCs table (T060) - extended NPC data
   db.exec(`
     CREATE TABLE IF NOT EXISTS npcs (
@@ -449,13 +449,13 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     );
   `);
 
-  console.log('[Migration 001] Processing monsters...');
+  console.error('[Migration 001] Processing monsters...');
   // 3.3 Monsters table (T061)
   const monstersExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='monsters'").get();
-  console.log(`[Migration 001] Monsters table exists: ${!!monstersExists}`);
+  console.error(`[Migration 001] Monsters table exists: ${!!monstersExists}`);
   
   if (!monstersExists) {
-    console.log('[Migration 001] Creating monsters table');
+    console.error('[Migration 001] Creating monsters table');
     db.exec(`
       CREATE TABLE IF NOT EXISTS monsters (
         id TEXT PRIMARY KEY,
@@ -480,22 +480,22 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     // Check for columns if table exists
     const monsterCols = db.prepare("PRAGMA table_info(monsters)").all() as { name: string }[];
     const colNames = monsterCols.map(c => c.name);
-    console.log('[Migration 001] Existing monsters columns:', colNames.join(', '));
+    console.error('[Migration 001] Existing monsters columns:', colNames.join(', '));
 
     const hasLocation = colNames.includes('location_room_id');
     const hasLair = colNames.includes('lair_room_id');
     
     if (!hasLocation) {
-        console.log('[Migration 001] Adding location_room_id to monsters');
+        console.error('[Migration 001] Adding location_room_id to monsters');
         db.exec(`ALTER TABLE monsters ADD COLUMN location_room_id TEXT REFERENCES room_nodes(id);`);
     }
     if (!hasLair) {
-        console.log('[Migration 001] Adding lair_room_id to monsters');
+        console.error('[Migration 001] Adding lair_room_id to monsters');
         db.exec(`ALTER TABLE monsters ADD COLUMN lair_room_id TEXT REFERENCES room_nodes(id);`);
     }
   }
 
-  console.log('[Migration 001] Creating monsters indexes');
+  console.error('[Migration 001] Creating monsters indexes');
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_monsters_world ON monsters(world_id);
     CREATE INDEX IF NOT EXISTS idx_monsters_location ON monsters(location_room_id);
@@ -504,10 +504,10 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
 
   // 3.4 Corpses table (T062)
   const corpsesExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='corpses'").get();
-  console.log(`[Migration 001] Corpses table exists: ${!!corpsesExists}`);
+  console.error(`[Migration 001] Corpses table exists: ${!!corpsesExists}`);
 
   if (!corpsesExists) {
-    console.log('[Migration 001] Creating corpses table');
+    console.error('[Migration 001] Creating corpses table');
     db.exec(`
       CREATE TABLE IF NOT EXISTS corpses (
         id TEXT PRIMARY KEY,
@@ -529,22 +529,22 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     // Check for columns
     const corpseCols = db.prepare("PRAGMA table_info(corpses)").all() as { name: string }[];
     const colNames = corpseCols.map(c => c.name);
-    console.log('[Migration 001] Existing corpses columns:', colNames.join(', '));
+    console.error('[Migration 001] Existing corpses columns:', colNames.join(', '));
 
     const hasLocation = colNames.includes('location_room_id');
     const hasLootJson = colNames.includes('loot_json');
     
     if (!hasLocation) {
-        console.log('[Migration 001] Adding location_room_id to corpses');
+        console.error('[Migration 001] Adding location_room_id to corpses');
         db.exec(`ALTER TABLE corpses ADD COLUMN location_room_id TEXT REFERENCES room_nodes(id);`);
     }
     if (!hasLootJson) {
-        console.log('[Migration 001] Adding loot_json to corpses');
+        console.error('[Migration 001] Adding loot_json to corpses');
         db.exec(`ALTER TABLE corpses ADD COLUMN loot_json TEXT DEFAULT '[]';`);
     }
   }
 
-  console.log('[Migration 001] Creating corpses indexes');
+  console.error('[Migration 001] Creating corpses indexes');
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_corpses_location ON corpses(location_room_id);
     CREATE INDEX IF NOT EXISTS idx_corpses_state ON corpses(world_id, state);
@@ -604,7 +604,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
   const inventoryColumns = db.prepare("PRAGMA table_info(inventory_items)").all() as { name: string }[];
   const hasAttuned = inventoryColumns.some(col => col.name === 'attuned');
   if (!hasAttuned) {
-    console.log('[Migration 001] Adding attuned column to inventory_items');
+    console.error('[Migration 001] Adding attuned column to inventory_items');
     db.exec(`ALTER TABLE inventory_items ADD COLUMN attuned INTEGER NOT NULL DEFAULT 0;`);
   }
 
@@ -615,15 +615,15 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
   const hasAttunementReqs = itemColumns.some(col => col.name === 'attunement_requirements');
 
   if (!hasRarity) {
-    console.log('[Migration 001] Adding rarity column to items');
+    console.error('[Migration 001] Adding rarity column to items');
     db.exec(`ALTER TABLE items ADD COLUMN rarity TEXT DEFAULT 'common';`);
   }
   if (!hasRequiresAttunement) {
-    console.log('[Migration 001] Adding requires_attunement column to items');
+    console.error('[Migration 001] Adding requires_attunement column to items');
     db.exec(`ALTER TABLE items ADD COLUMN requires_attunement INTEGER NOT NULL DEFAULT 0;`);
   }
   if (!hasAttunementReqs) {
-    console.log('[Migration 001] Adding attunement_requirements column to items');
+    console.error('[Migration 001] Adding attunement_requirements column to items');
     db.exec(`ALTER TABLE items ADD COLUMN attunement_requirements TEXT;`);
   }
 
@@ -752,7 +752,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
   // 5.3 Quest logs table (T086)
   const questLogsExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='quest_logs'").get();
   if (!questLogsExists) {
-    console.log('[Migration 001] Creating quest_logs table');
+    console.error('[Migration 001] Creating quest_logs table');
     db.exec(`
       CREATE TABLE IF NOT EXISTS quest_logs(
         character_id TEXT PRIMARY KEY,
@@ -768,15 +768,15 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     const colNames = qlCols.map(c => c.name);
 
     if (colNames.includes('active_quests') && !colNames.includes('active_quests_json')) {
-      console.log('[Migration 001] Renaming active_quests to active_quests_json in quest_logs');
+      console.error('[Migration 001] Renaming active_quests to active_quests_json in quest_logs');
       db.exec(`ALTER TABLE quest_logs RENAME COLUMN active_quests TO active_quests_json;`);
     }
     if (colNames.includes('completed_quests') && !colNames.includes('completed_quests_json')) {
-      console.log('[Migration 001] Renaming completed_quests to completed_quests_json in quest_logs');
+      console.error('[Migration 001] Renaming completed_quests to completed_quests_json in quest_logs');
       db.exec(`ALTER TABLE quest_logs RENAME COLUMN completed_quests TO completed_quests_json;`);
     }
     if (colNames.includes('failed_quests') && !colNames.includes('failed_quests_json')) {
-      console.log('[Migration 001] Renaming failed_quests to failed_quests_json in quest_logs');
+      console.error('[Migration 001] Renaming failed_quests to failed_quests_json in quest_logs');
       db.exec(`ALTER TABLE quest_logs RENAME COLUMN failed_quests TO failed_quests_json;`);
     }
   }
@@ -784,7 +784,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
   // 5.4 Narrative notes table (T087)
   const narrativeNotesExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='narrative_notes'").get();
   if (!narrativeNotesExists) {
-    console.log('[Migration 001] Creating narrative_notes table');
+    console.error('[Migration 001] Creating narrative_notes table');
     db.exec(`
       CREATE TABLE IF NOT EXISTS narrative_notes(
         id TEXT PRIMARY KEY,
@@ -813,11 +813,11 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     const colNames = nnCols.map(c => c.name);
     
     if (colNames.includes('metadata') && !colNames.includes('metadata_json')) {
-        console.log('[Migration 001] Renaming metadata to metadata_json in narrative_notes');
+        console.error('[Migration 001] Renaming metadata to metadata_json in narrative_notes');
         db.exec(`ALTER TABLE narrative_notes RENAME COLUMN metadata TO metadata_json;`);
     }
     if (colNames.includes('tags') && !colNames.includes('tags_json')) {
-        console.log('[Migration 001] Renaming tags to tags_json in narrative_notes');
+        console.error('[Migration 001] Renaming tags to tags_json in narrative_notes');
         db.exec(`ALTER TABLE narrative_notes RENAME COLUMN tags TO tags_json;`);
     }
 
@@ -1006,7 +1006,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     VALUES ('migration_001_database_architecture', 'completed', datetime('now'))
   `).run();
 
-  console.log('[Migration 001] Database architecture migration completed successfully.');
+  console.error('[Migration 001] Database architecture migration completed successfully.');
 }
 
 /**
@@ -1029,7 +1029,7 @@ export function isMigration001Applied(db: Database.Database): boolean {
  * WARNING: This will drop tables and lose data!
  */
 export function rollback001DatabaseArchitecture(db: Database.Database): void {
-  console.log('[Migration 001] Rolling back database architecture migration...');
+  console.error('[Migration 001] Rolling back database architecture migration...');
   
   // Drop indexes first (before dropping any tables that might reference them)
   const indexesToDrop = [
@@ -1073,7 +1073,7 @@ export function rollback001DatabaseArchitecture(db: Database.Database): void {
   for (const index of indexesToDrop) {
     try {
       db.exec(`DROP INDEX IF EXISTS ${index};`);
-      console.log(`[Migration 001] Dropped index: ${index}`);
+      console.error(`[Migration 001] Dropped index: ${index}`);
     } catch (e) {
       console.error(`[Migration 001] Failed to drop index ${index}:`, (e as Error).message);
     }
@@ -1110,7 +1110,7 @@ export function rollback001DatabaseArchitecture(db: Database.Database): void {
   for (const table of tablesToDrop) {
     try {
       db.exec(`DROP TABLE IF EXISTS ${table};`);
-      console.log(`[Migration 001] Dropped table: ${table}`);
+      console.error(`[Migration 001] Dropped table: ${table}`);
     } catch (e) {
       console.error(`[Migration 001] Failed to drop ${table}:`, (e as Error).message);
     }
@@ -1123,5 +1123,5 @@ export function rollback001DatabaseArchitecture(db: Database.Database): void {
     // Ignore if _schema_meta doesn't exist
   }
 
-  console.log('[Migration 001] Rollback completed.');
+  console.error('[Migration 001] Rollback completed.');
 }
