@@ -16,7 +16,7 @@ export class UnixServerTransport implements Transport {
 
     constructor(private path: string) {
         this.server = new Server((socket) => {
-            console.log('Client connected to socket');
+            console.error('Client connected to socket');
             this.socket = socket;
 
             let buffer = '';
@@ -44,7 +44,7 @@ export class UnixServerTransport implements Transport {
             });
 
             socket.on('close', () => {
-                console.log('Client disconnected');
+                console.error('Client disconnected');
                 this._onclose?.();
             });
         });
@@ -58,7 +58,7 @@ export class UnixServerTransport implements Transport {
 
         return new Promise((resolve) => {
             this.server.listen(this.path, () => {
-                console.log(`Unix Server listening on ${this.path}`);
+                console.error(`Unix Server listening on ${this.path}`);
                 resolve();
             });
         });

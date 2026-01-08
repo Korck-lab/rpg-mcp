@@ -233,7 +233,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
     }
 
     if (!hasIsObserved) {
-       console.log('[Migration 001] Adding is_observed column to structures');
+       console.error('[Migration 001] Adding is_observed column to structures');
        try {
          db.exec(`ALTER TABLE structures ADD COLUMN is_observed INTEGER NOT NULL DEFAULT 0;`);
        } catch (e) {
@@ -394,7 +394,7 @@ export function migrate001DatabaseArchitecture(db: Database.Database): void {
       db.exec(`ALTER TABLE room_nodes ADD COLUMN state_json TEXT DEFAULT '{}';`);
     }
     if (!hasRoomIsObserved) {
-      console.log('[Migration 001] Adding is_observed column to room_nodes');
+       console.error('[Migration 001] Adding is_observed column to room_nodes');
       db.exec(`ALTER TABLE room_nodes ADD COLUMN is_observed INTEGER NOT NULL DEFAULT 0;`);
     }
   }

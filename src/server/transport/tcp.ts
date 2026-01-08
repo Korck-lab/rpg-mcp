@@ -24,7 +24,7 @@ export class TCPServerTransport implements Transport {
 
     constructor(private port: number = 3000) {
         this.server = new Server((socket) => {
-            console.log('Client connected');
+            console.error('Client connected');
             this.socket = socket;
 
             let buffer = '';
@@ -52,7 +52,7 @@ export class TCPServerTransport implements Transport {
             });
 
             socket.on('close', () => {
-                console.log('Client disconnected');
+                console.error('Client disconnected');
                 this._onclose?.();
             });
         });
@@ -61,7 +61,7 @@ export class TCPServerTransport implements Transport {
     async start(): Promise<void> {
         return new Promise((resolve) => {
             this.server.listen(this.port, () => {
-                console.log(`TCP Server listening on port ${this.port}`);
+                console.error(`TCP Server listening on port ${this.port}`);
                 resolve();
             });
         });
