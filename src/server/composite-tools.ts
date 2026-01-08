@@ -67,9 +67,32 @@ function buildCharacter(data: {
     immunities?: string[];
     position?: { x: number; y: number };
     currentRoomId?: string;
+    // Proficiencies
+    skillProficiencies?: string[];
+    saveProficiencies?: string[];
+    // Spellcasting
+    spellSlots?: Record<string, { current: number; max: number }>;
+    knownSpells?: string[];
+    preparedSpells?: string[];
+    cantripsKnown?: string[];
+    spellcastingAbility?: 'intelligence' | 'wisdom' | 'charisma';
+    spellSaveDC?: number;
+    spellAttackBonus?: number;
     createdAt: string;
     updatedAt: string;
 }): Character {
+    // Calculate max spell level from spell slots
+    let maxSpellLevel = 0;
+    if (data.spellSlots) {
+        for (let i = 9; i >= 1; i--) {
+            const slotKey = `level${i}`;
+            if (data.spellSlots[slotKey]?.max > 0) {
+                maxSpellLevel = i;
+                break;
+            }
+        }
+    }
+
     return {
         id: data.id,
         name: data.name,
@@ -85,17 +108,21 @@ function buildCharacter(data: {
         conditions: [],
         perceptionBonus: 0,
         stealthBonus: 0,
-        knownSpells: [],
-        preparedSpells: [],
-        cantripsKnown: [],
-        maxSpellLevel: 0,
+        knownSpells: data.knownSpells || [],
+        preparedSpells: data.preparedSpells || [],
+        cantripsKnown: data.cantripsKnown || [],
+        maxSpellLevel,
+        spellSlots: data.spellSlots as any,
+        spellcastingAbility: data.spellcastingAbility,
+        spellSaveDC: data.spellSaveDC,
+        spellAttackBonus: data.spellAttackBonus,
         concentratingOn: null,
         activeSpells: [],
         resistances: data.resistances || [],
         vulnerabilities: data.vulnerabilities || [],
         immunities: data.immunities || [],
-        skillProficiencies: [],
-        saveProficiencies: [],
+        skillProficiencies: (data.skillProficiencies || []) as any,
+        saveProficiencies: (data.saveProficiencies || []) as any,
         expertise: [],
         hasLairActions: false,
         currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
@@ -352,7 +379,26 @@ Example:
                     wis: z.number().int(),
                     cha: z.number().int()
                 }).optional(),
+                // Optional HP/AC - if provided, use these values; otherwise calculate
+                hp: z.number().int().min(1).optional(),
+                maxHp: z.number().int().min(1).optional(),
+                ac: z.number().int().min(0).optional(),
+                // Equipment - list of item names to add to inventory
                 equipment: z.array(z.string()).optional().default([]),
+                // Proficiencies
+                skillProficiencies: z.array(z.string()).optional().default([]),
+                saveProficiencies: z.array(z.string()).optional().default([]),
+                // Spellcasting
+                spellSlots: z.record(z.object({
+                    current: z.number().int().min(0),
+                    max: z.number().int().min(0)
+                })).optional(),
+                knownSpells: z.array(z.string()).optional().default([]),
+                preparedSpells: z.array(z.string()).optional().default([]),
+                cantripsKnown: z.array(z.string()).optional().default([]),
+                spellcastingAbility: z.enum(['intelligence', 'wisdom', 'charisma']).optional(),
+                spellSaveDC: z.number().int().optional(),
+                spellAttackBonus: z.number().int().optional(),
                 isLeader: z.boolean().optional()
             })).min(1),
             startingLocation: z.object({
@@ -1069,15 +1115,18 @@ export async function handleSpawnEquippedCharacter(args: unknown, _ctx: SessionC
 }
 
 /**
- * Handle initialize_session (stub - needs world tools integration)
+ * Handle initialize_session - Creates party and characters with full data support
+ * 
+ * Enhanced to support:
+ * - Custom HP/AC values (or auto-calculate if not provided)
+ * - Skill and save proficiencies
+ * - Spellcasting (slots, known/prepared spells, cantrips)
+ * - Equipment provisioning to inventory
  */
 export async function handleInitializeSession(args: unknown, _ctx: SessionContext) {
     const parsed = CompositeTools.INITIALIZE_SESSION.inputSchema.parse(args);
 
-    // This is a stub - full implementation needs world tools
-    // For now, create party and characters
-
-    const { charRepo, partyRepo } = ensureDb();
+    const { charRepo, partyRepo, itemRepo, inventoryRepo } = ensureDb();
     const now = new Date().toISOString();
 
     // Create party
@@ -1095,31 +1144,103 @@ export async function handleInitializeSession(args: unknown, _ctx: SessionContex
         lastPlayedAt: now
     });
 
-    // Create characters
-    const createdCharacters: { id: string; name: string; race: string; class: string; level: number }[] = [];
+    // Create characters with full data support
+    const createdCharacters: { 
+        id: string; 
+        name: string; 
+        race: string; 
+        class: string; 
+        level: number;
+        hp: number;
+        maxHp: number;
+        ac: number;
+        equipment: string[];
+        spells: string[];
+        cantrips: string[];
+    }[] = [];
     let leaderId: string | null = null;
 
     for (const charSpec of parsed.characters) {
         const characterId = randomUUID();
         const stats = charSpec.stats || { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
+        const level = charSpec.level || 1;
+        
+        // Calculate HP if not provided
         const conMod = Math.floor((stats.con - 10) / 2);
-        const hp = 10 + conMod + ((charSpec.level || 1) - 1) * (5 + conMod);
+        const calculatedHp = 10 + conMod + (level - 1) * (5 + conMod);
+        const hp = charSpec.hp ?? calculatedHp;
+        const maxHp = charSpec.maxHp ?? hp;
+        
+        // Calculate AC if not provided (base 10 + DEX mod)
+        const dexMod = Math.floor((stats.dex - 10) / 2);
+        const ac = charSpec.ac ?? (10 + dexMod);
 
+        // Build character with all provided data
         const character = buildCharacter({
             id: characterId,
             name: charSpec.name,
             stats,
             hp,
-            maxHp: hp,
-            ac: 10 + Math.floor((stats.dex - 10) / 2),
-            level: charSpec.level || 1,
+            maxHp,
+            ac,
+            level,
             characterType: 'pc',
             race: charSpec.race || 'Human',
             characterClass: charSpec.characterClass || 'fighter',
+            // Proficiencies
+            skillProficiencies: charSpec.skillProficiencies || [],
+            saveProficiencies: charSpec.saveProficiencies || [],
+            // Spellcasting
+            spellSlots: charSpec.spellSlots,
+            knownSpells: charSpec.knownSpells || [],
+            preparedSpells: charSpec.preparedSpells || [],
+            cantripsKnown: charSpec.cantripsKnown || [],
+            spellcastingAbility: charSpec.spellcastingAbility,
+            spellSaveDC: charSpec.spellSaveDC,
+            spellAttackBonus: charSpec.spellAttackBonus,
             createdAt: now,
             updatedAt: now
         });
         charRepo.create(character);
+
+        // Provision equipment to inventory
+        const equipmentGranted: string[] = [];
+        if (charSpec.equipment && charSpec.equipment.length > 0) {
+            for (const itemName of charSpec.equipment) {
+                try {
+                    // Check if item exists, create if not
+                    const existing = itemRepo.findByName(itemName);
+                    let itemId: string;
+                    
+                    if (existing.success && existing.data && existing.data.length > 0) {
+                        itemId = existing.data[0].id;
+                    } else {
+                        // Create a basic item entry
+                        itemId = randomUUID();
+                        const itemType = inferItemType(itemName);
+                        itemRepo.create({
+                            id: itemId,
+                            name: itemName,
+                            description: `A ${itemName.toLowerCase()}.`,
+                            type: itemType,
+                            rarity: 'common',
+                            requiresAttunement: false,
+                            weight: 1,
+                            value: 1,
+                            createdAt: now,
+                            updatedAt: now
+                        });
+                    }
+                    
+                    // Add to character's inventory
+                    inventoryRepo.addItem(characterId, itemId, 1);
+                    equipmentGranted.push(itemName);
+                } catch (err) {
+                    // Log but don't fail - equipment is best-effort
+                    console.warn(`Failed to provision equipment "${itemName}": ${(err as Error).message}`);
+                }
+            }
+        }
 
         // Add to party
         const role = charSpec.isLeader ? 'leader' : 'member';
@@ -1142,7 +1263,13 @@ export async function handleInitializeSession(args: unknown, _ctx: SessionContex
             name: charSpec.name,
             race: charSpec.race || 'Human',
             class: charSpec.characterClass || 'fighter',
-            level: charSpec.level || 1
+            level,
+            hp,
+            maxHp,
+            ac,
+            equipment: equipmentGranted,
+            spells: charSpec.knownSpells || charSpec.preparedSpells || [],
+            cantrips: charSpec.cantripsKnown || []
         });
     }
 
@@ -1166,6 +1293,34 @@ export async function handleInitializeSession(args: unknown, _ctx: SessionContex
             }, null, 2)
         }]
     };
+}
+
+/**
+ * Infer item type from name for equipment provisioning
+ */
+function inferItemType(itemName: string): 'weapon' | 'armor' | 'consumable' | 'quest' | 'misc' {
+    const name = itemName.toLowerCase();
+    
+    // Weapons
+    if (name.includes('sword') || name.includes('axe') || name.includes('bow') ||
+        name.includes('dagger') || name.includes('mace') || name.includes('staff') ||
+        name.includes('spear') || name.includes('hammer') || name.includes('crossbow') ||
+        name.includes('javelin') || name.includes('rapier') || name.includes('scimitar')) {
+        return 'weapon';
+    }
+    
+    // Armor
+    if (name.includes('armor') || name.includes('mail') || name.includes('shield') ||
+        name.includes('leather') || name.includes('hide') || name.includes('plate')) {
+        return 'armor';
+    }
+    
+    // Consumables
+    if (name.includes('potion') || name.includes('scroll') || name.includes('ration')) {
+        return 'consumable';
+    }
+    
+    return 'misc';
 }
 
 /**
