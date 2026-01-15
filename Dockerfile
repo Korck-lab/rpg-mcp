@@ -14,11 +14,12 @@ RUN apt-get update && apt-get install -y \
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --omit=dev
+RUN npm ci
 
 # Copy source and build
 COPY . .
 RUN npm run build
+RUN npm prune --omit=dev
 
 # Create data directory
 RUN mkdir -p /app/data
