@@ -24,6 +24,11 @@ RUN npm prune --omit=dev
 # Create data directory
 RUN mkdir -p /app/data
 
+# Create non-root user for security
+RUN groupadd -r rpgmcp && useradd -r -g rpgmcp rpgmcp
+RUN chown -R rpgmcp:rpgmcp /app
+USER rpgmcp
+
 # Expose ports for TCP and WebSocket transports
 EXPOSE 3000 3001
 
